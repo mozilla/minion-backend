@@ -105,7 +105,16 @@ def get_plan(plan_name):
     plan = plans.find_one({"name": plan_name})
     if not plan:
         return jsonify(success=False)
+    # Fill in the details of the plugin
+    for step in plan['workflow']:
+        plugin = plugins.get(step['plugin_name'])
+        if plugin:
+            step['plugin'] = plugin['descriptor']
     return jsonify(success=True, plan=sanitize_plan(plan))
+
+@app.route("/plugins")
+def get_plugins():
+    return jsonify(success=True, plugins=[plugin['descriptor'] for plugin in plugins.values()])
 
 @app.route("/scan/create/<plan_name>", methods=["PUT"])
 def put_scan_create(plan_name):
