@@ -1,0 +1,25 @@
+{
+    "name": "tickle",
+    "description": "Run basic tests and do a very basic port scan using NMAP.",
+    "workflow": [
+        {
+            "plugin_name": "minion.plugins.basic.HSTSPlugin",
+            "description": "",
+            "configuration": {
+            }
+        },
+        {
+            "plugin_name": "minion.plugins.basic.XFrameOptionsPlugin",
+            "description": "",
+            "configuration": {
+            }
+        },
+        {
+            "plugin_name": "minion.plugins.nmap.NMAPPlugin",
+            "description": "Only scan for known ports",
+            "configuration": {
+                "ports": "U:53,111,137,T:21-25,139,8080,8443"
+            }
+        }
+    ]
+}

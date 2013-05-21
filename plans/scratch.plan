@@ -1,0 +1,18 @@
+{
+    "name": "scratch",
+    "description": "Run Garmr and do a full port scan using NMAP.",
+    "workflow": [
+        {
+            "plugin_name": "minion.plugins.garmr.GarmrPlugin",
+            "description": "",
+            "configuration": {
+            }
+        },
+        {
+            "plugin_name": "minion.plugins.nmap.NMAPPlugin",
+            "description": "Do a full port scan",
+            "configuration": {
+            }
+        }
+    ]
+}

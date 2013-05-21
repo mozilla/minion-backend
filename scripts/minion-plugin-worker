@@ -1,0 +1,4 @@
+#!/bin/sh
+
+celery -A minion.backend.plugin_worker worker --loglevel=INFO --concurrency=32 -Q plugin -n plugin
+

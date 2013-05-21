@@ -1,0 +1,36 @@
+{
+    "name": "basic",
+    "description": "Run basic tests",
+    "workflow": [
+        {
+            "plugin_name": "minion.plugins.basic.XFrameOptionsPlugin",
+            "description": "",
+            "configuration": {
+            }
+        },
+        {
+            "plugin_name": "minion.plugins.basic.HSTSPlugin",
+            "description": "",
+            "configuration": {
+            }
+        },
+        {
+            "plugin_name": "minion.plugins.basic.XContentTypeOptionsPlugin",
+            "description": "",
+            "configuration": {
+            }
+        },
+        {
+            "plugin_name": "minion.plugins.basic.XXSSProtectionPlugin",
+            "description": "",
+            "configuration": {
+            }
+        },
+        {
+            "plugin_name": "minion.plugins.basic.ServerDetailsPlugin",
+            "description": "",
+            "configuration": {
+            }
+        }
+    ]
+}

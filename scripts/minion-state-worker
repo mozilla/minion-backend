@@ -1,0 +1,4 @@
+#!/bin/sh
+
+celery -A minion.backend.state_worker worker --loglevel=INFO --concurrency 1 -Q state -n state -B
+

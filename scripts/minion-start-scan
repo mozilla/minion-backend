@@ -1,0 +1,75 @@
+import datetime
+import json
+import sys
+import uuid
+
+from celery import Celery
+from pymongo import MongoClient
+
+import state_worker
+
+# start-scan <plan-name> <configuration>
+
+if __name__ == "__main__":
+
+    plan_name = sys.argv[1]
+    configuration = sys.argv[2]
+    owner = "stefan@arentz.ca"
+
+    celery = Celery('tasks', broker='amqp://guest@127.0.0.1//')
+    mongodb = MongoClient()
+
+    db = mongodb.minion
+    plans = db.plans
+    scans = db.scans
+
+    #
+    # Load the plan
+    #
+
+    plan = plans.find_one({"name": plan_name})
+    if not plan:
+        print "Cannot find plan", plan_name
+        sys.exit(1)
+
+    #
+    # Create a scan object
+    #
+
+    now = datetime.datetime.utcnow()
+
+    scan = {
+        "id": str(uuid.uuid4()),
+        "state": "QUEUED",
+        "created": now,
+        "started": None,
+        "finished": None,
+        "plan": { "name": plan['name'], "revision": 0 },
+        "configuration": json.loads(configuration),
+        "sessions": [],
+        "meta": { "owner": owner, "tags": [] }
+    }
+
+    for step in plan['workflow']:
+        session = {
+            "id": str(uuid.uuid4()),
+            "state": "QUEUED",
+            "plugin": { "version": "0.0", "name": "Unknown", "class": step["plugin_name"] },
+            "description": step["description"],
+            "artifacts": {},
+            "issues": [],
+            "created": now,
+            "started": None,
+            "finished": None,
+            "progress": None
+        }
+        scan['sessions'].append(session)
+
+    scans.insert(scan)
+
+    #
+    # Queue the scan, which will kick off the state machine
+    #
+
+    print "Starting scan", scan['id']
+    state_worker.scan_start.apply_async([scan['id']], queue='state')
