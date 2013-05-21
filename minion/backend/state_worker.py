@@ -90,7 +90,7 @@ def run_next_plugin(scan_id):
         scan_finish.apply_async([scan_id], queue='state')
     else:
         logger.debug("Found session " + s['id'])
-        send_task("plugin_worker.run_plugin", args=[scan_id, session['id']], queue='plugin')
+        send_task("minion.backend.plugin_worker.run_plugin", args=[scan_id, session['id']], queue='plugin')
 
 
 @celery.task(ignore_result=True)

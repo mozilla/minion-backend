@@ -54,8 +54,8 @@ def run_plugin(scan_id, session_id):
     for line in p.stdout:
         msg = json.loads(line)
         if msg['msg'] == 'start':
-            send_task("state_worker.session_start", args=[scan_id, session_id], queue='state')
+            send_task("minion.backend.state_worker.session_start", args=[scan_id, session_id], queue='state')
         if msg['msg'] == 'issue':
-            send_task("state_worker.session_report_issue", args=[scan_id, session_id, msg['data']], queue='state')
+            send_task("minion.backend.state_worker.session_report_issue", args=[scan_id, session_id, msg['data']], queue='state')
         if msg['msg'] == 'finish':
-            send_task("state_worker.session_finish", args=[scan_id, session_id], queue='state')
+            send_task("minion.backend.state_worker.session_finish", args=[scan_id, session_id], queue='state')
