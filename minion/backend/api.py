@@ -2,6 +2,7 @@
 
 import datetime
 import calendar
+import importlib
 import json
 import uuid
 
@@ -18,6 +19,57 @@ plans = db.plans
 scans = db.scans
 
 app = Flask(__name__)
+
+BUILTIN_PLUGINS = [
+    'minion.plugins.basic.HSTSPlugin',
+    'minion.plugins.basic.XFrameOptionsPlugin',
+    'minion.plugins.basic.XContentTypeOptionsPlugin',
+    'minion.plugins.basic.XXSSProtectionPlugin',
+    'minion.plugins.basic.ServerDetailsPlugin',
+]
+
+# This should move to a configuration file
+OPTIONAL_PLUGINS = [
+    'minion.plugins.garmr.GarmrPlugin',
+    'minion.plugins.nmap.NMAPPlugin',
+    'minion.plugins.skipfish.SkipfishPlugin',
+    'minion.plugins.zap_plugin.ZAPPlugin',
+]
+
+#
+# Build the plugin registry
+#
+
+plugins = {}
+
+def _plugin_descriptor(plugin):
+    return {'class': plugin.__module__ + "." + plugin.__name__,
+            'name': plugin.name(),
+            'version': plugin.version()}
+
+def _split_plugin_class_name(plugin_class_name):
+    e = plugin_class_name.split(".")
+    return '.'.join(e[:-1]), e[-1]
+
+def _register_plugin(plugin_class_name):
+    package_name, class_name = _split_plugin_class_name(plugin_class_name)
+    plugin_module = importlib.import_module(package_name, class_name)
+    plugin_class = getattr(plugin_module, class_name)
+    plugins[plugin_class_name] = {'clazz': plugin_class,
+                                  'descriptor': _plugin_descriptor(plugin_class)}
+    print "Registered plugin", plugin_class_name
+
+for plugin_class_name in BUILTIN_PLUGINS:
+    try:
+        _register_plugin(plugin_class_name)
+    except ImportError as e:
+        pass
+
+for plugin_class_name in OPTIONAL_PLUGINS:
+    try:
+        _register_plugin(plugin_class_name)
+    except ImportError as e:
+        pass
 
 def sanitize_plan(plan):
     if plan.get('_id'):
@@ -80,7 +132,7 @@ def put_scan_create(plan_name):
         session_configuration.update(configuration)
         session = { "id": str(uuid.uuid4()),
                     "state": "QUEUED",
-                    "plugin": { "version": "0.0", "name": "Unknown", "class": step["plugin_name"] },
+                    "plugin": plugins[step['plugin_name']]['descriptor'],
                     "configuration": session_configuration, # TODO Do recursive merging here, not just at the top level
                     "description": step["description"],
                     "artifacts": {},
