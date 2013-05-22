@@ -1,0 +1,12 @@
+{
+    "name": "skipfish",
+    "description": "Run Skipfish in a light configuration",
+    "workflow": [
+        {
+            "plugin_name": "minion.plugins.skipfish.SkipfishPlugin",
+            "description": "",
+            "configuration": {
+            }
+        }
+    ]
+}
