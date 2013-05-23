@@ -28,6 +28,11 @@ BUILTIN_PLUGINS = [
     'minion.plugins.basic.ServerDetailsPlugin',
 ]
 
+TEST_PLUGINS = [
+    'minion.plugins.test.DelayedPlugin',
+    'minion.plugins.test.FailingPlugin'
+]
+
 # This should move to a configuration file
 OPTIONAL_PLUGINS = [
     'minion.plugins.garmr.GarmrPlugin',
@@ -66,6 +71,12 @@ for plugin_class_name in BUILTIN_PLUGINS:
         pass
 
 for plugin_class_name in OPTIONAL_PLUGINS:
+    try:
+        _register_plugin(plugin_class_name)
+    except ImportError as e:
+        pass
+
+for plugin_class_name in TEST_PLUGINS:
     try:
         _register_plugin(plugin_class_name)
     except ImportError as e:
