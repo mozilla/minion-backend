@@ -1,0 +1,12 @@
+{
+    "name": "fail",
+    "description": "Plan that fails",
+    "workflow": [
+        {
+            "plugin_name": "minion.plugins.test.FailingPlugin",
+            "description": "",
+            "configuration": {
+            }
+        }
+    ]
+}

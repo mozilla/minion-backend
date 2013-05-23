@@ -1,0 +1,13 @@
+{
+    "name": "nmap",
+    "description": "Run an nmap scan",
+    "workflow": [
+        {
+            "plugin_name": "minion.plugins.nmap.NMAPPlugin",
+            "description": "Run the NMAP scanner.",
+            "configuration": {
+            }
+        }
+    ]
+}
+

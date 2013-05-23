@@ -1,0 +1,41 @@
+{
+    "name": "long",
+    "description": "Plan that runs long",
+    "workflow": [
+        {
+            "plugin_name": "minion.plugins.test.DelayedPlugin",
+            "description": "",
+            "configuration": {
+                "message": "This is run #1"
+            }
+        },
+        {
+            "plugin_name": "minion.plugins.test.DelayedPlugin",
+            "description": "",
+            "configuration": {
+                "message": "This is run #2"
+            }
+        },
+        {
+            "plugin_name": "minion.plugins.test.DelayedPlugin",
+            "description": "",
+            "configuration": {
+                "message": "This is run #3"
+            }
+        },
+        {
+            "plugin_name": "minion.plugins.test.DelayedPlugin",
+            "description": "",
+            "configuration": {
+                "message": "This is run #4"
+            }
+        },
+        {
+            "plugin_name": "minion.plugins.test.DelayedPlugin",
+            "description": "",
+            "configuration": {
+                "message": "This is run #5"
+            }
+        }
+    ]
+}
