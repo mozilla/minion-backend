@@ -161,11 +161,6 @@ if __name__ == "__main__":
     logging.debug("Running %s/%s" % (plugin_module_name, plugin_class_name))
 
     logging.debug("This is the minion-plugin-runner pid=%d" % os.getpid())
-
-    import os
-    import time
-    time.sleep(5)
-
     logging.debug("We are going to run plugin %s in work directory %s" % (plugin_name, work_directory))
     logging.debug("Plugin configuration is %s" % str(options.configuration))
 
