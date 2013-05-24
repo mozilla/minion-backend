@@ -1,0 +1,183 @@
+#!/usr/bin/env python
+
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+
+import json
+import logging
+import os
+import sys
+import importlib
+import optparse
+import signal
+import uuid
+
+import zope.interface
+from twisted.internet import reactor
+
+from minion.plugins.base import AbstractPlugin, IPluginRunnerCallbacks, IPlugin
+
+
+class JSONCallbacks:
+
+    """This callbacks implementation simply prints json messages to stdout"""
+
+    zope.interface.implements(IPluginRunnerCallbacks)
+
+    def report_start(self):
+        print json.dumps({"msg": "start"})
+
+    def report_progress(self, percentage, description = ""):
+        print json.dumps({"msg": "progress", "data": {"percentage": percentage, "description": description}})
+
+    def report_issues(self, issues):
+        for issue in issues:
+            print json.dumps({"msg": "issue", "data": issue})
+
+    def report_artifacts(self, name, paths):
+        pass
+
+    def report_finish(self, exit_code = "FINISHED"):
+        print json.dumps({"msg": "finish", "data": {"exit_code": exit_code}})
+        reactor.stop()
+
+
+class PluginRunner:
+
+    def __init__(self, reactor, callbacks, plugin_configuration, plugin_session_id, plugin_module_name, plugin_class_name, work_directory):
+
+        self.callbacks = callbacks
+        self.callbacks.runner = self
+        self.reactor = reactor
+        self.plugin_configuration = plugin_configuration
+        self.plugin_session_id = plugin_session_id
+        self.plugin_module_name = plugin_module_name
+        self.plugin_class_name = plugin_class_name
+        self.work_directory = work_directory
+
+        try:
+            self.plugin_module = importlib.import_module(self.plugin_module_name)
+            self.plugin_class = getattr(self.plugin_module, self.plugin_class_name)
+            self.plugin = self.plugin_class()
+            self.plugin.reactor = self.reactor
+            self.plugin.callbacks = self.callbacks
+            self.plugin.work_directory = self.work_directory
+            self.plugin.session_id = self.plugin_session_id
+            self.plugin.configuration = self.plugin_configuration
+        except Exception as e:
+            logging.exception("Failed to load plugin %s/%s" % (self.plugin_module_name, self.plugin_class_name))
+            sys.exit(1)
+
+    def run(self):
+
+        logging.debug("PluginRunner.run")
+
+        try:
+            self.plugin.do_configure()
+        except Exception as e:
+            logging.exception("Failed to configure plugin %s" % str(self.plugin))
+            self.callbacks.report_finish(exit_code = AbstractPlugin.EXIT_STATE_FAILED)
+
+        try:
+            self.callbacks.report_start()
+            self.plugin.do_start()
+        except Exception as e:
+            logging.exception("Failed to start plugin %s" % str(self.plugin))
+            self.callbacks.report_finish(exit_code = AbstractPlugin.EXIT_STATE_FAILED)
+
+    def stop(self):
+
+        logging.debug("PluginRunner.stop")
+
+        try:
+            self.plugin.stopping = True
+            self.plugin.do_stop()
+        except Exception as e:
+            logging.exception("Exception while executing do_stop: " + str(e))
+
+
+if __name__ == "__main__":
+
+    #
+    # Parse options
+    #
+
+    parser = optparse.OptionParser()
+    parser.add_option("-d", "--debug", action="store_true")
+    parser.add_option("-c", "--configuration")
+    parser.add_option("-f", "--configuration-file")
+    parser.add_option("-p", "--plugin")
+    parser.add_option("-w", "--work-root", default="/tmp")
+    parser.add_option("-s", "--session-id", default=str(uuid.uuid4()))
+
+    (options, args) = parser.parse_args()
+
+    #
+    # Set things up, depending on the mode which we are running in.
+    #
+
+    plugin_name = options.plugin
+    plugin_session_id = options.session_id
+    plugin_configuration = {}
+
+    if options.configuration:
+        configuration = json.loads(options.configuration)
+    elif options.configuration_file:
+        with open(options.configuration_file) as f:
+            configuration = json.loads(f.read())
+    else:
+        logging.error("No plugin configuration given")
+        sys.exit(1)
+    
+    callbacks = JSONCallbacks()
+
+    #
+    # Setup the work directory if it does not exist yet
+    #
+
+    work_directory = os.path.join(options.work_root, plugin_session_id)
+    if not os.path.exists(work_directory):
+        try:
+            os.mkdir(work_directory)
+        except Exception as e:
+            logging.error("Cannot create work directory (%s): %s" % (options.work_directory, str(e)))
+            sys.exit(1)
+
+    os.chdir(work_directory)
+
+    #
+    # Create a plugin runner
+    #
+
+    parts = plugin_name.split('.')
+    plugin_module_name = '.'.join(parts[:-1])
+    plugin_class_name = parts[-1]
+    plugin_session_id = None
+
+    level = logging.DEBUG if options.debug else logging.INFO
+    logging.basicConfig(level=level, format='%(asctime)s %(levelname).1s %(message)s', datefmt='%y-%m-%d %H:%M:%S')
+    logging.debug("Running %s/%s" % (plugin_module_name, plugin_class_name))
+
+    logging.debug("This is the minion-plugin-runner pid=%d" % os.getpid())
+
+    import os
+    import time
+    time.sleep(5)
+
+    logging.debug("We are going to run plugin %s in work directory %s" % (plugin_name, work_directory))
+    logging.debug("Plugin configuration is %s" % str(options.configuration))
+
+    runner = PluginRunner(reactor, callbacks, configuration, plugin_session_id, plugin_module_name,
+                          plugin_class_name, work_directory)
+    runner.run()
+
+    # Install signal handlers for USR1 and USR2 which we will receive
+    # when the plugin service wants to stop or kill us.
+
+    signal.signal(signal.SIGUSR1, lambda signum, frame: reactor.callFromThread(runner.stop))
+
+    reactor.run()
+
+    sys.exit(0)
