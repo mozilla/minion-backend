@@ -90,8 +90,7 @@ def run_plugin(scan_id, session_id):
         command = [ "minion-plugin-runner",
                     "-c", json.dumps(session['configuration']),
                     "-p", session['plugin']['class'],
-                    "-s", session_id,
-                    "-m", "json" ]
+                    "-s", session_id ]
 
         plugin_runner_process = subprocess.Popen(command, stdout=subprocess.PIPE)
 
