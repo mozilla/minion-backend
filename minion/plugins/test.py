@@ -20,7 +20,7 @@ class DelayedPlugin(BlockingPlugin):
                 return
             time.sleep(0.5)
         message = self.configuration.get('message', 'Hello, world')
-        self.report_issues([{ "Summary":message, "Severity":"info" }])
+        self.report_issues([{ "Summary":message, "Severity":"Info" }])
         for n in range(0,10):
             if self.stopped:
                 return
