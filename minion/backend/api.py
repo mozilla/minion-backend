@@ -7,13 +7,14 @@ import json
 import uuid
 
 from flask import Flask, render_template, redirect, url_for, session, jsonify, request, session
-from celery import Celery
 from pymongo import MongoClient
-from bson.json_util import dumps
 
 import state_worker
+from minion.backend.utils import backend_config
 
-mongodb = MongoClient()
+cfg = backend_config()
+
+mongodb = MongoClient(host=cfg['mongodb']['host'], port=cfg['mongodb']['port'])
 db = mongodb.minion
 plans = db.plans
 scans = db.scans
@@ -30,7 +31,8 @@ BUILTIN_PLUGINS = [
 
 TEST_PLUGINS = [
     'minion.plugins.test.DelayedPlugin',
-    'minion.plugins.test.FailingPlugin'
+    'minion.plugins.test.ExceptionPlugin',
+    'minion.plugins.test.ErrorPlugin',
 ]
 
 # This should move to a configuration file

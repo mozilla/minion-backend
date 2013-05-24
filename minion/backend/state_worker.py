@@ -12,9 +12,13 @@ from celery.execute import send_task
 from celery.task.control import revoke
 from pymongo import MongoClient
 
+from minion.backend.utils import backend_config
 
-celery = Celery('tasks', broker='amqp://guest@127.0.0.1//', backend='amqp')
-mongodb = MongoClient()
+
+cfg = backend_config()
+
+celery = Celery('tasks', broker=cfg['celery']['broker'], backend=cfg['celery']['backend'])
+mongodb = MongoClient(host=cfg['mongodb']['host'], port=cfg['mongodb']['port'])
 
 db = mongodb.minion
 plans = db.plans
