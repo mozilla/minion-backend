@@ -52,7 +52,8 @@ plugins = {}
 def _plugin_descriptor(plugin):
     return {'class': plugin.__module__ + "." + plugin.__name__,
             'name': plugin.name(),
-            'version': plugin.version()}
+            'version': plugin.version(),
+            'weight': plugin.weight()}
 
 def _split_plugin_class_name(plugin_class_name):
     e = plugin_class_name.split(".")
