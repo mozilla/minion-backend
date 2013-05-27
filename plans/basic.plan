@@ -37,6 +37,12 @@
             "description": "",
             "configuration": {
             }
+        },
+        {
+            "plugin_name": "minion.plugins.basic.CSPPlugin",
+            "description": "",
+            "configuration": {
+            }
         }
     ]
 }

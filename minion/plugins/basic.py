@@ -2,14 +2,19 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+
+import collections
 import logging
 import os
+import re
 import time
 import sys
 
 from twisted.internet.task import LoopingCall
 
 import requests
+
+import minion.curly
 from minion.plugins.base import AbstractPlugin,BlockingPlugin,ExternalProcessPlugin
 
 
@@ -135,4 +140,56 @@ class RobotsPlugin(BlockingPlugin):
         r = requests.get(self.configuration['target'], timeout=5.0)
         if r.status_code != 200:
             self.report_issues([{"Summary":"No robots.txt found", "Severity": "Medium"}])
-        
+
+#
+# CSPPlugin
+#        
+
+def _parse_csp(csp):
+    options = collections.defaultdict(list)
+    p = re.compile(r';\s*')
+    for rule in p.split(csp):
+        a = rule.split()
+        options[a[0]] += a[1:]
+    return options
+
+class CSPPlugin(BlockingPlugin):
+
+    """
+    This plugin checks if a CSP header is set.
+    """
+
+    PLUGIN_NAME = "CSP"
+    PLUGIN_WEIGHT = "light"
+
+    def do_run(self):
+
+        r = minion.curly.get(self.configuration['target'], connect_timeout=5, timeout=15)
+        r.raise_for_status()
+
+        # Fast fail if both headers are set
+        if 'x-xontent-security-policy' in r.headers and 'x-content-security-policy-report-only' in r.headers:
+            self.report_issues([{"Summary":"Both X-Content-Security-Policy and X-Content-Security-Policy-Report-Only headers set", "Severity": "High"}])
+            return
+
+        # Fast fail if only reporting is enabled
+        if 'x-content-security-policy-report-only' in r.headers:
+            self.report_issues([{"Summary":"X-Content-Security-Policy-Report-Only header set", "Severity": "High"}])
+            return
+
+        # Fast fail if no CSP header is set
+        if 'x-content-security-policy' not in r.headers:
+            self.report_issues([{"Summary":"No X-Content-Security-Policy header set", "Severity": "High"}])
+            return
+
+        # Parse the CSP and look for issues
+        csp_config = _parse_csp(r.headers["x-content-security-policy"])
+        if not csp_config:
+            self.report_issues([{"Summary":"Malformed X-Content-Security-Policy header set", "Severity":"High"}])
+            return
+            
+        # Allowing eval-script or inline-script defeats the purpose of CSP?
+        if 'eval-script' in csp_config['options']:
+            self.report_issues([{"Summary":"CSP Rules allow eval-script", "Severity":"High"}])
+        if 'inline-script' in csp_config['options']:
+            self.report_issues([{"Summary":"CSP Rules allow inline-script", "Severity":"High"}])
