@@ -3,9 +3,23 @@
 HOSTNAME=`hostname`
 NODENAME="${HOSTNAME}-plugin"
 
+QUEUE=plugin
+CONCURRENCY=8
+
+case $1 in
+  heavy)
+    QUEUE=plugin-heavy
+    CONCURRENCY=4
+    ;;
+  light)
+    QUEUE=plugin-light
+    CONCURRENCY=16
+    ;;
+esac
+
 celery worker -A minion.backend.plugin_worker \
-	--loglevel=INFO \
-	--concurrency=8 \
-	-Q plugin \
-	-n "$NODENAME"
+  --loglevel=INFO \
+  --concurrency="${CONCURRENCY}" \
+  -Q "${QUEUE}" \
+  -n "$NODENAME"
 
