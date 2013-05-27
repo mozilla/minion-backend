@@ -93,8 +93,19 @@ def scan_start(scan_id):
         # Start the session by queueing it. Remember the celery task id in the session so that we can
         # reference it later if we need to revoke the plugin session.
         #
+        # Before we queue we need to know if this plugin goes in the fast or flow queue. We take this info
+        # from the plugin meta data that is embedded in the session.
+        #
 
-        result = send_task("minion.backend.plugin_worker.run_plugin", args=[scan_id, session['id']], queue='plugin')
+        # TODO Is it possible to ask Celery if the queue actually exists? Would be nice to report an error.
+
+        queue = 'plugin'
+        if 'plugin_worker_queues' in cfg:
+            weight = session['plugin']['weight']
+            if weight in ('heavy', 'light'):
+                queue = cfg['plugin_worker_queues'][weight]
+
+        result = send_task("minion.backend.plugin_worker.run_plugin", args=[scan_id, session['id']], queue=queue)
         scans.update({"id": scan_id, "sessions.id": session['id']}, {"$set": {"sessions.$._task": result.id}})
 
     except Exception as e:
