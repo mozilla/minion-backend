@@ -26,6 +26,9 @@ class XFrameOptionsPlugin(BlockingPlugin):
     will report that back as an error state of the plugin.
     """
 
+    PLUGIN_NAME = "XFrameOptions"
+    PLUGIN_WEIGHT = "light"
+
     def do_run(self):
         r = requests.get(self.configuration['target'], timeout=5.0)
         r.raise_for_status()
@@ -44,6 +47,9 @@ class HSTSPlugin(BlockingPlugin):
     This plugin checks if the site sends out an HSTS header if it is HTTPS enabled.
     """
 
+    PLUGIN_NAME = "HSTS"
+    PLUGIN_WEIGHT = "light"
+
     def do_run(self):
         r = requests.get(self.configuration['target'], timeout=5.0)
         r.raise_for_status()
@@ -59,6 +65,9 @@ class XContentTypeOptionsPlugin(BlockingPlugin):
     """
     This plugin checks if the site sends out a X-Content-Type-Options header
     """
+
+    PLUGIN_NAME = "XContentTypeOptions"
+    PLUGIN_WEIGHT = "light"
 
     def do_run(self):
         r = requests.get(self.configuration['target'], timeout=5.0)
@@ -77,6 +86,9 @@ class XXSSProtectionPlugin(BlockingPlugin):
     """
     This plugin checks if the site sends out a X-XSS-Protection header
     """
+
+    PLUGIN_NAME = "XXSSProtection"
+    PLUGIN_WEIGHT = "light"
 
     def do_run(self):
         r = requests.get(self.configuration['target'], timeout=5.0)
@@ -97,6 +109,9 @@ class ServerDetailsPlugin(BlockingPlugin):
     """
     This plugin checks if the site sends out a Server or X-Powered-By header that exposes details about the server software.
     """
+    
+    PLUGIN_NAME = "ServerDetails"
+    PLUGIN_WEIGHT = "light"
 
     def do_run(self):
         r = requests.get(self.configuration['target'], timeout=5.0)
