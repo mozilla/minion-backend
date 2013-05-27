@@ -120,3 +120,19 @@ class ServerDetailsPlugin(BlockingPlugin):
         for header in HEADERS:
             if header in r.headers:
                 self.report_issues([{ "Summary":"Site sets the '%s' header" % header, "Severity":"Medium" }])
+
+
+class RobotsPlugin(BlockingPlugin):
+    
+    """
+    This plugin checks if the site has a robots.txt.
+    """
+
+    PLUGIN_NAME = "Robots"
+    PLUGIN_WEIGHT = "light"
+
+    def do_run(self):
+        r = requests.get(self.configuration['target'], timeout=5.0)
+        if r.status_code != 200:
+            self.report_issues([{"Summary":"No robots.txt found", "Severity": "Medium"}])
+        

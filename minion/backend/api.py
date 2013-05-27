@@ -27,6 +27,7 @@ BUILTIN_PLUGINS = [
     'minion.plugins.basic.XContentTypeOptionsPlugin',
     'minion.plugins.basic.XXSSProtectionPlugin',
     'minion.plugins.basic.ServerDetailsPlugin',
+    'minion.plugins.basic.RobotsPlugin',
 ]
 
 TEST_PLUGINS = [

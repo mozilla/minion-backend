@@ -31,6 +31,12 @@
             "description": "",
             "configuration": {
             }
+        },
+        {
+            "plugin_name": "minion.plugins.basic.RobotsPlugin",
+            "description": "",
+            "configuration": {
+            }
         }
     ]
 }
