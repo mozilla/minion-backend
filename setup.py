@@ -9,7 +9,8 @@ install_requires = [
     'flask',
     'pymongo',
     'requests',
-    'twisted'
+    'twisted',
+    'pycurl'
 ]
 
 setup(name="minion-backend",
