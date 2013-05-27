@@ -41,6 +41,7 @@ OPTIONAL_PLUGINS = [
     'minion.plugins.nmap.NMAPPlugin',
     'minion.plugins.skipfish.SkipfishPlugin',
     'minion.plugins.zap_plugin.ZAPPlugin',
+    'minion.plugins.ssl.SSLPlugin'
 ]
 
 #
