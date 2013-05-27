@@ -72,6 +72,10 @@ class AbstractPlugin:
     def version(cls):
         return getattr(cls, "PLUGIN_VERSION", "0.0")
 
+    @classmethod
+    def weight(cls):
+        return getattr(cls, "PLUGIN_WEIGHT", "heavy")
+
     zope.interface.implements(IPlugin, IPluginRunnerCallbacks)
 
     # Plugins can finish in three states: succesfully, stopped and failed.
