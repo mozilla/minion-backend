@@ -29,7 +29,7 @@ class IPluginRunnerCallbacks(zope.interface.Interface):
         """Plugin has issues to report."""
     def report_artifacts(name, paths):
         """Plugin has files available."""
-    def report_finish(exit_code = None):
+    def report_finish(state = None):
         """Plugin is done"""
 
 
@@ -83,6 +83,7 @@ class AbstractPlugin:
     EXIT_STATE_FINISHED = "FINISHED"
     EXIT_STATE_STOPPED  = "STOPPED"
     EXIT_STATE_FAILED   = "FAILED"
+    EXIT_STATE_ABORTED  = "ABORTED"
 
     # Plugin methods. By default these do nothing.
 
@@ -108,11 +109,15 @@ class AbstractPlugin:
             issue['Id'] = str(uuid.uuid4())
         self.callbacks.report_issues(issues)
 
+    def report_issue(self, issue):
+        self.report_issues([issue])
+
     def report_artifacts(self, name, paths):
         self.callbacks.report_artifacts(name, paths)
 
-    def report_finish(self, exit_code=EXIT_STATE_FINISHED):
-        self.callbacks.report_finish(exit_code=exit_code)
+    def report_finish(self, state=EXIT_STATE_FINISHED):
+        self.callbacks.report_finish(state=state)
+        reactor.stop()
 
 
 class BlockingPlugin(AbstractPlugin):
@@ -129,19 +134,17 @@ class BlockingPlugin(AbstractPlugin):
         self.stopped = False
 
     def do_run(self):
-        logging.error("You forgot to override BlockingPlugin.run()")
+        self.report_issue({"Severity": "Error", "Summary": "You forgot to override BlockingPlugin.run()"})
+        return AbstractPlugin.EXIT_STATUS_FAILED
 
     def _finish_with_success(self, result):
-        logging.debug("BlockingPlugin._finish_with_success")
-        if self.stopped:
-            self.report_finish(exit_code = AbstractPlugin.EXIT_STATE_STOPPED)
-        else:
-            self.report_finish(exit_code = AbstractPlugin.EXIT_STATE_FINISHED)
+        logging.debug("BlockingPlugin._finish_with_success: %s" % str(result))
+        self.report_finish(state = result or AbstractPlugin.EXIT_STATE_FINISHED)
 
     def _finish_with_failure(self, failure):
-        #logging.error("BlockingPlugin._finish_with_failure: " + str(failure))
-        self.report_issues([{"Summary":str(failure.value), "Severity":"Error"}])
-        self.report_finish(exit_code = AbstractPlugin.EXIT_STATE_FAILED)
+        logging.debug("BlockingPlugin._finish_with_failure: %s" % str(failure))
+        self.report_issue({"Severity": "Error", "Summary": str(failure.value)}) # TODO Return a failure structure? {message, exception, etc...} ?
+        self.report_finish(state = AbstractPlugin.EXIT_STATE_FAILED)
 
     def do_start(self):
         deferred = deferToThread(self.do_run)
@@ -221,7 +224,7 @@ class ExternalProcessPlugin(AbstractPlugin):
     def do_process_ended(self, status):
         logging.debug("ExternalProcessPlugin.do_process_ended")
         if self.stopping:
-            self.report_finish("STOPPED")
+            self.report_finish(AbstractPlugin.EXIT_STATE_STOPPED)
         else:
             self.report_finish()
 

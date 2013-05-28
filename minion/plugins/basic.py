@@ -39,6 +39,7 @@ class AlivePlugin(BlockingPlugin):
                       "Severity":"Fatal",
                       "URLs": [ { "URL": self.configuration['target'], "Extra": str(e) } ] }
             self.report_issues([issue])
+            return AbstractPlugin.EXIT_STATE_ABORTED
 
 #
 # XFrameOptionsPlugin
