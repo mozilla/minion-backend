@@ -10,6 +10,7 @@ from flask import Flask, render_template, redirect, url_for, session, jsonify, r
 from pymongo import MongoClient
 
 import state_worker
+import scan_worker
 from minion.backend.utils import backend_config
 
 cfg = backend_config()
@@ -102,11 +103,11 @@ def sanitize_scan(scan):
         sanitize_plan(scan['plan'])
     if scan.get('_id'):
         del scan['_id']
-    for field in ('created', 'started', 'finished'):
+    for field in ('created', 'queued', 'started', 'finished'):
         if scan.get(field) is not None:
             scan[field] = calendar.timegm(scan[field].utctimetuple())
     for session in scan['sessions']:
-        for field in ('created', 'started', 'finished'):
+        for field in ('created', 'queued', 'started', 'finished'):
             if session.get(field) is not None:
                 session[field] = calendar.timegm(session[field].utctimetuple())
     return scan
@@ -146,8 +147,9 @@ def put_scan_create(plan_name):
     # Create a scan object
     now = datetime.datetime.utcnow()
     scan = { "id": str(uuid.uuid4()),
-             "state": "QUEUED",
+             "state": "CREATED",
              "created": now,
+             "queued": None,
              "started": None,
              "finished": None,
              "plan": { "name": plan['name'], "revision": 0 },
@@ -158,13 +160,14 @@ def put_scan_create(plan_name):
         session_configuration = step['configuration']
         session_configuration.update(configuration)
         session = { "id": str(uuid.uuid4()),
-                    "state": "QUEUED",
+                    "state": "CREATED",
                     "plugin": plugins[step['plugin_name']]['descriptor'],
                     "configuration": session_configuration, # TODO Do recursive merging here, not just at the top level
                     "description": step["description"],
                     "artifacts": {},
                     "issues": [],
                     "created": now,
+                    "queued": None,
                     "started": None,
                     "finished": None,
                     "progress": None }
@@ -184,14 +187,14 @@ def put_scan_state(scan_id):
         return jsonify(success=False, error='unknown-state')
     # Handle start
     if state == 'START':
-        if scan['state'] != 'QUEUED':
-            return jsonify(success=False, error='invalid-state-transition')
-        state_worker.scan_start.apply_async([scan['id']], queue='state')
+        if scan['state'] != 'CREATED':
+            return jsonify(success=False, error='invalid-state-transition') 
+        # Queue the scan to start
+        scans.update({"id": scan_id}, {"$set": {"state": "QUEUED", "queued": datetime.datetime.utcnow()}})
+        scan_worker.scan.apply_async([scan['id']], countdown=3, queue='scan')
     # Handle stop
     if state == 'STOP':
-        if scan['state'] != 'STARTED':
-            return jsonify(success=False, error='invalid-state-transition')
-        state_worker.scan_stop.apply_async([scan['id']], queue='state')
+        scans.update({"id": scan_id}, {"$set": {"state": "STOPPED", "queued": datetime.datetime.utcnow()}})
     return jsonify(success=True)
 
 if __name__ == "__main__":
