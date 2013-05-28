@@ -3,6 +3,12 @@
     "description": "Run basic tests",
     "workflow": [
         {
+            "plugin_name": "minion.plugins.basic.AlivePlugin",
+            "description": "",
+            "configuration": {
+            }
+        },
+        {
             "plugin_name": "minion.plugins.basic.XFrameOptionsPlugin",
             "description": "",
             "configuration": {

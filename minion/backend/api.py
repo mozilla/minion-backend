@@ -22,6 +22,7 @@ scans = db.scans
 app = Flask(__name__)
 
 BUILTIN_PLUGINS = [
+    'minion.plugins.basic.AlivePlugin',
     'minion.plugins.basic.HSTSPlugin',
     'minion.plugins.basic.XFrameOptionsPlugin',
     'minion.plugins.basic.XContentTypeOptionsPlugin',

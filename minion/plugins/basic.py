@@ -17,6 +17,34 @@ import requests
 import minion.curly
 from minion.plugins.base import AbstractPlugin,BlockingPlugin,ExternalProcessPlugin
 
+#
+# AlivePlugin
+#
+
+class AlivePlugin(BlockingPlugin):
+
+    """
+    This plugin checks if the site is alive or not. If any error occurs, the whole plan
+    will be aborted. This is useful to have as the first plugin in a workflow. Anything
+    non-200 will be seen as a fatal error.
+    """
+
+    PLUGIN_NAME = "Alive"
+    PLUGIN_WEIGHT = "light"
+
+    def do_run(self):
+        try:
+            r = minion.curly.get(self.configuration['target'], connect_timeout=5, timeout=15)
+            r.raise_for_status()
+        except Exception as e:
+            issue = { "Summary":"Site could not be reached",
+                      "Severity":"Error",
+                      "URLs": [ { "URL": self.configuration['target'], "Extra": str(e) } ] }
+            self.report_issues([issue])
+
+#
+# XFrameOptionsPlugin
+#
 
 class XFrameOptionsPlugin(BlockingPlugin):
 
