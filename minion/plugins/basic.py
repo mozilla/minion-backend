@@ -12,8 +12,6 @@ import sys
 
 from twisted.internet.task import LoopingCall
 
-import requests
-
 import minion.curly
 from minion.plugins.base import AbstractPlugin,BlockingPlugin,ExternalProcessPlugin
 
@@ -63,7 +61,7 @@ class XFrameOptionsPlugin(BlockingPlugin):
     PLUGIN_WEIGHT = "light"
 
     def do_run(self):
-        r = requests.get(self.configuration['target'], timeout=5.0)
+        r = minion.curly.get(self.configuration['target'], connect_timeout=5, timeout=15)
         r.raise_for_status()
         if 'x-frame-options' in r.headers:
             if r.headers['x-frame-options'].upper() not in ('DENY', 'SAMEORIGIN'):
@@ -84,7 +82,7 @@ class HSTSPlugin(BlockingPlugin):
     PLUGIN_WEIGHT = "light"
 
     def do_run(self):
-        r = requests.get(self.configuration['target'], timeout=5.0)
+        r = minion.curly.get(self.configuration['target'], connect_timeout=5, timeout=15)
         r.raise_for_status()
         if r.url.startswith("https://"):
             if 'strict-transport-security' not in r.headers:
@@ -103,7 +101,7 @@ class XContentTypeOptionsPlugin(BlockingPlugin):
     PLUGIN_WEIGHT = "light"
 
     def do_run(self):
-        r = requests.get(self.configuration['target'], timeout=5.0)
+        r = minion.curly.get(self.configuration['target'], connect_timeout=5, timeout=15)
         r.raise_for_status()
         if 'X-Content-Type-Options' not in r.headers:
             self.report_issues([{ "Summary":"Site does not set X-Content-Type-Options header", "Severity":"High" }])
@@ -124,7 +122,7 @@ class XXSSProtectionPlugin(BlockingPlugin):
     PLUGIN_WEIGHT = "light"
 
     def do_run(self):
-        r = requests.get(self.configuration['target'], timeout=5.0)
+        r = minion.curly.get(self.configuration['target'], connect_timeout=5, timeout=15)
         r.raise_for_status()
         if 'X-XSS-Protection' not in r.headers:
             self.report_issues([{ "Summary":"Site does not set X-XSS-Protection header", "Severity":"High" }])
@@ -147,7 +145,7 @@ class ServerDetailsPlugin(BlockingPlugin):
     PLUGIN_WEIGHT = "light"
 
     def do_run(self):
-        r = requests.get(self.configuration['target'], timeout=5.0)
+        r = minion.curly.get(self.configuration['target'], connect_timeout=5, timeout=15)
         r.raise_for_status()
         HEADERS = ('Server', 'X-Powered-By', 'X-AspNet-Version', 'X-AspNetMvc-Version', 'X-Backend-Server')
         for header in HEADERS:
@@ -165,8 +163,8 @@ class RobotsPlugin(BlockingPlugin):
     PLUGIN_WEIGHT = "light"
 
     def do_run(self):
-        r = requests.get(self.configuration['target'], timeout=5.0)
-        if r.status_code != 200:
+        r = minion.curly.get(self.configuration['target'], connect_timeout=5, timeout=15)
+        if r.status != 200:
             self.report_issues([{"Summary":"No robots.txt found", "Severity": "Medium"}])
 
 #
