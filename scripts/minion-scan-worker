@@ -1,0 +1,4 @@
+#!/bin/sh
+
+celery -A minion.backend.scan_worker worker --loglevel=INFO --concurrency 16 -Q scan -n scan
+

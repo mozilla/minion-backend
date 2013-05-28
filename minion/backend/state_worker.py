@@ -89,7 +89,7 @@ def scan_start(scan_id):
         # Find the next plugin session that we can schedule. If there are none then this scan is done. We
         # mark the scan as FINISHED and are done with this workflow.
         #
-
+        
         session = find_next_session(scan)
         if not session:
             logger.debug("Did not find next session")

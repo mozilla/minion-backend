@@ -8,7 +8,9 @@ import json
 import os
 import uuid
 import signal
+import socket
 import subprocess
+import traceback
 
 from celery import Celery
 from celery.signals import celeryd_after_setup
@@ -58,7 +60,7 @@ def run_plugin(scan_id, session_id):
             logger.error("Cannot find session %s/%s" % (scan_id, session_id))
             return
 
-        if scan['state'] == 'STOPPED':
+        if scan['state'] in ('STOPPING', 'STOPPED'):
             return
 
         if scan['state'] != 'STARTED':
@@ -75,12 +77,17 @@ def run_plugin(scan_id, session_id):
             logger.error("Cannot find session %s/%s" % (scan_id, session_id))
             return
 
-        if session['state'] == 'STOPPED':
-            return
-
         if session['state'] != 'QUEUED':
             logger.error("Session %s/%s has invalid state. Expected QUEUED but got %s" % (scan_id, session_id, session['state']))
             return
+
+        #
+        # Move the session in the STARTED state
+        #
+
+        scans.update({"id": scan['id'], "sessions.id": session['id']},
+                     {"$set": {"sessions.$.state": "STARTED",
+                               "sessions.$.started": datetime.datetime.utcnow()}})
 
         #
         # Start a subprocess with the plugin runner. The plugin runner manages running a plugin and ensures that
@@ -99,24 +106,57 @@ def run_plugin(scan_id, session_id):
         # the plugin. We simply queue those to the state queue which will do the right thing.
         #
 
+        finished = None
+
         for line in plugin_runner_process.stdout:
+            # Ignore messages that we get after a finish message
+            if finished is not None:
+                logger.error("Plugin emitted (ignored) message after finishing: " + line)
+                continue
+            
+            # Parse the message
             msg = json.loads(line)
-            if msg['msg'] == 'start':
-                send_task("minion.backend.state_worker.session_start",
-                          args=[scan_id, session_id], queue='state').get()
+            
+            # Issue: persist it
             if msg['msg'] == 'issue':
                 send_task("minion.backend.state_worker.session_report_issue",
                           args=[scan_id, session_id, msg['data']], queue='state').get()
+                
+            # Progress: update the progress
+            if msg['msg'] == 'progress':
+                pass # TODO
+            
+            # Finish: update the session state, wait for the plugin runner to finish, return the state
             if msg['msg'] == 'finish':
-                send_task("minion.backend.state_worker.session_finish",
-                          args=[scan_id, session_id], queue='state').get()
+                finished = msg['data']['state']
+                if msg['data']['state'] in ('FINISHED', 'FAILED', 'STOPPED', 'ABORTED'):
+                    scans.update({"id": scan['id'], "sessions.id": session['id']},
+                                 {"$set": {"sessions.$.state": msg['data']['state'],
+                                           "sessions.$.finished": datetime.datetime.utcnow()}})
 
+        plugin_runner_process.wait()
+
+        return finished
+    
     except Exception as e:
 
-        logger.exception("Error while processing task. Marking scan as FAILED.")
+        #
+        # Our exception strategy is simple: if anything was thrown above that we did not explicitly catch then
+        # we assume there was a non recoverable error that made the plugin session fail. We mark it as such and
+        # record the exception.
+        #
+
+        logger.exception("Error while running plugin session. Marking session FAILED.")
 
         try:
-            if scan:
-                scans.update({"id": scan_id}, {"$set": {"state": "FAILED", "finished": datetime.datetime.utcnow()}})
+            failure = { "hostname": socket.gethostname(),
+                        "message": str(e),
+                        "exception": traceback.format_exc() }
+            scans.update({"id": scan_id, "sessions.id": session_id},
+                         {"$set": {"sessions.$.state": "FAILED",
+                                   "sessions.$.finished": datetime.datetime.utcnow(),
+                                   "sessions.$.failure": failure}})
         except Exception as e:
             logger.exception("Error when marking scan as FAILED")
+
+        return "FAILED"
