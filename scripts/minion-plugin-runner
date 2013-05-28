@@ -39,9 +39,8 @@ class JSONCallbacks:
     def report_artifacts(self, name, paths):
         pass
 
-    def report_finish(self, exit_code = "FINISHED"):
-        print json.dumps({"msg": "finish", "data": {"exit_code": exit_code}})
-        reactor.stop()
+    def report_finish(self, state = "FINISHED"):
+        print json.dumps({"msg": "finish", "data": {"state": state}})
 
 
 class PluginRunner:
