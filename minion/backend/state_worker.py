@@ -290,6 +290,24 @@ def session_finish(scan_id, session_id):
             return
 
         #
+        # If the last issue reported is FATAL then we abort this whole run
+        #
+
+        issue = session['issues'][-1]
+        if issue['Severity'] == 'Fatal':
+            # Mark the scan as failed
+            scans.update({"id": scan_id}, {"$set": {"state": "FAILED", "finished": datetime.datetime.utcnow()}})
+            # Mark this session as failed
+            session['state'] = 'FAILED'
+            scans.update({"id": scan_id, "sessions.id": session['id']}, {"$set": {"sessions.$.state": "FAILED", "sessions.$.finished": datetime.datetime.utcnow()}})
+            # Mark all queued sessions as cancelled
+            for session in scan['sessions']:
+                if session['state'] == 'QUEUED':
+                    session['state'] = 'CANCELLED'
+                    scans.update({"id": scan_id, "sessions.id": session['id']}, {"$set": {"sessions.$.state": "CANCELLED", "sessions.$.finished": datetime.datetime.utcnow()}})
+            return
+        
+        #
         # Change the session state to FINISHED
         #
 

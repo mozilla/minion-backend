@@ -36,7 +36,7 @@ class AlivePlugin(BlockingPlugin):
             r.raise_for_status()
         except Exception as e:
             issue = { "Summary":"Site could not be reached",
-                      "Severity":"Error",
+                      "Severity":"Fatal",
                       "URLs": [ { "URL": self.configuration['target'], "Extra": str(e) } ] }
             self.report_issues([issue])
 
