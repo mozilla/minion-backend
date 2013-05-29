@@ -154,7 +154,7 @@ def scan_stop(scan_id):
             if session['state'] in ('QUEUED', 'STARTED'):
                 scans.update({"id": scan_id, "sessions.id": session['id']}, {"$set": {"sessions.$.state": "STOPPED", "sessions.$.finished": datetime.datetime.utcnow()}})            
             if '_task' in session:
-                revoke(session['_task'])
+                revoke(session['_task'], terminate=True, signal='SIGUSR1')
 
     except Exception as e:
 

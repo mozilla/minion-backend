@@ -10,6 +10,7 @@ from celery.app.control import Control
 from celery.utils.log import get_task_logger
 from celery.execute import send_task
 from celery.task.control import revoke
+from celery.exceptions import TaskRevokedError
 from pymongo import MongoClient
 
 from minion.backend.utils import backend_config
@@ -85,17 +86,21 @@ def scan(scan_id):
         queue = queue_for_session(session, cfg)
         result = send_task("minion.backend.plugin_worker.run_plugin", args=[scan_id, session['id']], queue=queue)
         scans.update({"id": scan_id, "sessions.id": session['id']}, {"$set": {"sessions.$._task": result.id}})
-        plugin_result = result.get()
+
+        try:
+            plugin_result = result.get()
+        except TaskRevokedError as e:
+            plugin_result = "STOPPED"
 
         session['state'] = plugin_result
 
         #
-        # If the plugin aborted this workflow then stop
+        # If the user stopped the workflow or if the plugin aborted then stop the whole scan
         #
         
-        if plugin_result == "ABORTED":
+        if plugin_result in ('ABORTED', 'STOPPED'):
             # Mark the scan as failed
-            scans.update({"id": scan_id}, {"$set": {"state": "ABORTED", "finished": datetime.datetime.utcnow()}})
+            scans.update({"id": scan_id}, {"$set": {"state": plugin_result, "finished": datetime.datetime.utcnow()}})
             # Mark all remaining sessions as cancelled
             for s in scan['sessions']:
                 if s['state'] == 'CREATED':
