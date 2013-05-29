@@ -139,7 +139,10 @@ class BlockingPlugin(AbstractPlugin):
 
     def _finish_with_success(self, result):
         logging.debug("BlockingPlugin._finish_with_success: %s" % str(result))
-        self.report_finish(state = result or AbstractPlugin.EXIT_STATE_FINISHED)
+        if self.stopped:
+            self.report_finish(state = result or AbstractPlugin.EXIT_STATE_STOPPED)
+        else:
+            self.report_finish(state = result or AbstractPlugin.EXIT_STATE_FINISHED)
 
     def _finish_with_failure(self, failure):
         logging.debug("BlockingPlugin._finish_with_failure: %s" % str(failure))
