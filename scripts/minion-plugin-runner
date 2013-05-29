@@ -77,14 +77,14 @@ class PluginRunner:
             self.plugin.do_configure()
         except Exception as e:
             logging.exception("Failed to configure plugin %s" % str(self.plugin))
-            self.callbacks.report_finish(exit_code = AbstractPlugin.EXIT_STATE_FAILED)
+            self.callbacks.report_finish(state = AbstractPlugin.EXIT_STATE_FAILED)
 
         try:
             self.callbacks.report_start()
             self.plugin.do_start()
         except Exception as e:
             logging.exception("Failed to start plugin %s" % str(self.plugin))
-            self.callbacks.report_finish(exit_code = AbstractPlugin.EXIT_STATE_FAILED)
+            self.callbacks.report_finish(state = AbstractPlugin.EXIT_STATE_FAILED)
 
     def stop(self):
 
