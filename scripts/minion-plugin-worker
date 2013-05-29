@@ -20,6 +20,7 @@ esac
 celery worker -A minion.backend.plugin_worker \
   --loglevel=INFO \
   --concurrency="${CONCURRENCY}" \
+  --maxtasksperchild=1 \
   -Q "${QUEUE}" \
   -n "$NODENAME"
 
