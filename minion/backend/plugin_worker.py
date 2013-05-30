@@ -7,9 +7,11 @@ import datetime
 import json
 import os
 import uuid
+import requests
 import signal
 import socket
 import subprocess
+import time
 import traceback
 
 from twisted.internet import reactor
@@ -21,22 +23,14 @@ from celery.signals import celeryd_after_setup
 from celery.utils.log import get_task_logger
 from celery.execute import send_task
 
-from pymongo import MongoClient
-
 from minion.backend.utils import backend_config
 
+
 cfg = backend_config()
-
 celery = Celery('tasks', broker=cfg['celery']['broker'], backend=cfg['celery']['backend'])
-mongodb = MongoClient(host=cfg['mongodb']['host'], port=cfg['mongodb']['port'])
-
-db = mongodb.minion
-plans = db.plans
-scans = db.scans
-
-
 logger = get_task_logger(__name__)
 plugin_runner_process = None
+
 
 #
 #
@@ -152,6 +146,12 @@ class Runner(ProcessProtocol):
         self._terminate_id = reactor.callLater(10, self.terminate)
 
 
+def get_scan(api_url, scan_id):
+    r = requests.get(api_url + "/scans/" + scan_id)
+    r.raise_for_status()
+    j = r.json()
+    return j['scan']
+
 #
 # run_plugin
 #
@@ -173,9 +173,9 @@ def run_plugin(scan_id, session_id):
         # the state is not STARTED.
         #
 
-        scan = scans.find_one({"id": scan_id, "sessions.id": session_id})
+        scan = get_scan(cfg['api']['url'], scan_id)
         if not scan:
-            logger.error("Cannot find session %s/%s" % (scan_id, session_id))
+            logger.error("Cannot load scan %s" % scan_id)
             return
 
         if scan['state'] in ('STOPPING', 'STOPPED'):
@@ -203,9 +203,12 @@ def run_plugin(scan_id, session_id):
         # Move the session in the STARTED state
         #
 
-        scans.update({"id": scan['id'], "sessions.id": session['id']},
-                     {"$set": {"sessions.$.state": "STARTED",
-                               "sessions.$.started": datetime.datetime.utcnow()}})
+        #scans.update({"id": scan['id'], "sessions.id": session['id']},
+        #             {"$set": {"sessions.$.state": "STARTED",
+        #                       "sessions.$.started": datetime.datetime.utcnow()}})
+        send_task("minion.backend.state_worker.session_start",
+                  [scan_id, session_id, time.time()],
+                  queue='state').get()
 
         #
         # Start a subprocess with the plugin runner. The plugin runner manages running a plugin and ensures that
@@ -227,7 +230,8 @@ def run_plugin(scan_id, session_id):
                 # Issue: persist it
                 if msg['msg'] == 'issue':
                     send_task("minion.backend.state_worker.session_report_issue",
-                              args=[scan_id, session_id, msg['data']], queue='state').get()
+                              args=[scan_id, session_id, msg['data']],
+                              queue='state').get()
                 # Progress: update the progress
                 if msg['msg'] == 'progress':
                     pass # TODO
@@ -235,9 +239,12 @@ def run_plugin(scan_id, session_id):
                 if msg['msg'] == 'finish':
                     finished = msg['data']['state']
                     if msg['data']['state'] in ('FINISHED', 'FAILED', 'STOPPED', 'TERMINATED', 'TIMEOUT', 'ABORTED'):
-                        scans.update({"id": scan['id'], "sessions.id": session['id']},
-                                     {"$set": {"sessions.$.state": msg['data']['state'],
-                                               "sessions.$.finished": datetime.datetime.utcnow()}})
+                        send_task("minion.backend.state_worker.session_finish",
+                                  [scan['id'], session['id'], msg['data']['state'], time.time()],
+                                  queue='state').get()
+                        #scans.update({"id": scan['id'], "sessions.id": session['id']},
+                        #             {"$set": {"sessions.$.state": msg['data']['state'],
+                        #                       "sessions.$.finished": datetime.datetime.utcnow()}})
                 
 
             runner = Runner(session['plugin']['class'], session['configuration'], session_id, message_callback)
@@ -278,7 +285,8 @@ def run_plugin(scan_id, session_id):
                 # Issue: persist it
                 if msg['msg'] == 'issue':
                     send_task("minion.backend.state_worker.session_report_issue",
-                              args=[scan_id, session_id, msg['data']], queue='state').get()
+                              args=[scan_id, session_id, msg['data']],
+                              queue='state').get()
 
                 # Progress: update the progress
                 if msg['msg'] == 'progress':
@@ -288,9 +296,12 @@ def run_plugin(scan_id, session_id):
                 if msg['msg'] == 'finish':
                     finished = msg['data']['state']
                     if msg['data']['state'] in ('FINISHED', 'FAILED', 'STOPPED', 'ABORTED'):
-                        scans.update({"id": scan['id'], "sessions.id": session['id']},
-                                     {"$set": {"sessions.$.state": msg['data']['state'],
-                                               "sessions.$.finished": datetime.datetime.utcnow()}})
+                        send_task("minion.backend.state_worker.session_finish",
+                                  [scan['id'], session['id'], msg['data']['state'], time.time()],
+                                  queue='state').get()
+                        #scans.update({"id": scan['id'], "sessions.id": session['id']},
+                        #             {"$set": {"sessions.$.state": msg['data']['state'],
+                        #                       "sessions.$.finished": datetime.datetime.utcnow()}})
 
             plugin_runner_process.wait()
 
@@ -310,10 +321,13 @@ def run_plugin(scan_id, session_id):
             failure = { "hostname": socket.gethostname(),
                         "message": str(e),
                         "exception": traceback.format_exc() }
-            scans.update({"id": scan_id, "sessions.id": session_id},
-                         {"$set": {"sessions.$.state": "FAILED",
-                                   "sessions.$.finished": datetime.datetime.utcnow(),
-                                   "sessions.$.failure": failure}})
+            #scans.update({"id": scan_id, "sessions.id": session_id},
+            #             {"$set": {"sessions.$.state": "FAILED",
+            #                       "sessions.$.finished": datetime.datetime.utcnow(),
+            #                       "sessions.$.failure": failure}})
+            send_task("minion.backend.state_worker.session_finish",
+                      [scan_id, session_id, "FAILED", time.time(), failure],
+                      queue='state').get()
         except Exception as e:
             logger.exception("Error when marking scan as FAILED")
 

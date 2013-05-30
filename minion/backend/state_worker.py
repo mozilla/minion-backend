@@ -16,113 +16,31 @@ from minion.backend.utils import backend_config
 
 
 cfg = backend_config()
-
 celery = Celery('tasks', broker=cfg['celery']['broker'], backend=cfg['celery']['backend'])
 mongodb = MongoClient(host=cfg['mongodb']['host'], port=cfg['mongodb']['port'])
-
 db = mongodb.minion
 plans = db.plans
 scans = db.scans
-
-
 logger = get_task_logger(__name__)
 
 
-#
-# Utility methods
-#
-
 def find_session(scan, session_id):
-    """Find a session in a scan"""
-    for s in scan['sessions']:
-        if s['id'] == session_id:
-            return s
+    for session in scan['sessions']:
+        if session['id'] == session_id:
+            return session
 
-def find_next_session(scan):
-    """Find the next unscheduled session in a scan"""
-    for s in scan['sessions']:
-        if s['state'] == 'QUEUED':
-            return s
-
-def queue_for_session(session, cfg):
-    queue = 'plugin'
-    if 'plugin_worker_queues' in cfg:
-        weight = session['plugin']['weight']
-        if weight in ('heavy', 'light'):
-            queue = cfg['plugin_worker_queues'][weight]
-    return queue
-
-#
-# start_scan - Called when the user wants to start a scan
-#
 
 @celery.task
-def scan_start(scan_id):
+def scan_start(scan_id, t):
+    scans.update({"id": scan_id},
+                 {"$set": {"state": "STARTED",
+                           "started": datetime.datetime.utcfromtimestamp(t)}})
 
-    try:
-    
-        #
-        # See if the scan exists.
-        #
-
-        scan = scans.find_one({'id': scan_id})
-        if not scan:
-            logger.error("Cannot find scan %s" % scan_id)
-            return
-
-        #
-        # Is the scan in the right state to be started?
-        #
-
-        if scan['state'] != 'QUEUED':
-            logger.error("Scan %s has invalid state. Expected QUEUED but got %s" % (scan_id, scan['state']))
-            return
-
-        #
-        # Move the scan to the STARTED state
-        #
-
-        scan['state'] = 'STARTED'
-        scans.update({"id": scan_id}, {"$set": {"state": "STARTED", "started": datetime.datetime.utcnow()}})
-
-        #
-        # Find the next plugin session that we can schedule. If there are none then this scan is done. We
-        # mark the scan as FINISHED and are done with this workflow.
-        #
-        
-        session = find_next_session(scan)
-        if not session:
-            logger.debug("Did not find next session")
-            scans.update({"id": scan_id}, {"$set": {"state": "FINISHED", "finished": datetime.datetime.utcnow()}})
-            return
-
-        #
-        # Start the session by queueing it. Remember the celery task id in the session so that we can
-        # reference it later if we need to revoke the plugin session.
-        #
-        # Before we queue we need to know if this plugin goes in the fast or flow queue. We take this info
-        # from the plugin meta data that is embedded in the session.
-        #
-
-        # TODO Is it possible to ask Celery if the queue actually exists? Would be nice to report an error.
-
-        queue = queue_for_session(session, cfg)
-        result = send_task("minion.backend.plugin_worker.run_plugin", args=[scan_id, session['id']], queue=queue)
-        scans.update({"id": scan_id, "sessions.id": session['id']}, {"$set": {"sessions.$._task": result.id}})
-
-    except Exception as e:
-
-        logger.exception("Error while processing task. Marking scan as FAILED.")
-
-        try:
-            if scan:
-                scans.update({"id": scan_id}, {"$set": {"state": "FAILED", "finished": datetime.datetime.utcnow()}})
-        except Exception as e:
-            logger.exception("Error when marking scan as FAILED")
-
-#
-# scan_stop
-#
+@celery.task
+def scan_finish(scan_id, state, t):
+    scans.update({"id": scan_id},
+                 {"$set": {"state": state,
+                           "finished": datetime.datetime.utcfromtimestamp(t)}})
 
 @celery.task
 def scan_stop(scan_id):
@@ -166,188 +84,36 @@ def scan_stop(scan_id):
         except Exception as e:
             logger.exception("Error when marking scan as FAILED")
 
-
-#
-# session_start - Called when a plugin session has started
-#
+@celery.task
+def session_queue(scan_id, session_id, t):
+    scans.update({"id": scan_id, "sessions.id": session_id},
+                 {"$set": {"sessions.$.state": "QUEUED",
+                           "sessions.$.queued": datetime.datetime.utcfromtimestamp(t)}})    
 
 @celery.task
-def session_start(scan_id, session_id):
+def session_start(scan_id, session_id, t):
+    scans.update({"id": scan_id, "sessions.id": session_id},
+                 {"$set": {"sessions.$.state": "STARTED",
+                           "sessions.$.queued": datetime.datetime.utcfromtimestamp(t)}})    
 
-    try:
-
-        #
-        # Find the scan
-        #
-
-        scan = scans.find_one({"id": scan_id, "sessions.id": session_id})
-        if not scan:
-            logger.error("Cannot find session %s/%s" % (scan_id, session_id))
-            return
-
-        #
-        # Change the session state to STARTED
-        #
-
-        scans.update({"id": scan_id, "sessions.id": session_id}, {"$set": {"sessions.$.state": "STARTED", "sessions.$.started": datetime.datetime.utcnow()}})
-
-    except Exception as e:
-
-        logger.exception("Error while processing task. Marking scan as FAILED.")
-
-        try:
-            if scan:
-                scans.update({"id": scan_id}, {"$set": {"state": "FAILED", "finished": datetime.datetime.utcnow()}})
-        except Exception as e:
-            logger.exception("Error when marking scan as FAILED")
-
-
-#
-# session_report_issue
-#
+@celery.task
+def session_set_task_id(scan_id, session_id, task_id):
+    scans.update({"id": scan_id, "sessions.id": session_id},
+                 {"$set": {"sessions.$._task": task_id}})
 
 @celery.task
 def session_report_issue(scan_id, session_id, issue):
-
-    try:
-
-        #
-        # Find the scan
-        #
-
-        scan = scans.find_one({"id": scan_id, "sessions.id": session_id})
-        if not scan:
-            logger.error("Cannot find scan %s" % scan_id)
-            return
-
-        #
-        # Make sure the scan contains the session
-        #
-
-        session = find_session(scan, session_id)
-        if not session:
-            logger.error("Cannot find session %s/%s" % (scan_id, session_id))
-            return
-
-        #
-        # Make sure the session is in the right state
-        #
-
-        if session['state'] != 'STARTED':
-            logger.error("Session %s/%s has invalid state. Expected STARTED but got %s" % (scan_id, session['id'], session['state']))
-            return        
-
-        #
-        # Add the issue to the session
-        #
-
-        scans.update({"id": scan_id, "sessions.id": session_id}, {"$push": {"sessions.$.issues": issue}})
-
-    except Exception as e:
-
-        logger.exception("Error while processing task. Marking scan as FAILED.")
-
-        try:
-            if scan:
-                scans.update({"id": scan_id}, {"$set": {"state": "FAILED", "finished": datetime.datetime.utcnow()}})
-        except Exception as e:
-            logger.exception("Error when marking scan as FAILED")
-
-
-#
-# session_finish
-#
+    scans.update({"id": scan_id, "sessions.id": session_id},
+                 {"$push": {"sessions.$.issues": issue}})
 
 @celery.task
-def session_finish(scan_id, session_id):
-
-    try:
-
-        #
-        # Find the scan
-        #
-
-        scan = scans.find_one({"id": scan_id, "sessions.id": session_id})
-        if not scan:
-            logger.error("Cannot find scan %s" % scan_id)
-            return
-
-        #
-        # Make sure the scan contains the session
-        #
-
-        session = find_session(scan, session_id)
-        if not session:
-            logger.error("Cannot find session %s/%s" % (scan_id, session_id))
-            return
-
-        #
-        # Make sure the session is in the right state
-        #
-
-        if session['state'] != 'STARTED':
-            logger.error("Session %s/%s has invalid state. Expected STARTED but got %s" % (scan_id, session['id'], session['state']))
-            return
-
-        #
-        # If the last issue reported is FATAL then we abort this whole run
-        #
-
-        issue = session['issues'][-1]
-        if issue['Severity'] == 'Fatal':
-            # Mark the scan as failed
-            scans.update({"id": scan_id}, {"$set": {"state": "FAILED", "finished": datetime.datetime.utcnow()}})
-            # Mark this session as failed
-            session['state'] = 'FAILED'
-            scans.update({"id": scan_id, "sessions.id": session['id']}, {"$set": {"sessions.$.state": "FAILED", "sessions.$.finished": datetime.datetime.utcnow()}})
-            # Mark all queued sessions as cancelled
-            for session in scan['sessions']:
-                if session['state'] == 'QUEUED':
-                    session['state'] = 'CANCELLED'
-                    scans.update({"id": scan_id, "sessions.id": session['id']}, {"$set": {"sessions.$.state": "CANCELLED", "sessions.$.finished": datetime.datetime.utcnow()}})
-            return
-        
-        #
-        # Change the session state to FINISHED
-        #
-
-        session['state'] = 'FINISHED'
-        scans.update({"id": scan_id, "sessions.id": session_id}, {"$set": {"sessions.$.state": "FINISHED", "sessions.$.finished": datetime.datetime.utcnow()}})
-
-        #
-        # Find the next plugin session that we can schedule. If there are
-        # none then this scan is done. We mark the scan as FINISHED and
-        # are done with this workflow.
-        #
-
-        session = find_next_session(scan)
-        if not session:
-            scans.update({"id": scan_id}, {"$set": {"state": "FINISHED", "finished": datetime.datetime.utcnow()}})
-            return
-
-        #
-        # We have a next plugin to run so we start the session by queueing
-        # it. Remember the celery task id in the session so that we can
-        # reference it later.
-        #
-        # Before we queue we need to know if this plugin goes in the
-        # fast or flow queue. We take this info from the plugin meta
-        # data that is embedded in the session.
-        #
-
-        # TODO Is it possible to ask Celery if the queue actually
-        # exists? Would be nice to report an error.
-
-        queue = queue_for_session(session, cfg)
-        result = send_task("minion.backend.plugin_worker.run_plugin", args=[scan_id, session['id']], queue=queue)
-        scans.update({"id": scan_id, "sessions.id": session['id']}, {"$set": {"sessions.$._task": result.id}})
-
-    except Exception as e:
-
-        logger.exception("Error while processing task. Marking scan as FAILED.")
-
-        try:
-            if scan:
-                scans.update({"id": scan_id}, {"$set": {"state": "FAILED", "finished": datetime.datetime.utcnow()}})
-        except Exception as e:
-            logger.exception("Error when marking scan as FAILED")
+def session_finish(scan_id, session_id, state, t, failure=None):
+    if failure:
+        scans.update({"id": scan_id, "sessions.id": session_id},
+                     {"$set": {"sessions.$.state": state,
+                               "sessions.$.finished": datetime.datetime.utcfromtimestamp(t),
+                               "sessions.$.failure": failure}})
+    else:
+        scans.update({"id": scan_id, "sessions.id": session_id},
+                     {"$set": {"sessions.$.state": state,
+                               "sessions.$.finished": datetime.datetime.utcfromtimestamp(t)}})

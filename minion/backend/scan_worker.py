@@ -3,7 +3,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 
-import datetime
+import time
 
 from celery import Celery
 from celery.app.control import Control
@@ -12,22 +12,21 @@ from celery.execute import send_task
 from celery.task.control import revoke
 from celery.exceptions import TaskRevokedError
 from pymongo import MongoClient
+import requests
 
 from minion.backend.utils import backend_config
 
 
 cfg = backend_config()
-
 celery = Celery('tasks', broker=cfg['celery']['broker'], backend=cfg['celery']['backend'])
-mongodb = MongoClient(host=cfg['mongodb']['host'], port=cfg['mongodb']['port'])
-
-db = mongodb.minion
-plans = db.plans
-scans = db.scans
-
-
 logger = get_task_logger(__name__)
 
+
+def get_scan(api_url, scan_id):
+    r = requests.get(api_url + "/scans/" + scan_id)
+    r.raise_for_status()
+    j = r.json()
+    return j['scan']
 
 def queue_for_session(session, cfg):
     queue = 'plugin'
@@ -44,9 +43,9 @@ def scan(scan_id):
     # See if the scan exists.
     #
 
-    scan = scans.find_one({'id': scan_id})
+    scan = get_scan(cfg['api']['url'], scan_id)
     if not scan:
-        logger.error("Cannot find scan %s" % scan_id)
+        logger.error("Cannot load scan %s" % scan_id)
         return
 
     #
@@ -62,7 +61,10 @@ def scan(scan_id):
     #
 
     scan['state'] = 'STARTED'
-    scans.update({"id": scan_id}, {"$set": {"state": "STARTED", "started": datetime.datetime.utcnow()}})
+    #scans.update({"id": scan_id}, {"$set": {"state": "STARTED", "started": datetime.datetime.utcnow()}})
+    send_task("minion.backend.state_worker.scan_start",
+              [scan_id, time.time()],
+              queue='state').get()
     
     #
     # Run each plugin session
@@ -75,7 +77,10 @@ def scan(scan_id):
         #
 
         session['state'] = 'QUEUED'
-        scans.update({"id": scan['id'], "sessions.id": session['id']}, {"$set": {"sessions.$.state": "QUEUED", "sessions.$.queued": datetime.datetime.utcnow()}})
+        #scans.update({"id": scan['id'], "sessions.id": session['id']}, {"$set": {"sessions.$.state": "QUEUED", "sessions.$.queued": datetime.datetime.utcnow()}})
+        send_task("minion.backend.state_worker.session_queue",
+                  [scan['id'], session['id'], time.time()],
+                  queue='state').get()
         
         #
         # Execute the plugin. The plugin worker will set the session state and issues.
@@ -84,8 +89,14 @@ def scan(scan_id):
         logger.info("Scan %s running plugin %s" % (scan['id'], session['plugin']['class']))
 
         queue = queue_for_session(session, cfg)
-        result = send_task("minion.backend.plugin_worker.run_plugin", args=[scan_id, session['id']], queue=queue)
-        scans.update({"id": scan_id, "sessions.id": session['id']}, {"$set": {"sessions.$._task": result.id}})
+        result = send_task("minion.backend.plugin_worker.run_plugin",
+                           [scan_id, session['id']],
+                           queue=queue)
+        
+        #scans.update({"id": scan_id, "sessions.id": session['id']}, {"$set": {"sessions.$._task": result.id}})
+        send_task("minion.backend.state_worker.session_set_task_id",
+                  [scan_id, session['id'], result.id],
+                  queue='state').get()
 
         try:
             plugin_result = result.get()
@@ -100,12 +111,18 @@ def scan(scan_id):
         
         if plugin_result in ('ABORTED', 'STOPPED'):
             # Mark the scan as failed
-            scans.update({"id": scan_id}, {"$set": {"state": plugin_result, "finished": datetime.datetime.utcnow()}})
+            #scans.update({"id": scan_id}, {"$set": {"state": plugin_result, "finished": datetime.datetime.utcnow()}})
+            send_task("minion.backend.state_worker.scan_finish",
+                      [scan_id, plugin_result, time.time()],
+                      queue='state').get()
             # Mark all remaining sessions as cancelled
             for s in scan['sessions']:
                 if s['state'] == 'CREATED':
                     s['state'] = 'CANCELLED'
-                    scans.update({"id": scan['id'], "sessions.id": s['id']}, {"$set": {"sessions.$.state": "CANCELLED", "sessions.$.finished": datetime.datetime.utcnow()}})
+                    #scans.update({"id": scan['id'], "sessions.id": s['id']}, {"$set": {"sessions.$.state": "CANCELLED", "sessions.$.finished": datetime.datetime.utcnow()}})
+                    send_task("minion.backend.state_worker.session_finish",
+                              [scan['id'], s['id'], "CANCELLED", time.time()],
+                              queue='state').get()
             # We are done with this scan
             return
         
@@ -114,4 +131,7 @@ def scan(scan_id):
     #
 
     scan['state'] = 'FINISHED'
-    scans.update({"id": scan_id}, {"$set": {"state": "FINISHED", "finished": datetime.datetime.utcnow()}})
+    #scans.update({"id": scan_id}, {"$set": {"state": "FINISHED", "finished": datetime.datetime.utcnow()}})
+    send_task("minion.backend.state_worker.scan_finish",
+              [scan_id, "FINISHED", time.time()],
+              queue='state').get()
