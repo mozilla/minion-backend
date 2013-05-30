@@ -157,7 +157,7 @@ def _count_issues(scan, severity):
     return count
 
 @app.route("/scans/<scan_id>/summary")
-def get_scan(scan_id):
+def get_scan_summary(scan_id):
     scan = scans.find_one({"id": scan_id})
     if not scan:
         return jsonify(success=False)
