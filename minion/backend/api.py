@@ -112,14 +112,15 @@ def sanitize_scan(scan):
                 session[field] = calendar.timegm(session[field].utctimetuple())
     return scan
 
-@app.route("/scan/<scan_id>")
-def get_scan(scan_id):
-    scan = scans.find_one({"id": scan_id})
-    if not scan:
-        return jsonify(success=False)
-    return jsonify(success=True, scan=sanitize_scan(scan))
+# API Methods to manage plans
 
-@app.route("/plan/<plan_name>")
+@app.route("/plans")
+def get_plans():
+    def _plan_description(plan):
+        return { 'description': plan['description'], 'name': plan['name'] }
+    return jsonify(success=True, plans=[_plan_description(plan) for plan in plans.find()])
+
+@app.route("/plans/<plan_name>")
 def get_plan(plan_name):
     plan = plans.find_one({"name": plan_name})
     if not plan:
@@ -129,18 +130,70 @@ def get_plan(plan_name):
         plugin = plugins.get(step['plugin_name'])
         if plugin:
             step['plugin'] = plugin['descriptor']
+        del step['plugin_name']
     return jsonify(success=True, plan=sanitize_plan(plan))
+
+# API Methods to manage plugins
 
 @app.route("/plugins")
 def get_plugins():
     return jsonify(success=True, plugins=[plugin['descriptor'] for plugin in plugins.values()])
 
-@app.route("/scan/create/<plan_name>", methods=["PUT"])
-def put_scan_create(plan_name):
+# API Methods to manage scans
+
+@app.route("/scans/<scan_id>")
+def get_scan(scan_id):
+    scan = scans.find_one({"id": scan_id})
+    if not scan:
+        return jsonify(success=False)
+    return jsonify(success=True, scan=sanitize_scan(scan))
+
+def _count_issues(scan, severity):
+    count = 0
+    for session in scan['sessions']:
+        for issue in session['issues']:
+            if issue['Severity'] == severity:
+                count += 1
+    return count
+
+@app.route("/scans/<scan_id>/summary")
+def get_scan(scan_id):
+    scan = scans.find_one({"id": scan_id})
+    if not scan:
+        return jsonify(success=False)
+    scan = sanitize_scan(scan)
+    #
+    summary = { 'id': scan['id'],
+                'state': scan['state'],
+                'sessions': [ ],
+                'isues': { 'High': _count_issues(scan, 'High'),
+                           'Low': _count_issues(scan, 'Low'),
+                           'Medium': _count_issues(scan, 'Medium'),
+                           'Info': _count_issues(scan, 'Info') } }
+    for session in scan['sessions']:
+        summary['sessions'].append({ 'plugin': session['plugin'],
+                                     'id': session['id'],
+                                     'state': session['state'] })
+    return jsonify(success=True, summary=summary)
+
+#
+# Create a scan by POSTING a configuration to the /scan
+# resource. The configuration looks like this:
+#
+#   {
+#      "plan": "tickle",
+#      "configuration": {
+#        "target": "http://foo"
+#      }
+#   }
+#
+
+@app.route("/scans", methods=["POST"])
+def put_scan_create():
     # try to decode the configuration
     configuration = request.json
     # See if the plan exists
-    plan = plans.find_one({"name": plan_name})
+    plan = plans.find_one({"name": configuration['plan']})
     if not plan:
         return jsonify(success=False)
     # Merge the configuration
@@ -153,12 +206,12 @@ def put_scan_create(plan_name):
              "started": None,
              "finished": None,
              "plan": { "name": plan['name'], "revision": 0 },
-             "configuration": configuration,
+             "configuration": configuration['configuration'],
              "sessions": [],
              "meta": { "owner": None, "tags": [] } }
     for step in plan['workflow']:
         session_configuration = step['configuration']
-        session_configuration.update(configuration)
+        session_configuration.update(configuration['configuration'])
         session = { "id": str(uuid.uuid4()),
                     "state": "CREATED",
                     "plugin": plugins[step['plugin_name']]['descriptor'],
@@ -175,8 +228,8 @@ def put_scan_create(plan_name):
     scans.insert(scan)
     return jsonify(success=True, scan=sanitize_scan(scan))
 
-@app.route("/scan/<scan_id>/state", methods=["PUT"])
-def put_scan_state(scan_id):
+@app.route("/scans/<scan_id>/control", methods=["PUT"])
+def put_scan_control(scan_id):
     # Find the scan
     scan = scans.find_one({"id": scan_id})
     if not scan:
@@ -197,6 +250,7 @@ def put_scan_state(scan_id):
         scans.update({"id": scan_id}, {"$set": {"state": "STOPPING", "queued": datetime.datetime.utcnow()}})
         state_worker.scan_stop.apply_async([scan['id']], queue='state')
     return jsonify(success=True)
+
 
 if __name__ == "__main__":
    app.secret_key = "baconcheesebaconcheese"
