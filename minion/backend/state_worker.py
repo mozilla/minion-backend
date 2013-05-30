@@ -94,7 +94,7 @@ def session_queue(scan_id, session_id, t):
 def session_start(scan_id, session_id, t):
     scans.update({"id": scan_id, "sessions.id": session_id},
                  {"$set": {"sessions.$.state": "STARTED",
-                           "sessions.$.queued": datetime.datetime.utcfromtimestamp(t)}})    
+                           "sessions.$.started": datetime.datetime.utcfromtimestamp(t)}})    
 
 @celery.task
 def session_set_task_id(scan_id, session_id, task_id):
