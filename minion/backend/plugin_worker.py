@@ -61,7 +61,7 @@ class Runner(ProcessProtocol):
     def outReceived(self, data):
         # Parse incoming data, taking incomplete lines into account
         buffer = self._buffer + data
-        lines, self.buffer = self._parseLines(buffer)
+        lines, self._buffer = self._parseLines(buffer)
         # Process all the complete lines that we received
         for line in lines:
             self._process_message(line)
