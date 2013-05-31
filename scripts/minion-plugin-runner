@@ -26,21 +26,27 @@ class JSONCallbacks:
 
     zope.interface.implements(IPluginRunnerCallbacks)
 
+    def _write(self, m):
+        j = json.dumps(m)
+        sys.stdout.write(j)
+        sys.stdout.write("\n")
+        sys.stdout.flush()        
+
     def report_start(self):
-        print json.dumps({"msg": "start"})
+        self._write({"msg": "start"})
 
     def report_progress(self, percentage, description = ""):
-        print json.dumps({"msg": "progress", "data": {"percentage": percentage, "description": description}})
+        self._write({"msg": "progress", "data": {"percentage": percentage, "description": description}})
 
     def report_issues(self, issues):
         for issue in issues:
-            print json.dumps({"msg": "issue", "data": issue})
+            self._write({"msg": "issue", "data": issue})
 
     def report_artifacts(self, name, paths):
         pass
 
     def report_finish(self, state = "FINISHED"):
-        print json.dumps({"msg": "finish", "data": {"state": state}})
+        self._write({"msg": "finish", "data": {"state": state}})
 
 
 class PluginRunner:
