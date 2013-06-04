@@ -51,8 +51,10 @@ Testing the development setup
 Minion comes with some basic plugins that are all executed from the `basic` plan. First we need to create the plan:
 
 ```
-scripts/minion-create-plan plans/basic.json
+scripts/minion-create-plan plans/basic.plan
 ```
+
+The `basic.plan` file simply contains a JSON structure that defines the workflow for the plan.
 
 Now we can start a new scan:
 
