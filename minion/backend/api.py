@@ -70,7 +70,6 @@ def _register_plugin(plugin_class_name):
     plugin_class = getattr(plugin_module, class_name)
     plugins[plugin_class_name] = {'clazz': plugin_class,
                                   'descriptor': _plugin_descriptor(plugin_class)}
-    print "Registered plugin", plugin_class_name
 
 for plugin_class_name in BUILTIN_PLUGINS:
     try:
@@ -241,7 +240,7 @@ def put_scan_control(scan_id):
     # Handle start
     if state == 'START':
         if scan['state'] != 'CREATED':
-            return jsonify(success=False, error='invalid-state-transition') 
+            return jsonify(success=False, error='invalid-state-transition')
         # Queue the scan to start
         scans.update({"id": scan_id}, {"$set": {"state": "QUEUED", "queued": datetime.datetime.utcnow()}})
         scan_worker.scan.apply_async([scan['id']], countdown=3, queue='scan')

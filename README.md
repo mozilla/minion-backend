@@ -32,7 +32,7 @@ If the `setup.py` script executed without any errors then you can now run the fo
 Make sure that both mongodb and rabbitmq are running. No configuration changes should be needed when running in the default install mode.
 
 ```
-scripts/minion-backend
+scripts/minion-backend-api runserver
 ```
 
 ```
