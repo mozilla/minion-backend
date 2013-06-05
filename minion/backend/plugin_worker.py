@@ -67,15 +67,13 @@ class Runner(ProcessProtocol):
             self._process_message(line)
 
     def errReceived(self, data):
-        print "ERR", data
+        pass # TODO What to do with stderr?
 
     def processEnded(self, reason):
         if isinstance(reason.value, ProcessTerminated):
             self._exit_status = reason.value.status
-            print "TERMINATED", str(reason.value.status)
         if isinstance(reason.value, ProcessDone):
             self._exit_status = reason.value.status
-            print "ENDED", str(reason.value.status)
         self._process = None
         reactor.stop()
 
@@ -102,7 +100,7 @@ class Runner(ProcessProtocol):
                            "-c", json.dumps(self._configuration),
                            "-p", self._plugin_class,
                            "-s", self._session_id ]
-        
+
         #
         # Spawn a plugin-runner process
         #
@@ -113,7 +111,7 @@ class Runner(ProcessProtocol):
             return False
 
         self._process = reactor.spawnProcess(self, plugin_runner_path, self._arguments, env=None)
-    
+
         #
         # Run the twisted reactor. It will be stopped either when the plugin-runner has
         # finished or when it has timed out.
@@ -135,7 +133,7 @@ class Runner(ProcessProtocol):
             self._terminate_id = None
 
     def schedule_stop(self):
-        
+
         #
         # Send the plugin runner a USR1 signal to tell it to stop. Also
         # start a timer to force kill the runner if it does not stop
@@ -203,9 +201,6 @@ def run_plugin(scan_id, session_id):
         # Move the session in the STARTED state
         #
 
-        #scans.update({"id": scan['id'], "sessions.id": session['id']},
-        #             {"$set": {"sessions.$.state": "STARTED",
-        #                       "sessions.$.started": datetime.datetime.utcnow()}})
         send_task("minion.backend.state_worker.session_start",
                   [scan_id, session_id, time.time()],
                   queue='state').get()
@@ -215,37 +210,31 @@ def run_plugin(scan_id, session_id):
         # it will go through all start/issue/finish messages.
         #
 
-        if True:
+        global finished
+        finished = None
 
+        def message_callback(msg):
+            # Ignore messages that we get after a finish message
             global finished
-            finished = None
-
-            def message_callback(msg):
-                print "GOT A MESSAGE", str(msg)
-                # Ignore messages that we get after a finish message
-                global finished
-                if finished is not None:
-                    logger.error("Plugin emitted (ignored) message after finishing: " + line)
-                    return
-                # Issue: persist it
-                if msg['msg'] == 'issue':
-                    send_task("minion.backend.state_worker.session_report_issue",
-                              args=[scan_id, session_id, msg['data']],
+            if finished is not None:
+                logger.error("Plugin emitted (ignored) message after finishing: " + line)
+                return
+            # Issue: persist it
+            if msg['msg'] == 'issue':
+                send_task("minion.backend.state_worker.session_report_issue",
+                          args=[scan_id, session_id, msg['data']],
+                          queue='state').get()
+            # Progress: update the progress
+            if msg['msg'] == 'progress':
+                pass # TODO
+            # Finish: update the session state, wait for the plugin runner to finish, return the state
+            if msg['msg'] == 'finish':
+                finished = msg['data']['state']
+                if msg['data']['state'] in ('FINISHED', 'FAILED', 'STOPPED', 'TERMINATED', 'TIMEOUT', 'ABORTED'):
+                    send_task("minion.backend.state_worker.session_finish",
+                              [scan['id'], session['id'], msg['data']['state'], time.time()],
                               queue='state').get()
-                # Progress: update the progress
-                if msg['msg'] == 'progress':
-                    pass # TODO
-                # Finish: update the session state, wait for the plugin runner to finish, return the state
-                if msg['msg'] == 'finish':
-                    finished = msg['data']['state']
-                    if msg['data']['state'] in ('FINISHED', 'FAILED', 'STOPPED', 'TERMINATED', 'TIMEOUT', 'ABORTED'):
-                        send_task("minion.backend.state_worker.session_finish",
-                                  [scan['id'], session['id'], msg['data']['state'], time.time()],
-                                  queue='state').get()
-                        #scans.update({"id": scan['id'], "sessions.id": session['id']},
-                        #             {"$set": {"sessions.$.state": msg['data']['state'],
-                        #                       "sessions.$.finished": datetime.datetime.utcnow()}})
-                
+
 
             runner = Runner(session['plugin']['class'], session['configuration'], session_id, message_callback)
 
@@ -257,56 +246,6 @@ def run_plugin(scan_id, session_id):
 
             return finished
 
-        if False:
-
-            command = [ "minion-plugin-runner",
-                        "-c", json.dumps(session['configuration']),
-                        "-p", session['plugin']['class'],
-                        "-s", session_id ]
-
-            plugin_runner_process = subprocess.Popen(command, stdout=subprocess.PIPE)
-
-            #
-            # Read the plugin runner stdout, which will have JSON formatted messages that have status updates from
-            # the plugin. We simply queue those to the state queue which will do the right thing.
-            #
-
-            finished = None
-
-            for line in plugin_runner_process.stdout:
-                # Ignore messages that we get after a finish message
-                if finished is not None:
-                    logger.error("Plugin emitted (ignored) message after finishing: " + line)
-                    continue
-
-                # Parse the message
-                msg = json.loads(line)
-
-                # Issue: persist it
-                if msg['msg'] == 'issue':
-                    send_task("minion.backend.state_worker.session_report_issue",
-                              args=[scan_id, session_id, msg['data']],
-                              queue='state').get()
-
-                # Progress: update the progress
-                if msg['msg'] == 'progress':
-                    pass # TODO
-
-                # Finish: update the session state, wait for the plugin runner to finish, return the state
-                if msg['msg'] == 'finish':
-                    finished = msg['data']['state']
-                    if msg['data']['state'] in ('FINISHED', 'FAILED', 'STOPPED', 'ABORTED'):
-                        send_task("minion.backend.state_worker.session_finish",
-                                  [scan['id'], session['id'], msg['data']['state'], time.time()],
-                                  queue='state').get()
-                        #scans.update({"id": scan['id'], "sessions.id": session['id']},
-                        #             {"$set": {"sessions.$.state": msg['data']['state'],
-                        #                       "sessions.$.finished": datetime.datetime.utcnow()}})
-
-            plugin_runner_process.wait()
-
-            return finished
-    
     except Exception as e:
 
         #
@@ -321,10 +260,6 @@ def run_plugin(scan_id, session_id):
             failure = { "hostname": socket.gethostname(),
                         "message": str(e),
                         "exception": traceback.format_exc() }
-            #scans.update({"id": scan_id, "sessions.id": session_id},
-            #             {"$set": {"sessions.$.state": "FAILED",
-            #                       "sessions.$.finished": datetime.datetime.utcnow(),
-            #                       "sessions.$.failure": failure}})
             send_task("minion.backend.state_worker.session_finish",
                       [scan_id, session_id, "FAILED", time.time(), failure],
                       queue='state').get()
