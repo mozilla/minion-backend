@@ -1,0 +1,15 @@
+.coverage
+.coveragerc
+pip-log.txt
+*.swp
+*.elc
+*.pyc
+*~
+build/*
+dist/*
+sdist/*
+docs/_static/*
+docs/_templates/*
+docs/build/*
+*egg-info
+*.egg
