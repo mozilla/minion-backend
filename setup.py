@@ -11,8 +11,11 @@ install_requires = [
     'pymongo==2.5.1',
     'requests==1.2.2',
     'twisted==13.0.0',
-    'pycurl==7.19.0'
+    'pycurl==7.19.0',
+
 ]
+
+tests_requires = ['nose',]
 
 setup(name="minion-backend",
       version="0.1",
@@ -23,7 +26,8 @@ setup(name="minion-backend",
       packages=['minion', 'minion.backend', 'minion.plugins'],
       namespace_packages=['minion','minion.backend', 'minion.plugins'],
       include_package_data=True,
-      install_requires = install_requires,
+      install_requires = install_requires + tests_requires,
+      tests_requires = tests_requires,
       scripts=['scripts/minion-create-plan',
                'scripts/minion-plugin-worker',
                'scripts/minion-start-scan',
