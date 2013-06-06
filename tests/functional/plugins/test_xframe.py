@@ -35,6 +35,18 @@ def xfo_with_allow_from():
     res.headers['X-Frame-Options'] = 'ALLOW-FROM http://localhost:1234/'
     return res
 
+@test_app.route('/xfo-with-allow-from-with-colon')
+def xfo_with_allow_from_with_colon():
+    res = make_response("")
+    res.headers['X-Frame-Options'] = 'ALLOW-FROM: http://localhost:1234/'
+    return res
+
+@test_app.route('/xfo-with-allow-from-without-http')
+def xfo_with_allow_from_withou_http():
+    res = make_response("")
+    res.headers['X-Frame-Options'] = 'ALLOW-FROM localhost:1234/'
+    return res
+
 @test_app.route('/bad-xfo')
 def bad_xfo():
     res = make_response("<h1>Hello World!</h1>")
@@ -65,10 +77,12 @@ class TestBuiltInPlugins(unittest.TestCase):
                 "-p", pname]
         p = Popen(cmd, stdout=PIPE, stderr=PIPE)
         stdout, stderr = p.communicate()
+        print stderr
         msgs = stdout.split('\n')[:-1]
         msgs_lst = []
         for msg in msgs:
             msgs_lst.append(json.loads(msg))
+        print msgs_lst
         return msgs_lst
 
     def validate_xframe_plugin(self, api_name, expected=None, expectation=True):
@@ -103,3 +117,11 @@ class TestBuiltInPlugins(unittest.TestCase):
     def test_xframe_option_with_allow_from(self):
         api_name = '/xfo-with-allow-from'
         self.validate_xframe_plugin(api_name, expectation=True)
+
+    def test_xframe_option_with_allow_from_colon_gets_rejected(self):
+        api_name = '/xfo-with-allow-from-with-colon'
+        self.validate_xframe_plugin(api_name, expectation=False)
+
+    def test_xframe_option_without_http(self):
+        api_name = '/xfo-with-allow-from-without-http'
+        self.validate_xframe_plugin(api_name, expectation=False)

@@ -9,6 +9,7 @@ import os
 import re
 import time
 import sys
+import urlparse
 
 from twisted.internet.task import LoopingCall
 
@@ -61,14 +62,58 @@ class XFrameOptionsPlugin(BlockingPlugin):
     PLUGIN_NAME = "XFrameOptions"
     PLUGIN_WEIGHT = "light"
 
+    SUMMARY_FOR_VALID = "Site has a correct X-Frame-Optons header"
+    SUMMARY_FOR_INVALID = "Site has X-Frame-Options header but it has an unknown or invalid value: {val}"
+
+    def _allow_from_validator(self, value):
+        """ Only accept the following basic forms::
+        ACCEPT-FROM http://example.org[:port]/[path]
+        ACCEPT-FORM https://example.org[:port]/[path]
+        
+        Reject those with colon, or uri containing query and/or
+        fragement.
+
+        For details, please refer to https://bugzilla.mozilla.org/show_bug.cgi?id=836132#c28
+        """
+        # for simplicity, keep everything uppercase
+        value = value.upper()
+        # reject allow-from with colon
+        regex = re.compile("ALLOW-FORM:")
+        matches = regex.findall(value)
+        if matches:
+            return False
+        # verify url is present and valid
+        regex = re.compile(r'(?P<tag>ALLOW-FROM)\s(?P<url>.+)')
+        matches = regex.match(value)
+        if not matches:
+            return False
+        url = matches.group('url')
+        if url:
+            scheme, domain, path, query, fragement = urlparse.urlsplit(url)
+            if query or fragement:
+                return False
+            elif not scheme in ('http', 'https'):
+                return False
+            return True
+
     def do_run(self):
         r = minion.curly.get(self.configuration['target'], connect_timeout=5, timeout=15)
         r.raise_for_status()
         if 'x-frame-options' in r.headers:
-            if r.headers['x-frame-options'].upper() not in ('DENY', 'SAMEORIGIN'):
-                self.report_issues([{ "Summary":"Site has X-Frame-Options header but it has an unknown or invalid value: %s" % r.headers['x-frame-options'],"Severity":"High" }])
+            xfo_value = r.headers['x-frame-options']
+            # 'DENY' and 'SAMEORIGIN' don't carry extra values
+            if xfo_value.upper() in ('DENY', 'SAMEORIGIN'):
+                self.report_issues([{ "Summary": self.SUMMARY_FOR_VALID, "Severity":"Info" }])
+            # strict allow-from only
+            elif 'ALLOW-FROM' in xfo_value.upper():
+                if self._allow_from_validator(xfo_value):
+                    self.report_issues([{ "Summary": self.SUMMARY_FOR_VALID, "Severity":"Info" }])
+                else:
+                    self.report_issues([{ "Summary":"Site has X-Frame-Options header but ALLOW-FROM has an invalid value: %s" % xfo_value, "Severity":"High" }])
+           # found invalid/unknown option value         
             else:
-                self.report_issues([{ "Summary":"Site has a correct X-Frame-Options header", "Severity":"Info" }])
+                self.report_issues([{"Summary": self.SUMMARY_FOR_INVALID.format(val=xfo_value), "Severity":"High"}])
+            
         else:
             self.report_issues([{"Summary":"Site has no X-Frame-Options header set", "Severity":"High"}])
 
