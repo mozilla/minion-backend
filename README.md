@@ -65,3 +65,35 @@ scripts/minion-scan basic http://testfire.net/
 ```
 
 The `minion-scan` script will create a new scan, start it and then monitor it until it finishes.
+
+
+Running test cases in Minion
+-----------------------------
+
+We have a number of functional test cases; mostly of them are written to test plugins.
+If you plan on running plugin function tests, you need to install ``stunnel``
+since some of the plugins require HTTPS connection. We actually launch a Flask development
+server as we run tests against each built-in plugin.
+
+``stunnel`` should be available to your OS distriubtion. For example, on 
+Ubuntu you can issue:
+
+```
+sudo apt-get install stunnel
+```
+
+The test folder already contains a stunnel configuration file, a RSA key pair,
+and an SSL certificate file to run our tests. **WARNING:** Avoid running tests
+on production server. We are using port 1234, 1235 and 1443 throughout all plugin tests.
+
+Finally, you can run all the test cases assuming you already have cloned down
+the repository to disk:
+
+```
+cd minion-backend
+nosetests
+```
+
+``nose`` should be installed if you have run ``python setup.py develop``.
+
+

@@ -149,10 +149,11 @@ class XContentTypeOptionsPlugin(BlockingPlugin):
     def do_run(self):
         r = minion.curly.get(self.configuration['target'], connect_timeout=5, timeout=15)
         r.raise_for_status()
-        if 'X-Content-Type-Options' not in r.headers:
+        value = r.headers.get('X-Content-Type-Options', None) or r.headers.get('x-content-type-options', None)
+        if value is None:
             self.report_issues([{ "Summary":"Site does not set X-Content-Type-Options header", "Severity":"High" }])
         else:
-            if r.headers['X-Content-Type-Options'] == 'nosniff':
+            if value.lower() == 'nosniff':
                 self.report_issues([{ "Summary":"Site sets X-Content-Type-Options header", "Severity":"Info" }])
             else:
                 self.report_issues([{ "Summary":"Site sets an invalid X-Content-Type-Options header", "Severity":"High" }])
