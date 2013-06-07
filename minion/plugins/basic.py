@@ -196,7 +196,7 @@ class ServerDetailsPlugin(BlockingPlugin):
         r.raise_for_status()
         HEADERS = ('Server', 'X-Powered-By', 'X-AspNet-Version', 'X-AspNetMvc-Version', 'X-Backend-Server')
         for header in HEADERS:
-            if header in r.headers:
+            if header.lower() in r.headers or header in r.headers:
                 self.report_issues([{ "Summary":"Site sets the '%s' header" % header, "Severity":"Medium" }])
 
 
