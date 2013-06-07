@@ -45,17 +45,20 @@ class TestPluginBaseClass(unittest.TestCase):
             msgs_lst.append(json.loads(msg))
         return msgs_lst
 
-    def validate_plugin(self, api_name, validator, expected=None, expectation=True):
+    def validate_plugin(self, api_name, validator, expected=None, expectation=True,
+            base='http://localhost:1234', target=None):
         """ Validate the response returned from the plugin runner subscribes to
         the validation specify by the function validator. When expectation is False,
         the validator function should check the response is negative. """
 
-        BASE = "http://localhost:1234"
-        API = BASE + api_name
+        if target:
+            API = target
+        else:
+            API = base + api_name
         # first, examine via plugin-runner and then quickly make request to api
         runner_resp = self.run_plugin(self.pname, API)
         try:
-            request_resp = requests.get(API)
+            request_resp = requests.get(API, verify=False)
         except requests.exceptions.ConnectionError:
             request_resp = requests.exceptions.ConnectionError
 
