@@ -2,6 +2,8 @@ language: python
 python:
   - "2.7"
 # command to install dependencies
+env:
+  - PIP_USE_MIRRORS=1
 install:
   - "pip install --use-mirrors nose"
   - "python setup.py install"
