@@ -38,7 +38,6 @@ class TestAlivePlugin(TestPluginBaseClass):
             self.assertEqual(404, request_resp.status_code)
             self.assertEqual(True, 'non-200 response: 404' in runner_resp[1]['data']['URLs'][0]['Extra'])
         elif expectation in (False, 'TIMEOUT'):
-            print runner_resp[1]['data']
             self.assertEqual('Fatal', runner_resp[1]['data']['Severity'])
             self.assertEqual('Site could not be reached', runner_resp[1]['data']['Summary'])
             self.assertEqual(expected, runner_resp[1]['data']['URLs'][0]['URL'])
