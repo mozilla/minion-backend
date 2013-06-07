@@ -171,15 +171,16 @@ class XXSSProtectionPlugin(BlockingPlugin):
     def do_run(self):
         r = minion.curly.get(self.configuration['target'], connect_timeout=5, timeout=15)
         r.raise_for_status()
-        if 'X-XSS-Protection' not in r.headers:
+        value = r.headers.get('X-XSS-Protection', None) or r.headers.get('x-xss-protection', None)
+        if value is None:
             self.report_issues([{ "Summary":"Site does not set X-XSS-Protection header", "Severity":"High" }])
         else:
-            if r.headers['X-XSS-Protection'] == '1; mode=block':
+            if value.lower() == '1; mode=block':
                 self.report_issues([{ "Summary":"Site sets X-XSS-Protection header", "Severity":"Info" }])
-            elif r.headers['X-XSS-Protection'] == '0':
+            elif value == '0':
                 self.report_issues([{ "Summary":"Site sets X-XSS-Protection header to disable the XSS filter", "Severity":"High" }])
             else:
-                self.report_issues([{ "Summary":"Site sets an invalid X-XSS-Protection header: %s" % r.headers['X-XSS-Protection'], "Severity":"High" }])
+                self.report_issues([{ "Summary":"Site sets an invalid X-XSS-Protection header: %s" %value, "Severity":"High" }])
 
 
 class ServerDetailsPlugin(BlockingPlugin):
