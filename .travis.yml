@@ -3,7 +3,7 @@ python:
   - "2.7"
 # command to install dependencies
 install:
-  pip install --use-mirrrors nose
+  pip install --use-mirrors nose
   python setup.py -q install
 # command to run tests
 script:
