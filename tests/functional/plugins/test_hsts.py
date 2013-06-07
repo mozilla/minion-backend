@@ -12,7 +12,7 @@ from subprocess import Popen, PIPE
 
 from flask import make_response
 
-from base import TestPluginBaseClass, test_app
+from base import TestPluginBaseClass, test_app, _kill_ports
 
 @test_app.route('/has-hsps')
 def has_hsps():
@@ -37,15 +37,13 @@ class TestHSTSPlugin(TestPluginBaseClass):
             p = Popen(['stunnel4', 'stunnel-data/minion-test.ini'], stdout=PIPE,\
                 stderr=PIPE)
             p.communicate()
-            return p
 
+        _kill_ports(cls.PORTS)
         cls.stunnel = Process(target=run_stunnel)
         cls.stunnel.daemon = True
         cls.stunnel.start()
         
-        #cls.stunnel = run_stunnel()        
-        # server1 will be HTTP and server2 will be HTTPS
-        # and one can access https through 1443
+        # server1 will be HTTP and one can access https through 1443
         cls.server1 = Process(target=run_app, args=(1235,))
         cls.server1.daemon = True
         cls.server1.start()
@@ -54,14 +52,15 @@ class TestHSTSPlugin(TestPluginBaseClass):
     @classmethod
     def tearDownClass(cls):
         cls.server1.terminate()
-        cls.stunnel.terminate()
-        os.system('kill `lsof -t -i:1443`')
+        cls.stunnel.terminate() # only kills multiprocess instance
+        # actually kills stunnel process
+        _kill_ports(cls.PORTS)
 
     def validate_hsps(self, runner_resp, request_resp, expected=None, expectation=True):
         if expectation is True:
             self.assertEqual('Site sets Strict-Transport-Security header', \
                 runner_resp[1]['data']['Summary'])
-            self.assertEqual(True, request.resp['strict-transport-security'])
+            self.assertEqual(True, 'max-age' in request_resp.headers['strict-transport-security'])
             self.assertEqual('Info', runner_resp[1]['data']['Severity'])
         elif expectation is False:
             self.assertEqual('High', runner_resp[1]['data']['Severity'])
@@ -74,13 +73,11 @@ class TestHSTSPlugin(TestPluginBaseClass):
         api_name = '/has-hsts'
         self.validate_plugin(api_name, self.validate_hsps, expectation='BAD-CERT',\
             base='https://localhost:1443')
-
-    """
+     
     def test_hsts_good_on_signed_cert(self):
         self.validate_plugin(None, self.validate_hsps, expectation=True, base=None,\
-           target='https://paypal.com/')
-    """
-
+           target='https://www.mozillalabs.com')
+    
     def test_hsps_no_hsps_header_over_https(self):
         self.validate_plugin(None, self.validate_hsps, expectation=False,\
             target='https://google.com')
