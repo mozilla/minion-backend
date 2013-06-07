@@ -2,20 +2,9 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-import json
-import unittest
-import requests
-from functools import wraps
-from multiprocessing import Process
-from subprocess import Popen, PIPE
+from flask import make_response
 
-from flask import Flask, make_response
-
-#TODO: Investigate (1) why I can't make http request when launch
-# nosetests on all tests_*.py and (2) any way to build the route table
-# at a later time. Given these two issues, we shall build the table
-# at the global level.
-test_app = Flask(__name__)
+from base import TestPluginBaseClass, test_app
 
 @test_app.route('/xfo-with-deny')
 def xfo_with_deny():
@@ -53,75 +42,46 @@ def bad_xfo():
     res.headers['X-Frame-Options'] = "CHEESE"
     return res
 
-class TestBuiltInPlugins(unittest.TestCase):
+class TestXFrameOptionsPlugin(TestPluginBaseClass):
+    __test__ = True
     @classmethod
     def setUpClass(cls):
-        def run_app():
-            test_app.run(host='localhost', port=1234)
-
-        # use multiprocess to launch server and kill server
-        cls.server = Process(target=run_app)
-        cls.server.daemon = True
-        cls.server.start()
-        
+        super(TestXFrameOptionsPlugin, cls).setUpClass()
         cls.pname = "XFrameOptionsPlugin"
 
-    @classmethod
-    def tearDownClass(cls):
-        cls.server.terminate()
-
-    def run_plugin(self, pname, api):
-        pname = "minion.plugins.basic." + pname
-        cmd = ["minion-plugin-runner",
-                "-c", json.dumps({"target": api}),
-                "-p", pname]
-        p = Popen(cmd, stdout=PIPE, stderr=PIPE)
-        stdout, stderr = p.communicate()
-        print stderr
-        msgs = stdout.split('\n')[:-1]
-        msgs_lst = []
-        for msg in msgs:
-            msgs_lst.append(json.loads(msg))
-        print msgs_lst
-        return msgs_lst
-
-    def validate_xframe_plugin(self, api_name, expected=None, expectation=True):
-        """ Validate the response returned subscribes to our expectation 
-        and values agree with the expected values. """
-        BASE = "http://localhost:1234"
-        API = BASE + api_name
-        # first, examine via plugin-runner and then quickly make request to api
-        results = self.run_plugin(self.pname, API)
-        resp = requests.get(API)
-
+    def validate_xframe_plugin(self, runner_resp, request_resp, expected=None, expectation=True):
         if expectation:
-            self.assertEqual(True, 'correct' in results[1]['data']['Summary'])
-            self.assertEqual('Info', results[1]['data']['Severity'])
+            self.assertEqual(True, 'correct' in runner_resp[1]['data']['Summary'])
+            self.assertEqual('Info', runner_resp[1]['data']['Severity'])
         else:
-            fragement = "invalid value: %s" % resp.headers['X-Frame-Options']
-            self.assertEqual(True, fragement in results[1]['data']['Summary'])
-            self.assertEqual("High", results[1]['data']['Severity'])
-        
+            fragement = "invalid value: %s" % request_resp.headers['X-Frame-Options']
+            self.assertEqual(True, fragement in runner_resp[1]['data']['Summary'])
+            self.assertEqual("High", runner_resp[1]['data']['Severity'])
+        self.assertEqual(expected, request_resp.headers['X-Frame-Options'])
+
     def test_bad_xframe_option(self):
         api_name = "/bad-xfo"
-        self.validate_xframe_plugin(api_name, 'CHEESE', expectation=False)
+        self.validate_plugin(api_name, self.validate_xframe_plugin, expected='CHEESE', expectation=False)
 
     def test_xframe_option_with_same_origin(self):
         api_name = '/xfo-with-sameorigin'
-        self.validate_xframe_plugin(api_name, expectation=True)
+        self.validate_plugin(api_name, self.validate_xframe_plugin, expected='SAMEORIGIN', expectation=True)
 
     def test_xframe_option_with_deny(self):
         api_name = '/xfo-with-deny'
-        self.validate_xframe_plugin(api_name, expectation=True)
+        self.validate_plugin(api_name, self.validate_xframe_plugin, expected='DENY', expectation=True)
 
     def test_xframe_option_with_allow_from(self):
         api_name = '/xfo-with-allow-from'
-        self.validate_xframe_plugin(api_name, expectation=True)
+        self.validate_plugin(api_name, self.validate_xframe_plugin, \
+                expected='ALLOW-FROM http://localhost:1234/', expectation=True)
 
     def test_xframe_option_with_allow_from_colon_gets_rejected(self):
         api_name = '/xfo-with-allow-from-with-colon'
-        self.validate_xframe_plugin(api_name, expectation=False)
+        self.validate_plugin(api_name, self.validate_xframe_plugin, \
+                expected='ALLOW-FROM: http://localhost:1234/', expectation=False)
 
     def test_xframe_option_without_http(self):
         api_name = '/xfo-with-allow-from-without-http'
-        self.validate_xframe_plugin(api_name, expectation=False)
+        self.validate_plugin(api_name, self.validate_xframe_plugin, \
+                expected='ALLOW-FROM localhost:1234/', expectation=False)
