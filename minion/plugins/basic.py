@@ -209,6 +209,9 @@ class RobotsPlugin(BlockingPlugin):
     PLUGIN_NAME = "Robots"
     PLUGIN_WEIGHT = "light"
 
+    def validator(self, content):
+        pass
+
     def do_run(self):
         r = minion.curly.get(self.configuration['target'], connect_timeout=5, timeout=15)
         if r.status != 200:

@@ -1,0 +1,6 @@
+#this robots.txt confronts to the standard
+
+User-agent: *
+Disallow: /cgi-bin/
+Disallow: /tmp/
+Disallow: /~joe/
