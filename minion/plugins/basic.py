@@ -209,12 +209,21 @@ class RobotsPlugin(BlockingPlugin):
     PLUGIN_NAME = "Robots"
     PLUGIN_WEIGHT = "light"
 
-    def validator(self, content):
-        pass
+    def validator(self, url):
+        """ This version of robots.txt validator only checks the existence
+        of the robots.txt. Real robots.txt validation remains to be done. """
+        
+        url_p = urlparse.urlparse(url)
+        url = url_p.scheme + '://' + url_p.netloc + '/robots.txt'
+        resp = minion.curly.get(url, connect_timeout=5, timeout=15)
+        if resp.status != 200:
+            return False
+        if 'text/plain' not in resp.headers['content-type'].lower():
+            return False
+        return True
 
     def do_run(self):
-        r = minion.curly.get(self.configuration['target'], connect_timeout=5, timeout=15)
-        if r.status != 200:
+        if not self.validator(self.configuration['target']):
             self.report_issues([{"Summary":"No robots.txt found", "Severity": "Medium"}])
 
 #
