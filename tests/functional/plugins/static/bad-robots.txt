@@ -1,4 +1,2 @@
 # this robots.txt violates the standard.
-
-User-agent: *
 Disallow: /*/

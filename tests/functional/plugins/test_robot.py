@@ -2,7 +2,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-from flask import Flask, make_response
+from flask import Flask, make_response, redirect, url_for
 from multiprocessing import Process
 
 from base import TestPluginBaseClass, test_app, _kill_ports
