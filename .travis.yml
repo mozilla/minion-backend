@@ -14,6 +14,13 @@ install:
 services: 
   - mongodb
 
+# tells travis to start these services before running script
+before_script:
+  - scripts/minion-backend-api runserver &
+  - scripts/minion-state-worker &
+  - scripts/minion-scan-worker &
+  - scripts/minion-plugin-worker &
+
 # command to run tests
 script:
   nosetests
