@@ -4,6 +4,7 @@ python:
 
 before_install:
   - "python setup.py sdist"
+  - "sudo apt-get install stunnel"
 
 install:
   - "pip install --use-mirrors nose"
