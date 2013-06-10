@@ -12,7 +12,10 @@ install_requires = [
     'requests==1.2.2',
     'twisted==13.0.0',
     'pycurl==7.19.0',
+]
 
+plugins_requires = [
+    'robots_scanner',
 ]
 
 tests_requires = ['nose',]
@@ -26,7 +29,7 @@ setup(name="minion-backend",
       packages=['minion', 'minion.backend', 'minion.plugins'],
       namespace_packages=['minion','minion.backend', 'minion.plugins'],
       include_package_data=True,
-      install_requires = install_requires + tests_requires,
+      install_requires = install_requires + tests_requires + plugins_requires,
       tests_requires = tests_requires,
       scripts=['scripts/minion-create-plan',
                'scripts/minion-plugin-worker',
