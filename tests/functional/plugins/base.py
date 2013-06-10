@@ -15,7 +15,7 @@ test_app = Flask(__name__)
 
 def _kill_ports(ports):
     for port in ports:
-        p = Popen(['/bin/kill `lsof -t -i:%s`' %str(port)],\
+        p = Popen(['sudo', '/bin/kill `sudo lsof -t -i:%s`' %str(port)],\
                 stdout=PIPE, stderr=PIPE, shell=True)
 
 class TestPluginBaseClass(unittest.TestCase):
