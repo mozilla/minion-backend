@@ -16,10 +16,11 @@ services:
 
 # tells travis to start these services before running script
 before_script:
-  - scripts/minion-backend-api runserver &
-  - scripts/minion-state-worker &
-  - scripts/minion-scan-worker &
-  - scripts/minion-plugin-worker &
+  - "scripts/minion-backend-api runserver &"
+  - "scripts/minion-state-worker &"
+  - "scripts/minion-scan-worker &"
+  - "scripts/minion-plugin-worker &"
+  - "scripts/minion-create-plan plans/basic.plan"
 
 # command to run tests
 script:
