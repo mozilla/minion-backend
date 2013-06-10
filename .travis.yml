@@ -1,12 +1,14 @@
 language: python
 python:
   - "2.7"
-# command to install dependencies
-env:
-  - PIP_USE_MIRRORS=1
+
+before_install:
+  - "python setup.py sdist"
+
 install:
   - "pip install --use-mirrors nose"
-  - "python setup.py install"
+  - "pip install dist/minion-backend-0.1.tar.gz --use-mirrors"
+
 # command to run tests
 script:
   nosetests
