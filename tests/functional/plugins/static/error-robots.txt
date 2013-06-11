@@ -1,0 +1,6 @@
+# this robots.txt contains syntax errors.
+
+User-agent: *
+Disallow /cgi-bin/
+Disallow: /tmp/
+Disallow: /~joe/

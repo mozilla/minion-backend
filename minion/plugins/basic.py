@@ -12,6 +12,7 @@ import sys
 import urlparse
 
 from twisted.internet.task import LoopingCall
+from robots_scanner.scanner import scan
 
 import minion.curly
 from minion.plugins.base import AbstractPlugin,BlockingPlugin,ExternalProcessPlugin
@@ -210,10 +211,43 @@ class RobotsPlugin(BlockingPlugin):
     PLUGIN_NAME = "Robots"
     PLUGIN_WEIGHT = "light"
 
+    def validator(self, url):
+        """ This validator performs the following checkes:
+
+        1. Invalidate the scan if HTTP status code is not 200,
+        2. Invalidate the scan if HTTP content-type header
+        is not set to 'text/plain',
+        3. Invalidate the scan if robots_scanner.scanner.scan
+        finds 'Disallow:' appears before 'User-agent:' does at
+        the beginning of the document.
+
+        Known enhancement to be made:
+        1. should limit the size of robots.txt acceptable by our 
+        scanner
+        2. use more optimized regex
+        """
+
+        url_p = urlparse.urlparse(url)
+        url = url_p.scheme + '://' + url_p.netloc + '/robots.txt'
+        resp = minion.curly.get(url, connect_timeout=5, timeout=15)
+        if resp.status != 200:
+            return 'NOT-FOUND'
+        if 'text/plain' not in resp.headers['content-type'].lower():
+            return False
+        try:
+            if not scan(resp.body):
+                return False
+            return True
+        except Exception:
+            return False
+
     def do_run(self):
-        r = minion.curly.get(self.configuration['target'], connect_timeout=5, timeout=15)
-        if r.status != 200:
+        result = self.validator(self.configuration['target'])
+        if result == 'NOT-FOUND':
             self.report_issues([{"Summary":"No robots.txt found", "Severity": "Medium"}])
+        elif not result:
+            self.report_issues([{"Summary":"Invalid robots.txt found", "Severity": "Medium"}])
+        
 
 #
 # CSPPlugin
