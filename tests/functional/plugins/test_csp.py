@@ -32,21 +32,21 @@ def no_csp():
     res = make_response()
     return res
 
-@test_app.route('/default-src-self')
-def default_src_self():
-    return _make_res('x', RULES['DEFAULT-SRC'])
+@test_app.route('/default-src-self/<type>')
+def default_src_self(type):
+    return _make_res(type, RULES['DEFAULT-SRC'])
 
-@test_app.route('/default-src-self-trusted-domain')
-def default_src_self_trusted_domain():
-    return _make_res('x', RULES['DEFAULT-SRC-DOMAIN'])
+@test_app.route('/default-src-self-trusted-domain/<type>')
+def default_src_self_trusted_domain(type):
+    return _make_res(type, RULES['DEFAULT-SRC-DOMAIN'])
 
-@test_app.route('/default-src-self-trusted-domain-subdomain')
-def default_src_self_trusted_domain_subdomain():
-    return _make_res('x', RULES['DEFAULT-SRC-DOMAIN-SUB-DOMAIN'])
+@test_app.route('/default-src-self-trusted-domain-subdomain/<type>')
+def default_src_self_trusted_domain_subdomain(type):
+    return _make_res(type, RULES['DEFAULT-SRC-DOMAIN-SUB-DOMAIN'])
 
-@test_app.route('/default-src-self-trusted-subdomain-all-img-some-media-some-script')
-def default_src_self_trusted_subdomain_all_img_some_media_some_script():
-    return _make_res('x', RULES['DEFAULT-SRC-DOMAIN-SUB-DOMAIN-IMG-MEDIA-SCRIPT'])
+@test_app.route('/default-src-self-trusted-subdomain-all-img-some-media-some-script/<type>')
+def default_src_self_trusted_subdomain_all_img_some_media_some_script(type):
+    return _make_res(type, RULES['DEFAULT-SRC-DOMAIN-SUB-DOMAIN-IMG-MEDIA-SCRIPT'])
 
 @test_app.route('/malformed-csp')
 def malformed_csp():
@@ -76,7 +76,7 @@ class TestCSPPlugin(TestPluginBaseClass):
                     runner_resp[1]['data']['Summary'])
             self.assertEqual('High', runner_resp[1]['data']['Severity'])
         elif expectation is False:
-            self.assertEqual('No X-Content-Security-Policy header set',
+            self.assertEqual('No Content-Security-Policy header set',
                     runner_resp[1]['data']['Summary'])
             self.assertEqual('High', runner_resp[1]['data']['Severity'])
         elif expectation == 'INVALID':
@@ -99,18 +99,32 @@ class TestCSPPlugin(TestPluginBaseClass):
         api_name = '/no-csp'
         self.validate_plugin(api_name, self.validate_csp, expectation=False)
 
+    def test_x_default_src_self(self):
+        api_name= '/default-src-self/x'
+        self.validate_plugin(api_name, self.validate_csp, expectation=True)
+    def test_x_default_src_self_trusted_domain(self):
+        api_name = '/default-src-self-trusted-domain/x'
+        self.validate_plugin(api_name, self.validate_csp, expectation=True)
+    def test_x_default_src_self_trusted_domain_subdomain(self):
+        api_name = '/default-src-self-trusted-domain-subdomain/x'
+        self.validate_plugin(api_name, self.validate_csp, expectation=True)
+    def test_x_default_src_self_trusted_domain_subdomain_all_img_some_media_some_script(self):
+        api_name = '/default-src-self-trusted-subdomain-all-img-some-media-some-script/x'
+        self.validate_plugin(api_name, self.validate_csp, expectation=True)
+
     def test_default_src_self(self):
-        api_name= '/default-src-self'
+        api_name= '/default-src-self/c'
         self.validate_plugin(api_name, self.validate_csp, expectation=True)
     def test_default_src_self_trusted_domain(self):
-        api_name = '/default-src-self-trusted-domain'
+        api_name = '/default-src-self-trusted-domain/c'
         self.validate_plugin(api_name, self.validate_csp, expectation=True)
     def test_default_src_self_trusted_domain_subdomain(self):
-        api_name = '/default-src-self-trusted-domain-subdomain'
+        api_name = '/default-src-self-trusted-domain-subdomain/c'
         self.validate_plugin(api_name, self.validate_csp, expectation=True)
     def test_default_src_self_trusted_domain_subdomain_all_img_some_media_some_script(self):
-        api_name = '/default-src-self-trusted-subdomain-all-img-some-media-some-script'
+        api_name = '/default-src-self-trusted-subdomain-all-img-some-media-some-script/c'
         self.validate_plugin(api_name, self.validate_csp, expectation=True)
+
     def test_malformed_csp(self):
         api_name = '/malformed-csp'
         self.validate_plugin(api_name, self.validate_csp, expectation='INVALID')

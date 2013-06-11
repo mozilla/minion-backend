@@ -270,30 +270,48 @@ class CSPPlugin(BlockingPlugin):
     PLUGIN_NAME = "CSP"
     PLUGIN_WEIGHT = "light"
 
-    def do_run(self):
+    def _extract_csp_header(self, headers, keys_tuple):
+        keys = set(headers)
+        matches = keys.intersection(keys_tuple)
+        name = None
+        value = None
+        if len(matches) == 2:
+            name = t[0]
+            value = headers[name]
+        elif matches:
+            name = matches.pop()
+            value = headers[name]
+        return name, value
 
+    def do_run(self):
+        GOOD_HEADERS = ('x-content-security-policy', 'content-security-policy',)
+        BAD_HEADERS = ('x-content-security-policy-report-only', \
+                'content-security-policy-report-only',)
         r = minion.curly.get(self.configuration['target'], connect_timeout=5, timeout=15)
         r.raise_for_status()
 
+        csp_hname, csp = self._extract_csp_header(r.headers, GOOD_HEADERS)
+        csp_ro_name, csp_report_only = self._extract_csp_header(r.headers, BAD_HEADERS)
+
         # Fast fail if both headers are set
-        if 'x-xontent-security-policy' in r.headers and 'x-content-security-policy-report-only' in r.headers:
-            self.report_issues([{"Summary":"Both X-Content-Security-Policy and X-Content-Security-Policy-Report-Only headers set", "Severity": "High"}])
+        if csp and csp_report_only:
+            self.report_issues([{"Summary":"Both %s and %s headers set" %(csp_hname, csp_ro_name), "Severity": "High"}])
             return
 
         # Fast fail if only reporting is enabled
-        if 'x-content-security-policy-report-only' in r.headers:
-            self.report_issues([{"Summary":"X-Content-Security-Policy-Report-Only header set", "Severity": "High"}])
+        if csp_report_only:
+            self.report_issues([{"Summary":"%s header set" % csp_ro_name, "Severity": "High"}])
             return
 
         # Fast fail if no CSP header is set
-        if 'x-content-security-policy' not in r.headers:
-            self.report_issues([{"Summary":"No X-Content-Security-Policy header set", "Severity": "High"}])
+        if csp is None:
+            self.report_issues([{"Summary":"No Content-Security-Policy header set", "Severity": "High"}])
             return
 
         # Parse the CSP and look for issues
-        csp_config = _parse_csp(r.headers["x-content-security-policy"])
+        csp_config = _parse_csp(csp)
         if not csp_config:
-            self.report_issues([{"Summary":"Malformed X-Content-Security-Policy header set", "Severity":"High"}])
+            self.report_issues([{"Summary":"Malformed %s header set" % csp_hname, "Severity":"High"}])
             return
             
         # Allowing eval-script or inline-script defeats the purpose of CSP?
