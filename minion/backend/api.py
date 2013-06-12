@@ -178,6 +178,10 @@ def _find_sites_for_user(email):
             sitez.add(s)
     return list(sitez)
 
+def _find_groups_for_user(email):
+    """Find all the groups the user is in"""
+    return [g['name'] for g in groups.find({"users":email})]
+
 # API Methods to manage users
 
 @app.route('/users/<email>', methods=['GET'])
@@ -236,7 +240,12 @@ def create_user():
 
 @app.route('/users', methods=['GET'])
 def list_users():
-    return jsonify(success=True, users=[sanitize_user(user) for user in users.find()])
+    userz = []
+    for user in users.find():
+        user['groups'] = _find_groups_for_user(user['email'])
+        user['sites'] = _find_sites_for_user(user['email'])
+        userz.append(sanitize_user(user))
+    return jsonify(success=True, users=userz)
 
 #
 # Retrieve all groups in minion
@@ -253,7 +262,7 @@ def list_users():
 #
 
 @app.route('/groups', methods=['GET'])
-def list_users():
+def list_groups():
     return jsonify(success=True, groups=[sanitize_group(group) for group in groups.find()])
 
 #
