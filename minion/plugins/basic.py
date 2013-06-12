@@ -12,6 +12,7 @@ import sys
 import urlparse
 
 from twisted.internet.task import LoopingCall
+from robots_scanner.scanner import scan
 
 import minion.curly
 from minion.plugins.base import AbstractPlugin,BlockingPlugin,ExternalProcessPlugin
@@ -171,15 +172,16 @@ class XXSSProtectionPlugin(BlockingPlugin):
     def do_run(self):
         r = minion.curly.get(self.configuration['target'], connect_timeout=5, timeout=15)
         r.raise_for_status()
-        if 'X-XSS-Protection' not in r.headers:
+        value = r.headers.get('X-XSS-Protection', None) or r.headers.get('x-xss-protection', None)
+        if value is None:
             self.report_issues([{ "Summary":"Site does not set X-XSS-Protection header", "Severity":"High" }])
         else:
-            if r.headers['X-XSS-Protection'] == '1; mode=block':
+            if value.lower() == '1; mode=block':
                 self.report_issues([{ "Summary":"Site sets X-XSS-Protection header", "Severity":"Info" }])
-            elif r.headers['X-XSS-Protection'] == '0':
+            elif value == '0':
                 self.report_issues([{ "Summary":"Site sets X-XSS-Protection header to disable the XSS filter", "Severity":"High" }])
             else:
-                self.report_issues([{ "Summary":"Site sets an invalid X-XSS-Protection header: %s" % r.headers['X-XSS-Protection'], "Severity":"High" }])
+                self.report_issues([{ "Summary":"Site sets an invalid X-XSS-Protection header: %s" %value, "Severity":"High" }])
 
 
 class ServerDetailsPlugin(BlockingPlugin):
@@ -196,7 +198,7 @@ class ServerDetailsPlugin(BlockingPlugin):
         r.raise_for_status()
         HEADERS = ('Server', 'X-Powered-By', 'X-AspNet-Version', 'X-AspNetMvc-Version', 'X-Backend-Server')
         for header in HEADERS:
-            if header in r.headers:
+            if header.lower() in r.headers or header in r.headers:
                 self.report_issues([{ "Summary":"Site sets the '%s' header" % header, "Severity":"Medium" }])
 
 
@@ -209,10 +211,43 @@ class RobotsPlugin(BlockingPlugin):
     PLUGIN_NAME = "Robots"
     PLUGIN_WEIGHT = "light"
 
+    def validator(self, url):
+        """ This validator performs the following checkes:
+
+        1. Invalidate the scan if HTTP status code is not 200,
+        2. Invalidate the scan if HTTP content-type header
+        is not set to 'text/plain',
+        3. Invalidate the scan if robots_scanner.scanner.scan
+        finds 'Disallow:' appears before 'User-agent:' does at
+        the beginning of the document.
+
+        Known enhancement to be made:
+        1. should limit the size of robots.txt acceptable by our 
+        scanner
+        2. use more optimized regex
+        """
+
+        url_p = urlparse.urlparse(url)
+        url = url_p.scheme + '://' + url_p.netloc + '/robots.txt'
+        resp = minion.curly.get(url, connect_timeout=5, timeout=15)
+        if resp.status != 200:
+            return 'NOT-FOUND'
+        if 'text/plain' not in resp.headers['content-type'].lower():
+            return False
+        try:
+            if not scan(resp.body):
+                return False
+            return True
+        except Exception:
+            return False
+
     def do_run(self):
-        r = minion.curly.get(self.configuration['target'], connect_timeout=5, timeout=15)
-        if r.status != 200:
+        result = self.validator(self.configuration['target'])
+        if result == 'NOT-FOUND':
             self.report_issues([{"Summary":"No robots.txt found", "Severity": "Medium"}])
+        elif not result:
+            self.report_issues([{"Summary":"Invalid robots.txt found", "Severity": "Medium"}])
+        
 
 #
 # CSPPlugin
@@ -235,30 +270,48 @@ class CSPPlugin(BlockingPlugin):
     PLUGIN_NAME = "CSP"
     PLUGIN_WEIGHT = "light"
 
-    def do_run(self):
+    def _extract_csp_header(self, headers, keys_tuple):
+        keys = set(headers)
+        matches = keys.intersection(keys_tuple)
+        name = None
+        value = None
+        if len(matches) == 2:
+            name = t[0]
+            value = headers[name]
+        elif matches:
+            name = matches.pop()
+            value = headers[name]
+        return name, value
 
+    def do_run(self):
+        GOOD_HEADERS = ('x-content-security-policy', 'content-security-policy',)
+        BAD_HEADERS = ('x-content-security-policy-report-only', \
+                'content-security-policy-report-only',)
         r = minion.curly.get(self.configuration['target'], connect_timeout=5, timeout=15)
         r.raise_for_status()
 
+        csp_hname, csp = self._extract_csp_header(r.headers, GOOD_HEADERS)
+        csp_ro_name, csp_report_only = self._extract_csp_header(r.headers, BAD_HEADERS)
+
         # Fast fail if both headers are set
-        if 'x-xontent-security-policy' in r.headers and 'x-content-security-policy-report-only' in r.headers:
-            self.report_issues([{"Summary":"Both X-Content-Security-Policy and X-Content-Security-Policy-Report-Only headers set", "Severity": "High"}])
+        if csp and csp_report_only:
+            self.report_issues([{"Summary":"Both %s and %s headers set" %(csp_hname, csp_ro_name), "Severity": "High"}])
             return
 
         # Fast fail if only reporting is enabled
-        if 'x-content-security-policy-report-only' in r.headers:
-            self.report_issues([{"Summary":"X-Content-Security-Policy-Report-Only header set", "Severity": "High"}])
+        if csp_report_only:
+            self.report_issues([{"Summary":"%s header set" % csp_ro_name, "Severity": "High"}])
             return
 
         # Fast fail if no CSP header is set
-        if 'x-content-security-policy' not in r.headers:
-            self.report_issues([{"Summary":"No X-Content-Security-Policy header set", "Severity": "High"}])
+        if csp is None:
+            self.report_issues([{"Summary":"No Content-Security-Policy header set", "Severity": "High"}])
             return
 
         # Parse the CSP and look for issues
-        csp_config = _parse_csp(r.headers["x-content-security-policy"])
+        csp_config = _parse_csp(csp)
         if not csp_config:
-            self.report_issues([{"Summary":"Malformed X-Content-Security-Policy header set", "Severity":"High"}])
+            self.report_issues([{"Summary":"Malformed %s header set" % csp_hname, "Severity":"High"}])
             return
             
         # Allowing eval-script or inline-script defeats the purpose of CSP?

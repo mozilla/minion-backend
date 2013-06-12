@@ -1,10 +1,27 @@
 language: python
 python:
   - "2.7"
-# command to install dependencies
+
+before_install:
+  - "python setup.py sdist"
+  - "sudo apt-get install stunnel"
+
 install:
-  pip install --use-mirrrors nose
-  python setup.py -q install
+  - "pip install --use-mirrors nose"
+  - "pip install dist/minion-backend-0.1.tar.gz --use-mirrors"
+
+# tells travis to start mongodb
+services: 
+  - mongodb
+
+# tells travis to start these services before running script
+before_script:
+  - "scripts/minion-backend-api runserver &"
+  - "scripts/minion-state-worker &"
+  - "scripts/minion-scan-worker &"
+  - "scripts/minion-plugin-worker &"
+  - "scripts/minion-create-plan plans/basic.plan"
+
 # command to run tests
 script:
   nosetests
