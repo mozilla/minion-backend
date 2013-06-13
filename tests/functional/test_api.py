@@ -12,7 +12,10 @@ from pymongo import MongoClient
 from minion.backend.api import BUILTIN_PLUGINS, TEST_PLUGINS
 
 BASE = 'http://localhost:8383'
-APIS = {'get_plans': 
+APIS = {'user':
+            {'POST': '/users',
+             'GET': '/users'},
+        'get_plans': 
             {'GET': '/plans'},
         'get_plan':
             {'GET': '/plans/{plan_name}'},
@@ -29,15 +32,116 @@ def get_api(api_name, method, args=None):
     else:
         return api
 
-#TODO: We should be able to test other plugins other than basic.plan.
-# At that point, we probably should create more generic functional tests.
+def _call(task, method, auth=None, data=None, url_args=None):
+    """
+    Make HTTP request.
+
+    Parameters
+    ----------
+    task : str
+        The name of the api to call which corresponds
+        to a key name in ``APIS``.
+    method : str
+        Accept 'GET', 'POST', 'PUT', or
+        'DELETE'.
+    auth : optional, tuple
+        Basic auth tuple ``(username, password)`` pair.
+    data : optional, dict
+        A dictionary of data to pass to the API.
+    url_args : optional, dict
+        A dictionary of url arguments to replace in the 
+        URL. For example, to match user's GET URL which
+        requires ``id``, you'd pass ``{'id': '3a7a67'}``.
+
+    Returns
+    -------
+    res : requests.Response
+        The response object.
+    
+    """
+
+    req_objs = {'GET': requests.get,
+        'POST': requests.post,
+        'PUT': requests.put,
+        'DELETE': requests.delete}
+
+    method = method.upper()
+    api = APIS[task][method]
+    if url_args:
+        api = api.format(**url_args)
+    # concatenate base and api
+    api = os.path.join(BASE.strip('/'), api.strip('/'))
+
+    headers = {'Content-Type': 'application/json'}
+    req_objs = req_objs[method]
+    data = json.dumps(data)
+
+    if method == 'GET' or method == 'DELETE':
+        res = req_objs(api, params=data, auth=auth, headers=headers)
+    else:
+        res = req_objs(api, data=data, auth=auth, headers=headers)
+    return res
+
+class TestAPIBaseClass(unittest.TestCase):
+    def setUp(self):
+        self.mongodb = MongoClient()
+        self.mongodb.drop_database("minion")
+        self.db = self.mongodb.minion
+
+        self.email = "bob@example.org"
+        self.role = "user"
+
+    def tearDown(self):
+        self.mongodb.drop_database("minion")
+
+    def create_user(self):
+        return _call('user', 'POST', data={"email": self.email, "role": "user"})
+    
+    def get_users(self):
+        return _call('user', 'GET')
+
+    def _test_keys(self, target, expected):
+        """
+        Compare keys are in the response. If there
+        is a difference (more or fewer) assertion
+        will raise False.
+        
+        Parameters
+        ----------
+        target : tuple
+            A tuple of keys from res.json().keys()
+        expected : tuple
+            A tuple of keys expecting to match
+            against res.json().keys()
+
+        """
+
+        keys1 = set(expected)
+        self.assertEqual(set(), keys1.difference(target))
+
+class TestUserAPIs(TestAPIBaseClass):
+    def test_create_user(self):
+        res = self.create_user() 
+        expected_top_keys = ('user', 'success')
+        self._test_keys(res.json().keys(), expected_top_keys)
+        expected_inner_keys = ('id', 'created', 'role', 'email')
+        self._test_keys(res.json()['user'].keys(), expected_inner_keys)
+
+    def test_get_all_users(self):
+        # we must recreate user
+        self.create_user()
+        res = self.get_users()
+        expected_inner_keys = ('id', 'email', 'role', 'sites', 'groups')
+        self._test_keys(res.json()['users'][0].keys(), expected_inner_keys)
+        self.assertEqual(1, len(res.json()['users']))
+
 class TestBackendAPIs(unittest.TestCase):
     def setUp(self):
         ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         PLANS_ROOT = os.path.join(ROOT, 'plans')
 
         self.mongodb = MongoClient()
-        self.db = self.mongodb.test_minion
+        self.db = self.mongodb.minion
         self.plans = self.db.plans
         self.scans = self.db.scans
         with open(os.path.join(PLANS_ROOT, 'basic.plan'), 'r') as f:
