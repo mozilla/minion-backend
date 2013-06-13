@@ -124,6 +124,16 @@ class TestAPIBaseClass(unittest.TestCase):
     def tearDown(self):
         self.mongodb.drop_database("minion")
 
+    def import_plan(self):
+        ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        PLANS_ROOT = os.path.join(ROOT, 'plans')
+        self.plans = self.db.plans
+        self.scans = self.db.scans
+        with open(os.path.join(PLANS_ROOT, 'basic.plan'), 'r') as f:
+            self.plan = json.load(f)
+            self.plans.remove({'name': self.plan['name']})
+            self.plans.insert(self.plan)
+
     def create_user(self):
         return _call('user', 'POST', data={"email": self.email, "role": "user"})
     
@@ -156,6 +166,15 @@ class TestAPIBaseClass(unittest.TestCase):
 
     def get_site(self, site_id):
         return _call('site', 'GET', url_args={'site_id': site_id})
+
+    def get_plans(self):
+        return _call('get_plans', 'GET')
+    
+    def get_plan(self, plan_name):
+        return _call('get_plan', 'GET', url_args={'plan_name': plan_name})
+    
+    def get_plugins(self):
+        return _call('get_plugins', 'GET')
 
     def _test_keys(self, target, expected):
         """
@@ -329,20 +348,11 @@ class TestSitesAPIs(TestAPIBaseClass):
         # until #49, #50, #51 are resolved, this is commented
         #self.assertEqual(res3.json()['site'], res2.json()['site'])
         
-class TestBackendAPIs(unittest.TestCase):
+class TestPlanAPIs(TestAPIBaseClass):
     def setUp(self):
-        ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        PLANS_ROOT = os.path.join(ROOT, 'plans')
+        super(TestPlanAPIs, self).setUp()
+        self.import_plan()
 
-        self.mongodb = MongoClient()
-        self.db = self.mongodb.minion
-        self.plans = self.db.plans
-        self.scans = self.db.scans
-        with open(os.path.join(PLANS_ROOT, 'basic.plan'), 'r') as f:
-            self.plan = json.load(f)
-            self.plans.remove({'name': self.plan['name']})
-            self.plans.insert(self.plan)
-    
     @staticmethod
     def _get_plugin_name(full):
         """ Return the name of the plugin. """
@@ -350,20 +360,14 @@ class TestBackendAPIs(unittest.TestCase):
         return cls_name.split('Plugin')[0]
 
     def test_get_plans(self):
-        API = get_api('get_plans', 'GET')
-        expected = {
-            u"plans": 
-            [
-                {
-                    u"description": u"Run basic tests", 
-                    u"name": u"basic"
-                }
-            ],
-            u"success": True
-        }
-        resp = requests.get(API)
+        resp = self.get_plans()
         self.assertEqual(200, resp.status_code)
-        self.assertEqual(expected, resp.json())
+        expected_top_keys = ('success', 'plans')
+        self._test_keys(resp.json().keys(), expected_top_keys)
+        expected_inner_keys = ('name', 'description')
+        self._test_keys(resp.json()['plans'][0].keys(), expected_inner_keys)
+        self.assertEqual(resp.json()['plans'][0]['name'], "basic")
+        self.assertEqual(resp.json()['plans'][0]['description'], "Run basic tests")
 
     @staticmethod
     def _check_plugin_metadata(tself, base, metadata):
@@ -384,31 +388,25 @@ class TestBackendAPIs(unittest.TestCase):
             tself.assertEqual("0.0", meta['version'])
     
     def test_get_plan(self):
-        API = get_api('get_plan', 'GET', args={'plan_name': 'basic'})
-        resp = requests.get(API)
+        resp = self.get_plan('basic')
         self.assertEqual(200, resp.status_code)
-
+        
         # test plugin name and weight. weight is now always light for the built-in
         plan = resp.json()
         self._check_plugin_metadata(self, self.plan, plan['plan']['workflow'])
     
     def test_get_built_in_plugins(self):
-        API = get_api('get_plugins', 'GET')
-        resp = requests.get(API)
+        resp = self.get_plugins()
+
         self.assertEqual(200, resp.status_code)
         # check top-leve keys agreement
-        self.assertEqual(True, 'plugins' in resp.json().keys())
-        self.assertEqual(True, 'success' in resp.json().keys())
+        expected_top_keys = ('success', 'plugins',)
+        self._test_keys(resp.json().keys(), expected_top_keys)
+
         # num of total built-in plugins should match
         plugins_count = len(TEST_PLUGINS) + len(BUILTIN_PLUGINS)
         self.assertEqual(plugins_count, len(resp.json()['plugins']))
         # check following keys are returned for each plugin
+        expected_inner_keys = ('class', 'name', 'version', 'weight')
         for plugin in resp.json()['plugins']:
-            self.assertEqual(['class', 'name', 'version', 'weight'],
-                sorted(plugin.keys()))
-        #TODO: Need to fix this last part of the test.
-        # Apparently the plugins within the plugins list is not oredered
-        # like the one returned from get_plans or get_plan. Robots comes
-        # first before Alive.
-        # check plugin name, weight, class, version
-        # self._check_plugin_metadata(self, self.plan, resp.json()['plugins'])
+            self._test_keys(plugin.keys(), expected_inner_keys)
