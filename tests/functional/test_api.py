@@ -22,6 +22,11 @@ APIS = {'user':
             {'GET': '/groups/{group_name}',
              'DELETE': '/groups/{group_name}',
              'PATCH': '/groups/{group_name}'},
+        'sites':
+            {'GET': '/sites',
+             'POST': '/sites'},
+        'site':
+            {'GET': '/sites/{site_id}'},
         'get_plans': 
             {'GET': '/plans'},
         'get_plan':
@@ -90,6 +95,15 @@ def _call(task, method, auth=None, data=None, url_args=None):
         res = req_objs(api, data=data, auth=auth, headers=headers)
     return res
 
+def _debug():
+    """ Only use this if you want a quick look
+    at the actual database after firing some basic
+    api calls. """
+    _call('user', 'POST', data={'email': 'debug@debug.com', 'role': 'user'})
+    _call('groups', 'POST', data={'name': 'debug group', 'description': 'debugging.'})
+    _call('sites', 'POST', data={'url': 'http://debugger.debugger', 'groups': ['debugger']})
+_debug()
+
 class TestAPIBaseClass(unittest.TestCase):
     def setUp(self):
         self.mongodb = MongoClient()
@@ -101,9 +115,11 @@ class TestAPIBaseClass(unittest.TestCase):
         self.role = "user"
         self.group_name = "minion-test-group"
         self.group_description = "minion test group is awesome."
-        
-        self.add_site = "http://foo.com"
-        self.remove_site = "http://bar.com"
+        self.group_name2 = "minion-test-group2"
+        self.group_description2 = "minion test group 2 is super."
+
+        self.site1 = "http://foo.com"
+        self.site2 = "http://bar.com"
 
     def tearDown(self):
         self.mongodb.drop_database("minion")
@@ -130,6 +146,16 @@ class TestAPIBaseClass(unittest.TestCase):
     def modify_group(self, group_name, data=None):
         return _call('group', 'PATCH', url_args={'group_name': group_name},
                 data=data)
+    
+    def create_site(self):
+        return _call('sites', 'POST', data={"url": self.site1, 
+            'groups': [self.group_name,]})
+
+    def get_sites(self):
+        return _call('sites', 'GET')
+
+    def get_site(self, site_id):
+        return _call('site', 'GET', url_args={'site_id': site_id})
 
     def _test_keys(self, target, expected):
         """
@@ -215,20 +241,20 @@ class TestGroupAPIs(TestAPIBaseClass):
         res = self.create_user()
         res1 = self.create_group()
         res2 = self.modify_group(self.group_name,
-                data={'addSites': [self.add_site]})
+                data={'addSites': [self.site1]})
         self._test_keys(res2.json().keys(), set(res1.json().keys()))
         self._test_keys(res2.json()['group'].keys(), set(res1.json()['group'].keys()))
-        self.assertEqual(res2.json()['group']['sites'][0], self.add_site)
+        self.assertEqual(res2.json()['group']['sites'][0], self.site1)
 
     def test_patch_group_remove_site(self):
         res = self.create_user()
         res1 = self.create_group()
         res2 = self.modify_group(self.group_name,
-                data={'addSites': [self.remove_site]})
-        self.assertEqual(res2.json()['group']['sites'][0], self.remove_site)
+                data={'addSites': [self.site1]})
+        self.assertEqual(res2.json()['group']['sites'][0], self.site1)
 
         res2 = self.modify_group(self.group_name,
-                data={'removeSites': [self.remove_site]})
+                data={'removeSites': [self.site1]})
         self._test_keys(res2.json().keys(), set(res1.json().keys()))
         self._test_keys(res2.json()['group'].keys(), set(res1.json()['group'].keys()))
         self.assertEqual(res2.json()['group']['sites'], [])
@@ -255,6 +281,54 @@ class TestGroupAPIs(TestAPIBaseClass):
         self._test_keys(res2.json()['group'].keys(), set(res1.json()['group'].keys()))
         self.assertEqual(res2.json()['group']['users'], [])
 
+class TestSitesAPIs(TestAPIBaseClass):
+    def test_create_site(self):
+        res = self.create_user()
+        res1 = self.create_group()
+        res2 = self.create_site()
+        expected_top_keys = ('success', 'site',)
+        self._test_keys(res2.json().keys(), expected_top_keys)
+        expected_inner_keys = ('id', 'url', 'plans', 'created',)
+        self._test_keys(res2.json()['site'].keys(), expected_inner_keys)
+        self.assertEqual(res2.json()['site']['url'], self.site1)
+        #self.assertEqual(res2.json()['site']['groups'], [self.group_name])
+        self.assertEqual(res2.json()['site']['plans'], [])
+
+    def test_create_duplicate_site(self):
+        res = self.create_user()
+        res1 = self.create_group()
+        res2 = self.create_site()
+        res3 = self.create_site()
+        expected_top_keys = ('success', 'reason',)
+        self._test_keys(res3.json().keys(), expected_top_keys)
+        self.assertEqual(res3.json()['success'], False)
+        self.assertEqual(res3.json()['reason'], 'site-already-exists')
+
+    def test_get_all_sites(self):
+        res = self.create_user()
+        res1 = self.create_group()
+        res2 = self.create_site()
+        res3 = self.get_sites()
+        expected_top_keys = ('success', 'sites', )
+        self._test_keys(res3.json().keys(), expected_top_keys)
+        expected_inner_keys = ('id', 'url','groups', 'created', 'plans')
+        self._test_keys(res3.json()['sites'][0].keys(), expected_inner_keys)
+        self.assertEqual(res3.json()['sites'][0]['url'], self.site1)
+        # groups should return self.group_name when #50 and #49 are fixed
+        self.assertEqual(res3.json()['sites'][0]['groups'], [])
+        self.assertEqual(res3.json()['sites'][0]['plans'], [])
+
+    def test_get_site(self):
+        res = self.create_user()
+        res1 = self.create_group()
+        res2 = self.create_site() 
+        site_id = res2.json()['site']['id']
+        res3 = self.get_site(site_id)
+        expected_top_keys = ('success', 'site', )
+        self._test_keys(res3.json().keys(), expected_top_keys)
+        # until #49, #50, #51 are resolved, this is commented
+        #self.assertEqual(res3.json()['site'], res2.json()['site'])
+        
 class TestBackendAPIs(unittest.TestCase):
     def setUp(self):
         ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
