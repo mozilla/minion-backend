@@ -15,6 +15,13 @@ BASE = 'http://localhost:8383'
 APIS = {'user':
             {'POST': '/users',
              'GET': '/users'},
+        'groups':
+            {'POST': '/groups',
+              'GET': '/groups'},
+        'group':
+            {'GET': '/groups/{group_name}',
+             'DELETE': '/groups/{group_name}',
+             'PATCH': '/groups/{group_name}'},
         'get_plans': 
             {'GET': '/plans'},
         'get_plan':
@@ -63,7 +70,8 @@ def _call(task, method, auth=None, data=None, url_args=None):
     req_objs = {'GET': requests.get,
         'POST': requests.post,
         'PUT': requests.put,
-        'DELETE': requests.delete}
+        'DELETE': requests.delete,
+        'PATCH': requests.patch}
 
     method = method.upper()
     api = APIS[task][method]
@@ -89,7 +97,13 @@ class TestAPIBaseClass(unittest.TestCase):
         self.db = self.mongodb.minion
 
         self.email = "bob@example.org"
+        self.email2 = "alice@example.org"
         self.role = "user"
+        self.group_name = "minion-test-group"
+        self.group_description = "minion test group is awesome."
+        
+        self.add_site = "http://foo.com"
+        self.remove_site = "http://bar.com"
 
     def tearDown(self):
         self.mongodb.drop_database("minion")
@@ -99,6 +113,23 @@ class TestAPIBaseClass(unittest.TestCase):
     
     def get_users(self):
         return _call('user', 'GET')
+
+    def create_group(self):
+        return _call('groups', 'POST', data={'name': self.group_name, 
+            "description": self.group_description})
+
+    def get_groups(self):
+        return _call('groups', 'GET')
+
+    def get_group(self, group_name):
+        return _call('group', 'GET', url_args={'group_name': group_name})
+
+    def delete_group(self, group_name):
+        return _call('group', 'DELETE', url_args={'group_name': group_name})
+
+    def modify_group(self, group_name, data=None):
+        return _call('group', 'PATCH', url_args={'group_name': group_name},
+                data=data)
 
     def _test_keys(self, target, expected):
         """
@@ -134,6 +165,95 @@ class TestUserAPIs(TestAPIBaseClass):
         expected_inner_keys = ('id', 'email', 'role', 'sites', 'groups')
         self._test_keys(res.json()['users'][0].keys(), expected_inner_keys)
         self.assertEqual(1, len(res.json()['users']))
+
+class TestGroupAPIs(TestAPIBaseClass):
+    def test_create_group(self):
+        res = self.create_user()
+        res = self.create_group()
+        expected_top_keys = ('success', 'group')
+        self._test_keys(res.json().keys(), expected_top_keys)
+        expected_inner_keys = ('id', 'created', 'name', 'description')
+        self._test_keys(res.json()['group'], expected_inner_keys)
+        self.assertEqual(res.json()['group']['name'], self.group_name)
+        self.assertEqual(res.json()['group']['description'], self.group_description)
+
+    def test_create_duplicate_group(self):
+        res = self.create_user()
+        res = self.create_group()
+        res = self.create_group()
+        expected_top_keys = ('success', 'reason')
+        self._test_keys(res.json().keys(), expected_top_keys)
+        self.assertEqual(res.json()['success'], False)
+        self.assertEqual(res.json()['reason'], 'group-already-exists')
+
+    def test_get_all_groups(self):
+        res = self.create_user()
+        res1 = self.create_group()
+        res2 = self.get_groups()
+        expected_top_keys = ('success', 'groups')
+        self._test_keys(res2.json().keys(), expected_top_keys)
+        self.assertEqual(res2.json()['groups'][0], res1.json()['group'])
+
+    def test_get_group(self):
+        res = self.create_user()
+        res1 = self.create_group()
+        res2 = self.get_group(self.group_name)
+        expected_top_keys = ('success', 'group')
+        self._test_keys(res2.json().keys(), expected_top_keys)
+        self.assertEqual(res2.json()['group']['name'], self.group_name)
+        self.assertEqual(res2.json()['group']['description'], self.group_description)
+
+    def test_delete_group(self):
+        res = self.create_user()
+        res1 = self.create_group()
+        res2 = self.delete_group(self.group_name)
+        expected_top_keys = ('success', )
+        self._test_keys(res2.json().keys(), expected_top_keys)
+        self.assertEqual(res2.json()['success'], True)
+
+    def test_patch_group_add_site(self):
+        res = self.create_user()
+        res1 = self.create_group()
+        res2 = self.modify_group(self.group_name,
+                data={'addSites': [self.add_site]})
+        self._test_keys(res2.json().keys(), set(res1.json().keys()))
+        self._test_keys(res2.json()['group'].keys(), set(res1.json()['group'].keys()))
+        self.assertEqual(res2.json()['group']['sites'][0], self.add_site)
+
+    def test_patch_group_remove_site(self):
+        res = self.create_user()
+        res1 = self.create_group()
+        res2 = self.modify_group(self.group_name,
+                data={'addSites': [self.remove_site]})
+        self.assertEqual(res2.json()['group']['sites'][0], self.remove_site)
+
+        res2 = self.modify_group(self.group_name,
+                data={'removeSites': [self.remove_site]})
+        self._test_keys(res2.json().keys(), set(res1.json().keys()))
+        self._test_keys(res2.json()['group'].keys(), set(res1.json()['group'].keys()))
+        self.assertEqual(res2.json()['group']['sites'], [])
+
+    def test_patch_group_add_user(self):
+        res = self.create_user()
+        res1 = self.create_group()
+        res2 = self.modify_group(self.group_name,
+                data={'addUsers': [self.email2]})
+        self._test_keys(res2.json().keys(), set(res1.json().keys()))
+        self._test_keys(res2.json()['group'].keys(), set(res1.json()['group'].keys()))
+        self.assertEqual(res2.json()['group']['users'][0], self.email2)
+
+    def test_patch_group_remove_user(self):
+        res = self.create_user()
+        res1 = self.create_group()
+        res2 = self.modify_group(self.group_name,
+                data={'addUsers': [self.email2]})
+        self.assertEqual(res2.json()['group']['users'][0], self.email2)
+
+        res2 = self.modify_group(self.group_name,
+                data={'removeUsers': [self.email2]})
+        self._test_keys(res2.json().keys(), set(res1.json().keys()))
+        self._test_keys(res2.json()['group'].keys(), set(res1.json()['group'].keys()))
+        self.assertEqual(res2.json()['group']['users'], [])
 
 class TestBackendAPIs(unittest.TestCase):
     def setUp(self):
