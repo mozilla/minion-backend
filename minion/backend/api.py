@@ -214,6 +214,7 @@ def get_user(email):
 @app.route('/users', methods=['POST'])
 def create_user():
     user = request.json
+    print request.json
     if users.find_one({'email': user['email']}) is not None:
         return jsonify(success=False, reason='user-already-exists')
     new_user = { 'id': str(uuid.uuid4()),
