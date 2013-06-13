@@ -150,8 +150,8 @@ class XContentTypeOptionsPlugin(BlockingPlugin):
     def do_run(self):
         r = minion.curly.get(self.configuration['target'], connect_timeout=5, timeout=15)
         r.raise_for_status()
-        value = r.headers.get('X-Content-Type-Options', None) or r.headers.get('x-content-type-options', None)
-        if value is None:
+        value = r.headers.get('x-content-type-options')
+        if not value:
             self.report_issues([{ "Summary":"Site does not set X-Content-Type-Options header", "Severity":"High" }])
         else:
             if value.lower() == 'nosniff':
@@ -172,8 +172,8 @@ class XXSSProtectionPlugin(BlockingPlugin):
     def do_run(self):
         r = minion.curly.get(self.configuration['target'], connect_timeout=5, timeout=15)
         r.raise_for_status()
-        value = r.headers.get('X-XSS-Protection', None) or r.headers.get('x-xss-protection', None)
-        if value is None:
+        value = r.headers.get('x-xss-protection')
+        if not value:
             self.report_issues([{ "Summary":"Site does not set X-XSS-Protection header", "Severity":"High" }])
         else:
             if value.lower() == '1; mode=block':
@@ -198,7 +198,7 @@ class ServerDetailsPlugin(BlockingPlugin):
         r.raise_for_status()
         HEADERS = ('Server', 'X-Powered-By', 'X-AspNet-Version', 'X-AspNetMvc-Version', 'X-Backend-Server')
         for header in HEADERS:
-            if header.lower() in r.headers or header in r.headers:
+            if header.lower() in r.headers:
                 self.report_issues([{ "Summary":"Site sets the '%s' header" % header, "Severity":"Medium" }])
 
 
