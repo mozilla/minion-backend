@@ -24,7 +24,8 @@ RULES = {'DEFAULT-SRC': "default-src 'self'",
          "DEFAULT-SRC-DOMAIN-SUB-DOMAIN": "default-src 'self' *.mydomain.com",
          "DEFAULT-SRC-DOMAIN-SUB-DOMAIN-IMG-MEDIA-SCRIPT": 
             "default-src 'self'; img-src *; media-src media1.com media2.com; script-src userscripts.example.com",
-         "EVAL": "script-src 'self' 'unsafe-eval' https://mydomain.com"
+         "EVAL": "script-src 'self' 'unsafe-eval' https://mydomain.com",
+         "INLINE": "script-src 'self' 'unsafe-inline' https://mydomain.com"
 }
 
 @test_app.route('/no-csp')
@@ -57,6 +58,10 @@ def malformed_csp():
 def eval_csp():
     return _make_res('x', RULES['EVAL'])
 
+@test_app.route('/inline-csp')
+def inline_csp():
+    return _make_res('x', RULES['INLINE'])
+
 class TestCSPPlugin(TestPluginBaseClass):
     __test__ = True
     @classmethod
@@ -80,14 +85,14 @@ class TestCSPPlugin(TestPluginBaseClass):
                     runner_resp[1]['data']['Summary'])
             self.assertEqual('High', runner_resp[1]['data']['Severity'])
         elif expectation == 'INVALID':
-            self.assertEqual('Malformed X-Content-Security-Policy header set',
-                    runner_resp[1]['data']['Summary'])
+            self.assertEqual('Malformed {hname} header set: {value} does not seem like a valid uri for {name}'.format(
+                value=expected['value'], name=expected['name'], hname=expected['hname']), runner_resp[1]['data']['Summary'])
         elif expectation == 'EVAL-ENABLED':
-            self.assertEqual('CSP Rules allow eval-script',
+            self.assertEqual('CSP Rules allow unsafe-eval',
                     runner_resp[1]['data']['Summary'])
             self.assertEqual('High', runner_resp[1]['data']['Severity'])
         elif expectation == 'INLINE-ENABLED':
-            self.assertEqual('CSP Rules allow inline-script',
+            self.assertEqual('CSP Rules allow unsafe-inline',
                     runner_resp[1]['data']['Summary'])
             self.assertEqual('High', runner_resp[1]['data']['Severity'])
         elif expectation is False:
@@ -127,7 +132,12 @@ class TestCSPPlugin(TestPluginBaseClass):
 
     def test_malformed_csp(self):
         api_name = '/malformed-csp'
-        self.validate_plugin(api_name, self.validate_csp, expectation='INVALID')
+        self.validate_plugin(api_name, self.validate_csp, expectation='INVALID',
+                expected={'value': 'img-src', 'name': 'default-src', 'hname': 'x-content-security-policy'})
     def test_eval_csp(self):
         api_name = '/eval-csp'
         self.validate_plugin(api_name, self.validate_csp, expectation='EVAL-ENABLED')
+    def test_inline_csp(self):
+        api_name = '/inline-csp'
+        self.validate_plugin(api_name, self.validate_csp, expectation='INLINE-ENABLED')
+
