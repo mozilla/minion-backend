@@ -510,7 +510,7 @@ def get_reports_history():
 # If the user is specified then the report will only include data
 # that the user can see.
 #
-#  { 'report': 
+#  { 'report':
 #       [{ 'plan': 'basic',
 #          'scan': [...],
 #          'target': 'http://www.mozilla.com',
@@ -724,9 +724,7 @@ def put_scan_control(scan_id):
     if not scan:
         return jsonify(success=False, error='no-such-scan')
     # Check if the state is valid
-    state = request.json or request.data
-    if isinstance(state, dict):
-        state = state['state']
+    state = request.data
     if state not in ('START', 'STOP'):
         return jsonify(success=False, error='unknown-state')
     # Handle start
