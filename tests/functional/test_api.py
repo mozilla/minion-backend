@@ -44,7 +44,13 @@ APIS = {'user':
             {'GET': '/scans/{scan_id}',
              'PUT': '/scans/{scan_id}/control'},
         'scan_summary':
-            {'GET': '/scans/{scan_id}/summary'}
+            {'GET': '/scans/{scan_id}/summary'},
+        'history':
+            {'GET': '/reports/history'},
+        'issues':
+            {'GET': '/reports/issues'},
+        'status':
+            {'GET': '/reports/status'},
 }
 
 def get_api(api_name, method, args=None):
@@ -250,6 +256,24 @@ class TestAPIBaseClass(unittest.TestCase):
 
     def get_scan_summary(self, scan_id):
         return _call('scan_summary', 'GET', url_args={'scan_id': scan_id})
+
+    def get_reports_history(self, user=None):
+        data = None
+        if user is not None:
+            data = {'user': user}
+        return _call('history', 'GET', data=data)
+
+    def get_reports_status(self, user=None):
+        data = None
+        if user is None:
+            data = {'user': user}
+        return _call('status', 'GET', data=data)
+
+    def get_reports_issues(self, user=None):
+        data = None
+        if user is None:
+            data = {'user': user}
+        return _call('issues', 'GET', data=data)
 
     def _test_keys(self, target, expected):
         """
@@ -513,27 +537,62 @@ class TestScanAPIs(TestAPIBaseClass):
         self.assertEqual(res4.json(), res5.json())
 
     def test_start_basic_scan(self):
+        """
+        This test is very comprehensive. It tests
+        1. POST /scans
+        2. GET /scans/<scan_id>
+        3. PUT /scans/<scan_id>/control
+        4. GET /scans/<scan_id>/summary
+        5. GET /reports/history
+        6. GET /reports/status
+        7. GET /reports/issues
+        """
         self.start_server()
 
         res1 = self.create_user()
         res2 = self.create_group()
         res3 = self.create_site(plans=['basic'])
+
+        # POST /scans
         res4 = self.create_scan()
         scan_id = res4.json()['scan']['id']
+
+        # PUT /scans/<scan_id>/control
         res5 = self.control_scan(scan_id, 'START')
         self.assertEqual(len(res5.json().keys()), 1)
         self.assertEqual(res5.json()['success'], True)
     
-        # see what scan detail has to say
+        # GET /scans/<scan_id>
         res6 = self.get_scan(scan_id)
         self._test_keys(res6.json().keys(), set(res4.json().keys()))
         self._test_keys(res6.json()['scan'].keys(), set(res4.json()['scan'].keys()))
         self.assertEqual(res6.json()['scan']['state'], 'QUEUED')
+
         # give scanner a few seconds
         time.sleep(5)
+        # GET /scans/<scan_id>
         # now check if the scan has completed or not
         res7 = self.get_scan(scan_id)
-        pprint.pprint(res7.json(), indent=3)
         self.assertEqual(res7.json()['scan']['state'], 'FINISHED')
+
+        # GET /scans/<scan_id>/summary
+        res8 = self.get_scan_summary(scan_id)
+        
+        # GET /reports/history
+        res9 = self.get_reports_history()
+        expected_top_keys = ('report', 'success',)
+        self._test_keys(res9.json().keys(), expected_top_keys)
+        expected_inner_keys = ('configuration', 'created', 'finished', 'id',
+                'issues', 'plan', 'queued', 'sessions', 'state',)
+        self._test_keys(res9.json()['report'][0].keys(), expected_inner_keys)
+        self.assertEqual(res9.json()['report'][0]['id'], scan_id)
+        
+        # GET /reports/status
+        res10 = self.get_reports_status()
+        pprint.pprint(res10.json(), indent=1)
+
+        # GET /reports/issues
+        res11 = self.get_reports_issues(user=self.email)
+        pprint.pprint(res11.json(), indent=1)
 
         self.stop_server()        
