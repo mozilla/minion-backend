@@ -17,7 +17,7 @@ from pymongo import MongoClient
 import minion.backend.utils as backend_utils
 from minion.backend.api import BUILTIN_PLUGINS, TEST_PLUGINS
 
-BACKEND_KEY = backend_utils.backend_config()['api']['key']
+BACKEND_KEY = backend_utils.backend_config()['api'].get('key')
 BASE = 'http://localhost:8383'
 APIS = {'user':
             {'POST': '/users',
@@ -309,14 +309,14 @@ class TestAccessToken(TestAPIBaseClass):
         res = self.create_user()
         self.assertEqual(res.status_code, 200)
 
-    def test_create_user_401_without_header(self):
-        res = self.create_user(headers={'Content-Type': 'application/json'})
-        self.assertEqual(res.status_code, 401)
+    #def test_create_user_401_without_header(self):
+    #    res = self.create_user(headers={'Content-Type': 'application/json'})
+    #    self.assertEqual(res.status_code, 401)
 
-    def test_create_user_401_with_incorrect_backend_key(self):
-        res = self.create_user(headers={'Content-type': 'application/json',\
-               'X-Minion-Backend-Key': 'I want to hack your server.'})
-        self.assertEqual(res.status_code, 401)
+    #def test_create_user_401_with_incorrect_backend_key(self):
+    #    res = self.create_user(headers={'Content-type': 'application/json',\
+    #           'X-Minion-Backend-Key': 'I want to hack your server.'})
+    #    self.assertEqual(res.status_code, 401)
 
     def test_create_user_200_lower_case_header(self):
         res = self.create_user(headers={'Content-type': 'application/json',\

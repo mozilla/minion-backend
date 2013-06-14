@@ -11,7 +11,6 @@ import os
 DEFAULT_BACKEND_CONFIG = {
     'api': {
         'url': 'http://127.0.0.1:8383',
-        'key': 'somethingrandomcheese'
     },
     'celery': {
         'broker': 'amqp://guest@127.0.0.1:5672//',
