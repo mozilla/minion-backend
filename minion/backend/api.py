@@ -25,6 +25,7 @@ sites = mongo_client.minion.sites
 groups = mongo_client.minion.groups
 
 app = Flask(__name__)
+app.debug = True
 
 BUILTIN_PLUGINS = [
     'minion.plugins.basic.AlivePlugin',
