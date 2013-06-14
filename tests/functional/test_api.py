@@ -4,8 +4,13 @@
 
 import os
 import json
-import unittest
+import pprint
 import requests
+import time
+import unittest
+from flask import Flask, make_response
+from multiprocessing import Process
+from subprocess import Popen, PIPE
 
 from pymongo import MongoClient
 
@@ -33,6 +38,13 @@ APIS = {'user':
             {'GET': '/plans/{plan_name}'},
         'get_plugins':
             {'GET': '/plugins'},
+        'scans':
+            {'POST': '/scans',},
+        'scan':
+            {'GET': '/scans/{scan_id}',
+             'PUT': '/scans/{scan_id}/control'},
+        'scan_summary':
+            {'GET': '/scans/{scan_id}/summary'}
 }
 
 def get_api(api_name, method, args=None):
@@ -121,8 +133,30 @@ class TestAPIBaseClass(unittest.TestCase):
         self.site1 = "http://foo.com"
         self.site2 = "http://bar.com"
 
+        self.target_url = 'http://127.0.0.1:1234'
+
     def tearDown(self):
         self.mongodb.drop_database("minion")
+
+    def _kill_ports(self, ports):
+        for port in ports:
+            p = Popen(['sudo', '/bin/kill `sudo lsof -t -i:%s`' %str(port)],\
+                    stdout=PIPE, stderr=PIPE, shell=True)
+
+    def start_server(self):
+        """ Similar to plugin functional tests, we need 
+        to start server and kill ports. """
+        def run_app():
+            test_app.run(host='localhost', port=1234)
+        self._kill_ports([1234,])
+        self.server = Process(target=run_app)
+        self.server.daemon = True
+        self.server.start()
+
+    def stop_server(self):
+        self.server.terminate()
+        self._kill_ports([1234,])
+        
 
     def import_plan(self):
         ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -133,6 +167,30 @@ class TestAPIBaseClass(unittest.TestCase):
             self.plan = json.load(f)
             self.plans.remove({'name': self.plan['name']})
             self.plans.insert(self.plan)
+
+    @staticmethod
+    def _get_plugin_name(full):
+        """ Return the name of the plugin. """
+        cls_name = full.split('.')[-1]
+        return cls_name.split('Plugin')[0]
+
+    def check_plugin_metadata(self, base, metadata):
+        """ Given a base configuration, parse
+        and verify the input metadata contains
+        the following keys: 'version', 'class',
+        'weight', and 'name' for each plugin. """
+
+        for index, plugin in enumerate(metadata):
+            p_name = self._get_plugin_name(base['workflow'][index]['plugin_name'])
+            # the plugin list is either under the key plugin, plugins or
+            # iself is already a list. We should consider using plugins
+            # over plugin; that is, change the key name in /plugins endpoint.
+            meta = plugin.get('plugin') or plugin.get('plugins') or plugin
+            self.assertEqual('light', meta['weight'])
+            self.assertEqual(p_name, meta['name'])
+            self.assertEqual(base['workflow'][index]['plugin_name'], meta['class'])
+            self.assertEqual("0.0", meta['version'])
+    
 
     def create_user(self):
         return _call('user', 'POST', data={"email": self.email, "role": "user"})
@@ -157,9 +215,11 @@ class TestAPIBaseClass(unittest.TestCase):
         return _call('group', 'PATCH', url_args={'group_name': group_name},
                 data=data)
     
-    def create_site(self):
-        return _call('sites', 'POST', data={"url": self.site1, 
-            'groups': [self.group_name,]})
+    def create_site(self, plans=None):
+        data = {'url': self.site1, 'groups': [self.group_name,]}
+        if plans is not None:
+            data.update({'plans': plans})
+        return _call('sites', 'POST', data=data)
 
     def get_sites(self):
         return _call('sites', 'GET')
@@ -175,6 +235,21 @@ class TestAPIBaseClass(unittest.TestCase):
     
     def get_plugins(self):
         return _call('get_plugins', 'GET')
+
+    def create_scan(self):
+        return _call('scans', 'POST', 
+                data={'plan': 'basic', 
+                    'configuration': {'target': self.target_url}})
+
+    def get_scan(self, scan_id):
+        return _call('scan', 'GET', url_args={'scan_id': scan_id})
+
+    def control_scan(self, scan_id, state='START'):
+        return _call('scan', 'PUT', url_args={'scan_id': scan_id},
+                data={'state': state.upper()})
+
+    def get_scan_summary(self, scan_id):
+        return _call('scan_summary', 'GET', url_args={'scan_id': scan_id})
 
     def _test_keys(self, target, expected):
         """
@@ -353,12 +428,6 @@ class TestPlanAPIs(TestAPIBaseClass):
         super(TestPlanAPIs, self).setUp()
         self.import_plan()
 
-    @staticmethod
-    def _get_plugin_name(full):
-        """ Return the name of the plugin. """
-        cls_name = full.split('.')[-1]
-        return cls_name.split('Plugin')[0]
-
     def test_get_plans(self):
         resp = self.get_plans()
         self.assertEqual(200, resp.status_code)
@@ -369,31 +438,13 @@ class TestPlanAPIs(TestAPIBaseClass):
         self.assertEqual(resp.json()['plans'][0]['name'], "basic")
         self.assertEqual(resp.json()['plans'][0]['description'], "Run basic tests")
 
-    @staticmethod
-    def _check_plugin_metadata(tself, base, metadata):
-        """ Given a base configuration, parse
-        and verify the input metadata contains
-        the following keys: 'version', 'class',
-        'weight', and 'name' for each plugin. """
-
-        for index, plugin in enumerate(metadata):
-            p_name = tself._get_plugin_name(base['workflow'][index]['plugin_name'])
-            # the plugin list is either under the key plugin, plugins or
-            # itself is already a list. We should consider using plugins
-            # over plugin; that is, change the key name in /plugins endpoint.
-            meta = plugin.get('plugin') or plugin.get('plugins') or plugin
-            tself.assertEqual('light', meta['weight'])
-            tself.assertEqual(p_name, meta['name'])
-            tself.assertEqual(base['workflow'][index]['plugin_name'], meta['class'])
-            tself.assertEqual("0.0", meta['version'])
-    
     def test_get_plan(self):
         resp = self.get_plan('basic')
         self.assertEqual(200, resp.status_code)
         
         # test plugin name and weight. weight is now always light for the built-in
         plan = resp.json()
-        self._check_plugin_metadata(self, self.plan, plan['plan']['workflow'])
+        self.check_plugin_metadata(self.plan, plan['plan']['workflow'])
     
     def test_get_built_in_plugins(self):
         resp = self.get_plugins()
@@ -410,3 +461,79 @@ class TestPlanAPIs(TestAPIBaseClass):
         expected_inner_keys = ('class', 'name', 'version', 'weight')
         for plugin in resp.json()['plugins']:
             self._test_keys(plugin.keys(), expected_inner_keys)
+
+test_app = Flask(__name__)
+@test_app.route('/')
+def basic_app():
+    res = make_response('')
+    res.headers['X-Content-Type-oPTIONS'] = 'nosniff'
+    return res
+
+class TestScanAPIs(TestAPIBaseClass):
+    def setUp(self):
+        super(TestScanAPIs, self).setUp()
+        self.import_plan()
+
+    def test_create_scan(self):
+        res1 = self.create_user()
+        res2 = self.create_group()
+        res3 = self.create_site(plans=['basic'])
+        res4 = self.create_scan()
+        #pprint.pprint(res4.json(), indent=5)
+
+        expected_top_keys = ('success', 'scan',)
+        self._test_keys(res4.json().keys(), expected_top_keys)
+
+        expected_scan_keys = ('id', 'state', 'created', 'queued', 'started', \
+                'finished', 'plan', 'configuration', 'sessions', 'meta',)
+        self._test_keys(res4.json()['scan'].keys(), expected_scan_keys)
+        
+        scan = res4.json()['scan']
+        for session in scan['sessions']:
+            expected_session_keys = ('id', 'state', 'plugin', 'configuration', \
+                    'description', 'artifacts', 'issues', 'created', 'started', \
+                    'queued', 'finished', 'progress',)
+            self._test_keys(session.keys(), expected_session_keys)
+            self.assertEqual(session['configuration']['target'], self.target_url)
+
+            self.assertEqual(session['state'], 'CREATED')
+            self.assertEqual(session['artifacts'], {})
+            self.assertEqual(session['issues'], [])
+            for name in ('queued', 'started', 'finished', 'progress'):
+                self.assertEqual(session[name], None)
+
+    def test_get_scan(self):
+        res1 = self.create_user()
+        res2 = self.create_group()
+        res3 = self.create_site(plans=['basic'])
+        res4 = self.create_scan()
+        scan_id = res4.json()['scan']['id']
+        res5 = self.get_scan(scan_id)
+        # since scan hasn't started, should == res4
+        self.assertEqual(res4.json(), res5.json())
+
+    def test_start_basic_scan(self):
+        self.start_server()
+
+        res1 = self.create_user()
+        res2 = self.create_group()
+        res3 = self.create_site(plans=['basic'])
+        res4 = self.create_scan()
+        scan_id = res4.json()['scan']['id']
+        res5 = self.control_scan(scan_id, 'START')
+        self.assertEqual(len(res5.json().keys()), 1)
+        self.assertEqual(res5.json()['success'], True)
+    
+        # see what scan detail has to say
+        res6 = self.get_scan(scan_id)
+        self._test_keys(res6.json().keys(), set(res4.json().keys()))
+        self._test_keys(res6.json()['scan'].keys(), set(res4.json()['scan'].keys()))
+        self.assertEqual(res6.json()['scan']['state'], 'QUEUED')
+        # give scanner a few seconds
+        time.sleep(5)
+        # now check if the scan has completed or not
+        res7 = self.get_scan(scan_id)
+        pprint.pprint(res7.json(), indent=3)
+        self.assertEqual(res7.json()['scan']['state'], 'FINISHED')
+
+        self.stop_server()        
