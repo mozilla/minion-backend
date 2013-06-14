@@ -153,9 +153,9 @@ class TestAPIBaseClass(unittest.TestCase):
 
     def _kill_ports(self, ports):
         for port in ports:
-            p = Popen(['sudo', '/bin/kill `sudo lsof -t -i:%s`' %str(port)],\
+            p = Popen(['kill `fuser -n tcp %s`' % str(port)],\
                     stdout=PIPE, stderr=PIPE, shell=True)
-
+            p.communicate()
     def start_server(self):
         """ Similar to plugin functional tests, we need 
         to start server and kill ports. """
@@ -598,7 +598,7 @@ class TestScanAPIs(TestAPIBaseClass):
         self.assertEqual(res6.json()['scan']['state'], 'QUEUED')
 
         # give scanner a few seconds
-        time.sleep(5)
+        time.sleep(10)
         # GET /scans/<scan_id>
         # now check if the scan has completed or not
         res7 = self.get_scan(scan_id)
