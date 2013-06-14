@@ -25,7 +25,6 @@ sites = mongo_client.minion.sites
 groups = mongo_client.minion.groups
 
 app = Flask(__name__)
-app.debug = True
 
 BUILTIN_PLUGINS = [
     'minion.plugins.basic.AlivePlugin',
@@ -88,11 +87,12 @@ for plugin_class_name in OPTIONAL_PLUGINS:
     except ImportError as e:
         pass
 
-for plugin_class_name in TEST_PLUGINS:
-    try:
-        _register_plugin(plugin_class_name)
-    except ImportError as e:
-        pass
+if app.debug:
+    for plugin_class_name in TEST_PLUGINS:
+        try:
+            _register_plugin(plugin_class_name)
+        except ImportError as e:
+            pass
 
 def sanitize_plan(plan):
     if plan.get('_id'):
