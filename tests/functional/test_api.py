@@ -14,8 +14,10 @@ from subprocess import Popen, PIPE
 
 from pymongo import MongoClient
 
+import minion.backend.utils as backend_utils
 from minion.backend.api import BUILTIN_PLUGINS, TEST_PLUGINS
 
+BACKEND_KEY = backend_utils.backend_config()['api']['key']
 BASE = 'http://localhost:8383'
 APIS = {'user':
             {'POST': '/users',
@@ -62,8 +64,8 @@ def get_api(api_name, method, args=None):
     else:
         return api
 
-#TODO: Make content-type and jsonify more flexible.
-def _call(task, method, auth=None, data=None, url_args=None, jsonify=True):
+def _call(task, method, auth=None, data=None, url_args=None, jsonify=True, \
+        headers=None):
     """
     Make HTTP request.
 
@@ -85,6 +87,10 @@ def _call(task, method, auth=None, data=None, url_args=None, jsonify=True):
         requires ``id``, you'd pass ``{'id': '3a7a67'}``.
     jsonify : bool
         If set to True, data will be sent as plaintext like GET.
+    headers : dict
+        Default to None. GET will send as plain/text while
+        POST, PUT, and PATCH will send as application/json.
+
     Returns
     -------
     res : requests.Response
@@ -108,25 +114,20 @@ def _call(task, method, auth=None, data=None, url_args=None, jsonify=True):
     req_objs = req_objs[method]
     if jsonify and data and method != 'GET':
         data = json.dumps(data)
-    if jsonify:
-        headers = {'Content-Type': 'application/json'}
-    else:
-        headers = {'Content-Type': 'text/plain'}
 
+    if headers is None:
+        if jsonify:
+            headers = {'Content-Type': 'application/json', 
+                    'X-Minion-Backend-Key': BACKEND_KEY}
+        else:
+            headers = {'Content-Type': 'text/plain',
+                    'X-Minion-Backend-Key': BACKEND_KEY}
+    
     if method == 'GET' or method == 'DELETE':
         res = req_objs(api, params=data, auth=auth, headers=headers)
     else:
         res = req_objs(api, data=data, auth=auth, headers=headers)
     return res
-
-def _debug():
-    """ Only use this if you want a quick look
-    at the actual database after firing some basic
-    api calls. """
-    _call('user', 'POST', data={'email': 'debug@debug.com', 'role': 'user'})
-    _call('groups', 'POST', data={'name': 'debug group', 'description': 'debugging.'})
-    _call('sites', 'POST', data={'url': 'http://debugger.debugger', 'groups': ['debugger']})
-_debug()
 
 class TestAPIBaseClass(unittest.TestCase):
     def setUp(self):
@@ -204,8 +205,9 @@ class TestAPIBaseClass(unittest.TestCase):
             self.assertEqual("0.0", meta['version'])
     
 
-    def create_user(self):
-        return _call('user', 'POST', data={"email": self.email, "role": "user"})
+    def create_user(self, headers=None):
+        return _call('user', 'POST', data={"email": self.email, "role": "user"},\
+                headers=headers)
     
     def get_users(self):
         return _call('user', 'GET')
@@ -301,6 +303,25 @@ class TestAPIBaseClass(unittest.TestCase):
 
         keys1 = set(expected)
         self.assertEqual(set(), keys1.difference(target))
+
+class TestAccessToken(TestAPIBaseClass):
+    def test_create_user_200(self):
+        res = self.create_user()
+        self.assertEqual(res.status_code, 200)
+
+    def test_create_user_401_without_header(self):
+        res = self.create_user(headers={'Content-Type': 'application/json'})
+        self.assertEqual(res.status_code, 401)
+
+    def test_create_user_401_with_incorrect_backend_key(self):
+        res = self.create_user(headers={'Content-type': 'application/json',\
+               'X-Minion-Backend-Key': 'I want to hack your server.'})
+        self.assertEqual(res.status_code, 401)
+
+    def test_create_user_200_lower_case_header(self):
+        res = self.create_user(headers={'Content-type': 'application/json',\
+                   'x-minion-backend-key': BACKEND_KEY})
+        self.assertEqual(res.status_code, 200)
 
 class TestUserAPIs(TestAPIBaseClass):
     def test_create_user(self):

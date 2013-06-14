@@ -1,14 +1,15 @@
 #!/usr/bin/env python
 
-import datetime
 import calendar
+import datetime
+import functools
 import importlib
 import json
 import operator
 import re
 import uuid
 
-from flask import Flask, render_template, redirect, url_for, session, jsonify, request, session
+from flask import abort, Flask, render_template, redirect, url_for, session, jsonify, request, session
 from pymongo import MongoClient
 
 import state_worker
@@ -25,6 +26,27 @@ sites = mongo_client.minion.sites
 groups = mongo_client.minion.groups
 
 app = Flask(__name__)
+
+def api_guard(view):
+    """ Decorate a view function to be protected by requiring
+    a secret key in X-Minion-Backend-Key header for the decorated 
+    backend API. If 'key' is False or not found in the config file,
+    the decorator will assume no protection is needed and will grant
+    access to all incoming request. """
+    @functools.wraps(view)
+    def verify_key(*args, **kwargs):
+        token_in_header = request.headers.get('x-minion-backend-key')
+        secret_key = backend_config['api'].get('key')
+        if secret_key:
+            if token_in_header:
+                if token_in_header == secret_key:
+                    return view(*args, **kwargs)
+                else:
+                    abort(401)
+            else:
+                abort(401)
+        return view(*args, **kwargs)
+    return verify_key
 
 BUILTIN_PLUGINS = [
     'minion.plugins.basic.AlivePlugin',
@@ -203,6 +225,7 @@ def _check_plan_exists(plan_name):
 # API Methods to manage users
 
 @app.route('/users/<email>', methods=['GET'])
+@api_guard
 def get_user(email):
     email = email.lower()
     user = users.find_one({'email': email})
@@ -230,6 +253,7 @@ def get_user(email):
 #
 
 @app.route('/users', methods=['POST'])
+@api_guard
 def create_user():
     user = request.json
     if users.find_one({'email': user['email']}) is not None:
@@ -257,6 +281,7 @@ def create_user():
 #
 
 @app.route('/users', methods=['GET'])
+@api_guard
 def list_users():
     userz = []
     for user in users.find():
@@ -280,6 +305,7 @@ def list_users():
 #
 
 @app.route('/groups', methods=['GET'])
+@api_guard
 def list_groups():
     return jsonify(success=True, groups=[sanitize_group(group) for group in groups.find()])
 
@@ -305,6 +331,7 @@ def list_groups():
 #
 
 @app.route('/groups', methods=['POST'])
+@api_guard
 def create_group():
     group = request.json
     # TODO Verify incoming group: name must be valid, group must not exist already
@@ -320,6 +347,7 @@ def create_group():
     return jsonify(success=True, group=sanitize_group(new_group))
 
 @app.route('/groups/<group_name>', methods=['GET'])
+@api_guard
 def get_group(group_name):
     group = groups.find_one({'name': group_name})
     if not group:
@@ -333,6 +361,7 @@ def get_group(group_name):
 #
 
 @app.route('/groups/<group_name>', methods=['DELETE'])
+@api_guard
 def delete_group(group_name):
     group = groups.find_one({'name': group_name})
     if not group:
@@ -354,6 +383,7 @@ def delete_group(group_name):
 #
 
 @app.route('/groups/<group_name>', methods=['PATCH'])
+@api_guard
 def patch_group(group_name):
     group = groups.find_one({'name': group_name})
     if not group:
@@ -399,6 +429,7 @@ def patch_group(group_name):
 #
 
 @app.route('/sites/<site_id>', methods=['GET'])
+@api_guard
 def get_site(site_id):
     site = sites.find_one({'id': site_id})
     if not site:
@@ -430,6 +461,7 @@ def get_site(site_id):
 #
 
 @app.route('/sites', methods=['POST'])
+@api_guard
 def create_site():
     site = request.json
     # Verify incoming site: url must be valid, groups must exist, plans must exist
@@ -473,6 +505,7 @@ def create_site():
 #
 
 @app.route('/sites', methods=['GET'])
+@api_guard
 def list_sites():
     sitez = [sanitize_site(site) for site in sites.find()]
     for site in sitez:
@@ -489,6 +522,7 @@ def list_sites():
 # the user can see.
 
 @app.route('/reports/history', methods=['GET'])
+@api_guard
 def get_reports_history():
     history = []
     user_email = request.args.get('user')
@@ -518,6 +552,7 @@ def get_reports_history():
 #    'success': True }
 
 @app.route('/reports/status', methods=['GET'])
+@api_guard
 def get_reports_sites():
     result = []
     user_email = request.args.get('user')
@@ -552,6 +587,7 @@ def get_reports_sites():
 #    'success': True }
 
 @app.route('/reports/issues', methods=['GET'])
+@api_guard
 def get_reports_issues():
     result = []
     user_email = request.args.get('user')
@@ -592,6 +628,7 @@ def get_reports_issues():
 #
 
 @app.route("/plans")
+@api_guard
 def get_plans():
     def _plan_description(plan):
         return { 'description': plan['description'], 'name': plan['name'] }
