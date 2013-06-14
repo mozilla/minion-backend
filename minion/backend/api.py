@@ -5,6 +5,7 @@ import calendar
 import importlib
 import json
 import operator
+import re
 import uuid
 
 from flask import Flask, render_template, redirect, url_for, session, jsonify, request, session
@@ -181,6 +182,23 @@ def _find_sites_for_user(email):
 def _find_groups_for_user(email):
     """Find all the groups the user is in"""
     return [g['name'] for g in groups.find({"users":email})]
+
+# Validation methods to be used on incoming objects
+
+def _check_required_fields(o, fields):
+    for field in fields:
+        if field not in o:
+            return False
+    return True
+
+def _check_site_url(url):
+    return re.match(r"^(http|https)://([a-z0-9][-a-z0-9]+)(\.[a-z0-9][-a-z0-9]+)+(:\d+)?$", url) is not None
+
+def _check_group_exists(group_name):
+    return groups.find_one({'name': group_name}) is not None
+
+def _check_plan_exists(plan_name):
+    return plans.find_one({'name': plan_name}) is not None
 
 # API Methods to manage users
 
@@ -394,6 +412,7 @@ def get_site(site_id):
 #  POST /sites
 #
 #  { 'url': 'https://www.mozilla.com',
+#    'plans': ['basic', 'nmap'],
 #    'groups': ['mozilla', 'key-initiatives'] }
 #
 # Returns the full site record including the generated id:
@@ -401,6 +420,7 @@ def get_site(site_id):
 #  { 'success': True,
 #    'site': { 'id': 'b263bdc6-8692-4ace-aa8b-922b9ec0fc37',
 #              'url': 'https://www.mozilla.com',
+#              'plans': ['basic', 'nmap'],
 #              'groups': ['mozilla', 'key-initiatives'] } }
 #
 # Or returns an error:
@@ -411,14 +431,31 @@ def get_site(site_id):
 @app.route('/sites', methods=['POST'])
 def create_site():
     site = request.json
-    # TODO Verify incoming site: groups must exist, plans must exist, url must be valid
+    # Verify incoming site: url must be valid, groups must exist, plans must exist
+    if not _check_site_url(site.get('url')):
+        return jsonify(success=False, reason='invalid-url')
+    if not _check_required_fields(site, ['url']):
+        return jsonify(success=False, reason='missing-required-field')
+    for group in site.get('groups', []):
+        if not _check_group_exists(group):
+            return jsonify(success=False, reason='unknown-group')
+    for plan_name in site.get('plans', []):
+        if not _check_plan_exists(plan_name):
+            return jsonify(success=False, reason='unknown-plan')
     if sites.find_one({'url': site['url']}) is not None:
         return jsonify(success=False, reason='site-already-exists')
+    # Create the site
     new_site = { 'id': str(uuid.uuid4()),
                  'url':  site['url'],
                  'plans': site.get('plans', []),
                  'created': datetime.datetime.utcnow() }
     sites.insert(new_site)
+    # Add the site to the groups - group membership is stored in the group object, not in the site
+    for group_name in site.get('groups', []):
+        # No need to check if the site is already in the group as we just added the site
+        groups.update({'name':group_name},{'$push': {'sites': site['url']}})
+    new_site['groups'] = site.get('groups', [])
+    # Return the new site
     return jsonify(success=True, site=sanitize_site(new_site))
 
 #
