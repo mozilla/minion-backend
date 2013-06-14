@@ -677,7 +677,9 @@ def put_scan_control(scan_id):
     if not scan:
         return jsonify(success=False, error='no-such-scan')
     # Check if the state is valid
-    state = request.data
+    state = request.json or request.data
+    if isinstance(state, dict):
+        state = state['state']
     if state not in ('START', 'STOP'):
         return jsonify(success=False, error='unknown-state')
     # Handle start
