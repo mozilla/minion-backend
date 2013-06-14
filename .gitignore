@@ -1,5 +1,6 @@
 .coverage
 .coveragerc
+celerybeat-schedule
 pip-log.txt
 *.swp
 *.elc

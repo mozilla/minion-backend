@@ -426,6 +426,7 @@ def get_site(site_id):
 # Or returns an error:
 #
 #  { 'success': False, 'reason': 'site-already-exists' }
+#  { 'success': False, 'reason': 'Group xyz does not exist' }
 #
 
 @app.route('/sites', methods=['POST'])
@@ -453,7 +454,7 @@ def create_site():
     # Add the site to the groups - group membership is stored in the group object, not in the site
     for group_name in site.get('groups', []):
         # No need to check if the site is already in the group as we just added the site
-        groups.update({'name':group_name},{'$push': {'sites': site['url']}})
+        groups.update({'name':group_name},{'$addToSet': {'sites': site['url']}})
     new_site['groups'] = site.get('groups', [])
     # Return the new site
     return jsonify(success=True, site=sanitize_site(new_site))
@@ -486,7 +487,6 @@ def list_sites():
 #
 # If the user is specified then only scans are returned that
 # the user can see.
-#
 
 @app.route('/reports/history', methods=['GET'])
 def get_reports_history():
@@ -510,6 +510,12 @@ def get_reports_history():
 # If the user is specified then the report will only include data
 # that the user can see.
 #
+#  { 'report': 
+#       [{ 'plan': 'basic',
+#          'scan': [...],
+#          'target': 'http://www.mozilla.com',
+#       }],
+#    'success': True }
 
 @app.route('/reports/status', methods=['GET'])
 def get_reports_sites():
@@ -539,7 +545,11 @@ def get_reports_sites():
 #
 # If the user is specified then the report will only include data
 # that the user can see.
-#
+#  { 'report':
+#       [{ 'issues': [..],
+#          'target': 'http://mozilla.com
+#       }],
+#    'success': True }
 
 @app.route('/reports/issues', methods=['GET'])
 def get_reports_issues():
@@ -714,7 +724,9 @@ def put_scan_control(scan_id):
     if not scan:
         return jsonify(success=False, error='no-such-scan')
     # Check if the state is valid
-    state = request.data
+    state = request.json or request.data
+    if isinstance(state, dict):
+        state = state['state']
     if state not in ('START', 'STOP'):
         return jsonify(success=False, error='unknown-state')
     # Handle start

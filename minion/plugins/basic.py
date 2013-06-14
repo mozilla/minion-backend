@@ -150,8 +150,8 @@ class XContentTypeOptionsPlugin(BlockingPlugin):
     def do_run(self):
         r = minion.curly.get(self.configuration['target'], connect_timeout=5, timeout=15)
         r.raise_for_status()
-        value = r.headers.get('X-Content-Type-Options', None) or r.headers.get('x-content-type-options', None)
-        if value is None:
+        value = r.headers.get('x-content-type-options')
+        if not value:
             self.report_issues([{ "Summary":"Site does not set X-Content-Type-Options header", "Severity":"High" }])
         else:
             if value.lower() == 'nosniff':
@@ -172,8 +172,8 @@ class XXSSProtectionPlugin(BlockingPlugin):
     def do_run(self):
         r = minion.curly.get(self.configuration['target'], connect_timeout=5, timeout=15)
         r.raise_for_status()
-        value = r.headers.get('X-XSS-Protection', None) or r.headers.get('x-xss-protection', None)
-        if value is None:
+        value = r.headers.get('x-xss-protection')
+        if not value:
             self.report_issues([{ "Summary":"Site does not set X-XSS-Protection header", "Severity":"High" }])
         else:
             if value.lower() == '1; mode=block':
@@ -198,7 +198,7 @@ class ServerDetailsPlugin(BlockingPlugin):
         r.raise_for_status()
         HEADERS = ('Server', 'X-Powered-By', 'X-AspNet-Version', 'X-AspNetMvc-Version', 'X-Backend-Server')
         for header in HEADERS:
-            if header.lower() in r.headers or header in r.headers:
+            if header.lower() in r.headers:
                 self.report_issues([{ "Summary":"Site sets the '%s' header" % header, "Severity":"Medium" }])
 
 
@@ -252,15 +252,6 @@ class RobotsPlugin(BlockingPlugin):
 #
 # CSPPlugin
 #        
-
-def _parse_csp(csp):
-    options = collections.defaultdict(list)
-    p = re.compile(r';\s*')
-    for rule in p.split(csp):
-        a = rule.split()
-        options[a[0]] += a[1:]
-    return options
-
 class CSPPlugin(BlockingPlugin):
 
     """
@@ -282,6 +273,35 @@ class CSPPlugin(BlockingPlugin):
             name = matches.pop()
             value = headers[name]
         return name, value
+
+
+    def _parse_csp(self, csp):
+        # adopted from Django
+        _url_regex = re.compile(
+            r'((?:http|ftp)s?://|\*.)*'  # http:// or https://
+            r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?))'  # domain...
+            r'(?::\d+)?'  # optional port
+            r'(?:/?|[/?]\S+)$', re.IGNORECASE)
+
+        options = collections.defaultdict(list)
+        p = re.compile(r';\s*')
+        for rule in p.split(csp):
+            a = rule.split()
+            if a:
+                values = a[1:]
+                for value in values:
+                    if value in ("'none'", "*"):
+                        if len(values) > 2:
+                            raise ValueError("When %s is present, other values cannot co-exist with %s" %(value, value))
+                    elif value not in ("'self'", "'unsafe-inline'", "'unsafe-eval'", "'https:'", "'https'"):
+                        if _url_regex.match(value) is None:
+                            raise ValueError("%s does not seem like a valid uri for %s" % (value, a[0]))
+                    elif value == "'unsafe-inline'":
+                        self.report_issues([{"Summary":"CSP Rules allow unsafe-inline", "Severity":"High"}])
+                    elif value == "'unsafe-eval'":
+                        self.report_issues([{"Summary":"CSP Rules allow unsafe-eval", "Severity":"High"}])
+                options[a[0]] += a[1:]
+        return options
 
     def do_run(self):
         GOOD_HEADERS = ('x-content-security-policy', 'content-security-policy',)
@@ -309,13 +329,18 @@ class CSPPlugin(BlockingPlugin):
             return
 
         # Parse the CSP and look for issues
-        csp_config = _parse_csp(csp)
-        if not csp_config:
-            self.report_issues([{"Summary":"Malformed %s header set" % csp_hname, "Severity":"High"}])
-            return
-            
-        # Allowing eval-script or inline-script defeats the purpose of CSP?
-        if 'eval-script' in csp_config['options']:
-            self.report_issues([{"Summary":"CSP Rules allow eval-script", "Severity":"High"}])
-        if 'inline-script' in csp_config['options']:
-            self.report_issues([{"Summary":"CSP Rules allow inline-script", "Severity":"High"}])
+        try:
+            csp_config = self._parse_csp(csp)
+            if not csp_config:
+                self.report_issues([{"Summary":"Malformed %s header set" % csp_hname, "Severity":"High"}])
+                return
+            # Allowing eval-script or inline-script defeats the purpose of CSP?
+            csp_options = csp_config.get('options')
+            if csp_options:
+                if 'eval-script' in csp_config['options']:
+                    self.report_issues([{"Summary":"CSP Rules allow eval-script", "Severity":"High"}])
+                if 'inline-script' in csp_config['options']:
+                    self.report_issues([{"Summary":"CSP Rules allow inline-script", "Severity":"High"}])
+        except ValueError as e:
+                self.report_issues([{"Summary":"Malformed %s header set: %s" %(csp_hname, e), "Severity":"High"}])
+                

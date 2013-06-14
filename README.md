@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/mozilla/minion-backend.png)](https://travis-ci.org/mozilla/minion-backend)
+
 This project contains the code for the Minion Backend. It provides an API to create and start scans and the machinery to execute the scan.
 
 The Minion Backend consists of three parts:
