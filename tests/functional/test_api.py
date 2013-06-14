@@ -62,7 +62,8 @@ def get_api(api_name, method, args=None):
     else:
         return api
 
-def _call(task, method, auth=None, data=None, url_args=None):
+#TODO: Make content-type and jsonify more flexible.
+def _call(task, method, auth=None, data=None, url_args=None, jsonify=True):
     """
     Make HTTP request.
 
@@ -82,7 +83,8 @@ def _call(task, method, auth=None, data=None, url_args=None):
         A dictionary of url arguments to replace in the 
         URL. For example, to match user's GET URL which
         requires ``id``, you'd pass ``{'id': '3a7a67'}``.
-
+    jsonify : bool
+        If set to True, data will be sent as plaintext like GET.
     Returns
     -------
     res : requests.Response
@@ -103,15 +105,17 @@ def _call(task, method, auth=None, data=None, url_args=None):
     # concatenate base and api
     api = os.path.join(BASE.strip('/'), api.strip('/'))
 
-    #headers = {'Content-Type': 'application/json'}
     req_objs = req_objs[method]
-
-    if data and method != 'GET':
+    if jsonify and data and method != 'GET':
         data = json.dumps(data)
-    if method == 'GET' or method == 'DELETE':
-        res = req_objs(api, params=data, auth=auth)#, headers=headers)
-    else:
+    if jsonify:
         headers = {'Content-Type': 'application/json'}
+    else:
+        headers = {'Content-Type': 'text/plain'}
+
+    if method == 'GET' or method == 'DELETE':
+        res = req_objs(api, params=data, auth=auth, headers=headers)
+    else:
         res = req_objs(api, data=data, auth=auth, headers=headers)
     return res
 
@@ -256,7 +260,7 @@ class TestAPIBaseClass(unittest.TestCase):
 
     def control_scan(self, scan_id, state='START'):
         return _call('scan', 'PUT', url_args={'scan_id': scan_id},
-                data={'state': state.upper()})
+                data=state, jsonify=False)
 
     def get_scan_summary(self, scan_id):
         return _call('scan_summary', 'GET', url_args={'scan_id': scan_id})
@@ -581,7 +585,8 @@ class TestScanAPIs(TestAPIBaseClass):
 
         # GET /scans/<scan_id>/summary
         res8 = self.get_scan_summary(scan_id)
-        
+        pprint.pprint(res8.json(), indent=2)
+
         # GET /reports/history
         res9 = self.get_reports_history()
         expected_top_keys = ('report', 'success',)
@@ -596,6 +601,7 @@ class TestScanAPIs(TestAPIBaseClass):
         expected_top_keys = ('success', 'report',)
         self._test_keys(res10.json().keys(), expected_top_keys)
         expected_inner_keys = ('plan', 'scan', 'target',)
+        pprint.pprint(res10.json(), indent=2)
         self._test_keys(res10.json()['report'][0].keys(), expected_inner_keys)
         self.assertEqual(res10.json()['report'][0]['plan'], 'basic')
         self.assertEqual(res10.json()['report'][0]['target'], self.site1)
