@@ -103,13 +103,15 @@ def _call(task, method, auth=None, data=None, url_args=None):
     # concatenate base and api
     api = os.path.join(BASE.strip('/'), api.strip('/'))
 
-    headers = {'Content-Type': 'application/json'}
+    #headers = {'Content-Type': 'application/json'}
     req_objs = req_objs[method]
-    data = json.dumps(data)
 
+    if data and method != 'GET':
+        data = json.dumps(data)
     if method == 'GET' or method == 'DELETE':
-        res = req_objs(api, params=data, auth=auth, headers=headers)
+        res = req_objs(api, params=data, auth=auth)#, headers=headers)
     else:
+        headers = {'Content-Type': 'application/json'}
         res = req_objs(api, data=data, auth=auth, headers=headers)
     return res
 
@@ -204,9 +206,11 @@ class TestAPIBaseClass(unittest.TestCase):
     def get_users(self):
         return _call('user', 'GET')
 
-    def create_group(self):
-        return _call('groups', 'POST', data={'name': self.group_name, 
-            "description": self.group_description})
+    def create_group(self, users=None):
+        data = {'name': self.group_name, "description": self.group_description}
+        if users is not None:
+            data.update({'users': users})
+        return _call('groups', 'POST', data=data)
 
     def get_groups(self):
         return _call('groups', 'GET')
@@ -258,20 +262,20 @@ class TestAPIBaseClass(unittest.TestCase):
         return _call('scan_summary', 'GET', url_args={'scan_id': scan_id})
 
     def get_reports_history(self, user=None):
-        data = None
+        data = {}
         if user is not None:
             data = {'user': user}
         return _call('history', 'GET', data=data)
 
     def get_reports_status(self, user=None):
         data = None
-        if user is None:
+        if user is not None:
             data = {'user': user}
         return _call('status', 'GET', data=data)
 
     def get_reports_issues(self, user=None):
         data = None
-        if user is None:
+        if user is not None:
             data = {'user': user}
         return _call('issues', 'GET', data=data)
 
@@ -433,7 +437,7 @@ class TestSitesAPIs(TestAPIBaseClass):
         self._test_keys(res3.json()['sites'][0].keys(), expected_inner_keys)
         self.assertEqual(res3.json()['sites'][0]['url'], self.site1)
         # groups should return self.group_name when #50 and #49 are fixed
-        self.assertEqual(res3.json()['sites'][0]['groups'], [])
+        self.assertEqual(res3.json()['sites'][0]['groups'], [self.group_name])
         self.assertEqual(res3.json()['sites'][0]['plans'], [])
 
     def test_get_site(self):
@@ -550,7 +554,7 @@ class TestScanAPIs(TestAPIBaseClass):
         self.start_server()
 
         res1 = self.create_user()
-        res2 = self.create_group()
+        res2 = self.create_group(users=[self.email,])
         res3 = self.create_site(plans=['basic'])
 
         # POST /scans
@@ -588,11 +592,20 @@ class TestScanAPIs(TestAPIBaseClass):
         self.assertEqual(res9.json()['report'][0]['id'], scan_id)
         
         # GET /reports/status
-        res10 = self.get_reports_status()
-        pprint.pprint(res10.json(), indent=1)
+        res10 = self.get_reports_status(user=self.email)
+        expected_top_keys = ('success', 'report',)
+        self._test_keys(res10.json().keys(), expected_top_keys)
+        expected_inner_keys = ('plan', 'scan', 'target',)
+        self._test_keys(res10.json()['report'][0].keys(), expected_inner_keys)
+        self.assertEqual(res10.json()['report'][0]['plan'], 'basic')
+        self.assertEqual(res10.json()['report'][0]['target'], self.site1)
 
         # GET /reports/issues
         res11 = self.get_reports_issues(user=self.email)
-        pprint.pprint(res11.json(), indent=1)
-
+        expected_top_keys = ('report', 'success', )
+        self._test_keys(res11.json().keys(), expected_top_keys)
+        expected_inner_keys = ('issues', 'target',)
+        self._test_keys(res11.json()['report'][0].keys(), expected_inner_keys)
+        self.assertEqual(res11.json()['report'][0]['issues'], [])
+        self.assertEqual(res11.json()['report'][0]['target'], self.site1)
         self.stop_server()        

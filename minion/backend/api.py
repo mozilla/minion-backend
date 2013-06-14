@@ -394,31 +394,42 @@ def get_site(site_id):
 #  POST /sites
 #
 #  { 'url': 'https://www.mozilla.com',
-#    'groups': ['mozilla', 'key-initiatives'] }
+#    'groups': ['mozilla', 'key-initiatives']
+#    'plans': ['basic'] }
 #
 # Returns the full site record including the generated id:
 #
 #  { 'success': True,
 #    'site': { 'id': 'b263bdc6-8692-4ace-aa8b-922b9ec0fc37',
 #              'url': 'https://www.mozilla.com',
+#              'plans': ['basic'], 
 #              'groups': ['mozilla', 'key-initiatives'] } }
 #
 # Or returns an error:
 #
 #  { 'success': False, 'reason': 'site-already-exists' }
+#  { 'success': False, 'reason': 'Group xyz does not exist' }
 #
 
 @app.route('/sites', methods=['POST'])
 def create_site():
     site = request.json
-    # TODO Verify incoming site: groups must exist, plans must exist, url must be valid
+    # TODO Verify incoming site: plans must exist, url must be valid
+    if site.get('groups'):
+        for group in site['groups']:
+            if groups.find_one({'name': group}) is None:
+                return jsonify(success=False, reason='Group %s does not exist' % group)
     if sites.find_one({'url': site['url']}) is not None:
         return jsonify(success=False, reason='site-already-exists')
     new_site = { 'id': str(uuid.uuid4()),
                  'url':  site['url'],
                  'plans': site.get('plans', []),
+                 'groups': site['groups'],
                  'created': datetime.datetime.utcnow() }
     sites.insert(new_site)
+    for group in site['groups']:
+        groups.update({'name': group}, {'$addToSet': {"sites": site['url']}})
+    
     return jsonify(success=True, site=sanitize_site(new_site))
 
 #
@@ -449,7 +460,6 @@ def list_sites():
 #
 # If the user is specified then only scans are returned that
 # the user can see.
-#
 
 @app.route('/reports/history', methods=['GET'])
 def get_reports_history():
@@ -473,6 +483,12 @@ def get_reports_history():
 # If the user is specified then the report will only include data
 # that the user can see.
 #
+#  { 'report': 
+#       [{ 'plan': 'basic',
+#          'scan': [...],
+#          'target': 'http://www.mozilla.com',
+#       }],
+#    'success': True }
 
 @app.route('/reports/status', methods=['GET'])
 def get_reports_sites():
@@ -502,7 +518,11 @@ def get_reports_sites():
 #
 # If the user is specified then the report will only include data
 # that the user can see.
-#
+#  { 'report':
+#       [{ 'issues': [..],
+#          'target': 'http://mozilla.com
+#       }],
+#    'success': True }
 
 @app.route('/reports/issues', methods=['GET'])
 def get_reports_issues():
