@@ -236,15 +236,15 @@ def run_plugin(scan_id, session_id):
                               queue='state').get()
 
 
-            runner = Runner(session['plugin']['class'], session['configuration'], session_id, message_callback)
+        runner = Runner(session['plugin']['class'], session['configuration'], session_id, message_callback)
 
-            # Install a signal handler that will stop the runner when this task is revoked
-            signal.signal(signal.SIGUSR1, lambda signum, frame: reactor.callFromThread(runner.schedule_stop))
+        # Install a signal handler that will stop the runner when this task is revoked
+        signal.signal(signal.SIGUSR1, lambda signum, frame: reactor.callFromThread(runner.schedule_stop))
 
-            # Run the runner. It will start a reactor and run the plugin.
-            return_code = runner.run()
+        # Run the runner. It will start a reactor and run the plugin.
+        return_code = runner.run()
 
-            return finished
+        return finished
 
     except Exception as e:
 
