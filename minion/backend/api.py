@@ -12,9 +12,8 @@ import uuid
 from flask import abort, Flask, render_template, redirect, url_for, session, jsonify, request, session
 from pymongo import MongoClient
 
-import state_worker
-import scan_worker
 import minion.backend.utils as backend_utils
+import tasks
 
 backend_config = backend_utils.backend_config()
 
@@ -29,7 +28,7 @@ app = Flask(__name__)
 
 def api_guard(view):
     """ Decorate a view function to be protected by requiring
-    a secret key in X-Minion-Backend-Key header for the decorated 
+    a secret key in X-Minion-Backend-Key header for the decorated
     backend API. If 'key' is False or not found in the config file,
     the decorator will assume no protection is needed and will grant
     access to all incoming request. """
@@ -771,7 +770,7 @@ def put_scan_control(scan_id):
             return jsonify(success=False, error='invalid-state-transition')
         # Queue the scan to start
         scans.update({"id": scan_id}, {"$set": {"state": "QUEUED", "queued": datetime.datetime.utcnow()}})
-        scan_worker.scan.apply_async([scan['id']], countdown=3, queue='scan')
+        tasks.scan.apply_async([scan['id']], countdown=3, queue='scan')
     # Handle stop
     if state == 'STOP':
         scans.update({"id": scan_id}, {"$set": {"state": "STOPPING", "queued": datetime.datetime.utcnow()}})

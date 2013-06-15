@@ -1,0 +1,20 @@
+#!/bin/sh
+
+LOGFILE="/tmp/%n.log"
+PIDFILE="/tmp/%n.pid"
+
+case $1 in
+  start)
+    celeryd-multi start 10 \
+      --pidfile="$PIDFILE" --logfile="$LOGFILE" \
+      -A minion.backend.tasks \
+      -l INFO \
+      -Q:1-4 plugin \
+      -Q:5-9 scan \
+      -Q:10 state
+    ;;
+  stop)
+    celeryd-multi stop 10 \
+      --pidfile="$PIDFILE" --logfile="$LOGFILE"
+    ;;
+esac
