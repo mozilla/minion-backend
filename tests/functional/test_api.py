@@ -143,10 +143,10 @@ class TestAPIBaseClass(unittest.TestCase):
         self.group_name2 = "minion-test-group2"
         self.group_description2 = "minion test group 2 is super."
 
-        self.site1 = "http://foo.com"
+        self.target_url = "http://foo.com"
         self.site2 = "http://bar.com"
 
-        self.target_url = 'http://127.0.0.1:1234'
+        self.target_url = 'http://localhost:1234/'
 
     def tearDown(self):
         self.mongodb.drop_database("minion")
@@ -232,7 +232,7 @@ class TestAPIBaseClass(unittest.TestCase):
                 data=data)
     
     def create_site(self, plans=None):
-        data = {'url': self.site1, 'groups': [self.group_name,]}
+        data = {'url': self.target_url, 'groups': [self.group_name,]}
         if plans is not None:
             data.update({'plans': plans})
         return _call('sites', 'POST', data=data)
@@ -388,20 +388,20 @@ class TestGroupAPIs(TestAPIBaseClass):
         res = self.create_user()
         res1 = self.create_group()
         res2 = self.modify_group(self.group_name,
-                data={'addSites': [self.site1]})
+                data={'addSites': [self.target_url]})
         self._test_keys(res2.json().keys(), set(res1.json().keys()))
         self._test_keys(res2.json()['group'].keys(), set(res1.json()['group'].keys()))
-        self.assertEqual(res2.json()['group']['sites'][0], self.site1)
+        self.assertEqual(res2.json()['group']['sites'][0], self.target_url)
 
     def test_patch_group_remove_site(self):
         res = self.create_user()
         res1 = self.create_group()
         res2 = self.modify_group(self.group_name,
-                data={'addSites': [self.site1]})
-        self.assertEqual(res2.json()['group']['sites'][0], self.site1)
+                data={'addSites': [self.target_url]})
+        self.assertEqual(res2.json()['group']['sites'][0], self.target_url)
 
         res2 = self.modify_group(self.group_name,
-                data={'removeSites': [self.site1]})
+                data={'removeSites': [self.target_url]})
         self._test_keys(res2.json().keys(), set(res1.json().keys()))
         self._test_keys(res2.json()['group'].keys(), set(res1.json()['group'].keys()))
         self.assertEqual(res2.json()['group']['sites'], [])
@@ -434,10 +434,11 @@ class TestSitesAPIs(TestAPIBaseClass):
         res1 = self.create_group()
         res2 = self.create_site()
         expected_top_keys = ('success', 'site',)
+        #pprint.pprint(res2.json(), indent=2)
         self._test_keys(res2.json().keys(), expected_top_keys)
         expected_inner_keys = ('id', 'url', 'plans', 'created',)
         self._test_keys(res2.json()['site'].keys(), expected_inner_keys)
-        self.assertEqual(res2.json()['site']['url'], self.site1)
+        self.assertEqual(res2.json()['site']['url'], self.target_url)
         #self.assertEqual(res2.json()['site']['groups'], [self.group_name])
         self.assertEqual(res2.json()['site']['plans'], [])
 
@@ -460,7 +461,7 @@ class TestSitesAPIs(TestAPIBaseClass):
         self._test_keys(res3.json().keys(), expected_top_keys)
         expected_inner_keys = ('id', 'url','groups', 'created', 'plans')
         self._test_keys(res3.json()['sites'][0].keys(), expected_inner_keys)
-        self.assertEqual(res3.json()['sites'][0]['url'], self.site1)
+        self.assertEqual(res3.json()['sites'][0]['url'], self.target_url)
         # groups should return self.group_name when #50 and #49 are fixed
         self.assertEqual(res3.json()['sites'][0]['groups'], [self.group_name])
         self.assertEqual(res3.json()['sites'][0]['plans'], [])
@@ -507,7 +508,7 @@ class TestPlanAPIs(TestAPIBaseClass):
         expected_top_keys = ('success', 'plugins',)
         self._test_keys(resp.json().keys(), expected_top_keys)
 
-        # num of total built-in plugins should match  (see #64 though)
+        # num of total built-in plugins should match
         plugins_count = len(BUILTIN_PLUGINS)
         self.assertEqual(plugins_count, len(resp.json()['plugins']))
         # check following keys are returned for each plugin
@@ -520,6 +521,9 @@ test_app = Flask(__name__)
 def basic_app():
     res = make_response('')
     res.headers['X-Content-Type-oPTIONS'] = 'nosniff'
+    res.headers['X-Frame-Options'] = 'SAMEORIGIN'
+    res.headers['X-XSS-Protection'] = '1; mode=block'
+    res.headers['Content-Security-Policy'] = 'default-src *'
     return res
 
 class TestScanAPIs(TestAPIBaseClass):
@@ -532,8 +536,6 @@ class TestScanAPIs(TestAPIBaseClass):
         res2 = self.create_group()
         res3 = self.create_site(plans=['basic'])
         res4 = self.create_scan()
-        #pprint.pprint(res4.json(), indent=5)
-
         expected_top_keys = ('success', 'scan',)
         self._test_keys(res4.json().keys(), expected_top_keys)
 
@@ -585,17 +587,20 @@ class TestScanAPIs(TestAPIBaseClass):
         # POST /scans
         res4 = self.create_scan()
         scan_id = res4.json()['scan']['id']
+        #pprint.pprint(res4.json(), indent=3)
 
         # PUT /scans/<scan_id>/control
         res5 = self.control_scan(scan_id, 'START')
         self.assertEqual(len(res5.json().keys()), 1)
         self.assertEqual(res5.json()['success'], True)
+        #pprint.pprint(res5.json(), indent=3)
     
         # GET /scans/<scan_id>
         res6 = self.get_scan(scan_id)
         self._test_keys(res6.json().keys(), set(res4.json().keys()))
         self._test_keys(res6.json()['scan'].keys(), set(res4.json()['scan'].keys()))
         self.assertEqual(res6.json()['scan']['state'], 'QUEUED')
+        #pprint.pprint(res6.json(), indent=3)
 
         # give scanner a few seconds
         time.sleep(10)
@@ -603,10 +608,11 @@ class TestScanAPIs(TestAPIBaseClass):
         # now check if the scan has completed or not
         res7 = self.get_scan(scan_id)
         self.assertEqual(res7.json()['scan']['state'], 'FINISHED')
+        #pprint.pprint(res6.json(), indent=3)
 
         # GET /scans/<scan_id>/summary
         res8 = self.get_scan_summary(scan_id)
-        pprint.pprint(res8.json(), indent=2)
+        #pprint.pprint(res8.json(), indent=2)
 
         # GET /reports/history
         res9 = self.get_reports_history()
@@ -616,16 +622,17 @@ class TestScanAPIs(TestAPIBaseClass):
                 'issues', 'plan', 'queued', 'sessions', 'state',)
         self._test_keys(res9.json()['report'][0].keys(), expected_inner_keys)
         self.assertEqual(res9.json()['report'][0]['id'], scan_id)
-        
+
+        #pprint.pprint(res9.json(), indent=3)
         # GET /reports/status
         res10 = self.get_reports_status(user=self.email)
         expected_top_keys = ('success', 'report',)
         self._test_keys(res10.json().keys(), expected_top_keys)
         expected_inner_keys = ('plan', 'scan', 'target',)
-        pprint.pprint(res10.json(), indent=2)
+        #pprint.pprint(res10.json(), indent=2)
         self._test_keys(res10.json()['report'][0].keys(), expected_inner_keys)
         self.assertEqual(res10.json()['report'][0]['plan'], 'basic')
-        self.assertEqual(res10.json()['report'][0]['target'], self.site1)
+        self.assertEqual(res10.json()['report'][0]['target'], self.target_url)
 
         # GET /reports/issues
         res11 = self.get_reports_issues(user=self.email)
@@ -633,6 +640,15 @@ class TestScanAPIs(TestAPIBaseClass):
         self._test_keys(res11.json().keys(), expected_top_keys)
         expected_inner_keys = ('issues', 'target',)
         self._test_keys(res11.json()['report'][0].keys(), expected_inner_keys)
-        self.assertEqual(res11.json()['report'][0]['issues'], [])
-        self.assertEqual(res11.json()['report'][0]['target'], self.site1)
-        self.stop_server()        
+
+        issues = res11.json()['report'][0]['issues']
+        # only 5 are reported. three of which are actually Info
+        self.assertEqual(len(issues), 5)
+        self.assertEqual(issues[3]['severity'], 'Medium')
+        self.assertEqual(issues[3]['summary'], "Site sets the 'Server' header")
+        self.assertEqual(issues[4]['severity'], 'Medium')
+        self.assertEqual(issues[4]['summary'], 'No robots.txt found')
+        self.assertEqual(res11.json()['report'][0]['target'], self.target_url)
+        self.stop_server()
+        #pprint.pprint(res11.json(), indent=3)
+
