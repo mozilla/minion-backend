@@ -241,12 +241,14 @@ def get_user(email):
 # Expects a partially filled out user record
 #
 #  { email: "foo@bar",
+#    groups: ["foo"],
 #    role: "user" }
 #
 # Returns the full user record
 #
 #  { "success": true
 #    "user": { "created": 1371044067,
+#              "groups": ["foo"],
 #              "role": "user",
 #              "id": "51f8417d-f7b0-48d1-8c18-dbf5e06c3261",
 #              "email": "foo@bar" } }
@@ -256,13 +258,23 @@ def get_user(email):
 @api_guard
 def create_user():
     user = request.json
+    # Verify incoming user: email must not exist yet, groups must exist, role must exist
     if users.find_one({'email': user['email']}) is not None:
         return jsonify(success=False, reason='user-already-exists')
+    for group_name in user.get('groups', []):
+        if not _check_group_exists(group_name):
+            return jsonify(success=False, reason='unknown-group')
+    if user.get("role") not in ("user", "administrator"):
+        return jsonify(success=False, reason="invalid-role")
     new_user = { 'id': str(uuid.uuid4()),
                  'email':  user['email'],
                  'role': user['role'],
                  'created': datetime.datetime.utcnow() }
     users.insert(new_user)
+    # Add the user to the groups - group membership is stored in the group objet, not in the user
+    for group_name in user.get('groups', []):
+        groups.update({'name':group_name},{'$addToSet': {'users': user['email']}})
+    new_user['groups'] = user.get('groups', [])
     return jsonify(success=True, user=sanitize_user(new_user))
 
 #
