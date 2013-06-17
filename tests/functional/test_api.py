@@ -507,8 +507,8 @@ class TestPlanAPIs(TestAPIBaseClass):
         expected_top_keys = ('success', 'plugins',)
         self._test_keys(resp.json().keys(), expected_top_keys)
 
-        # num of total built-in plugins should match
-        plugins_count = len(TEST_PLUGINS) + len(BUILTIN_PLUGINS)
+        # num of total built-in plugins should match  (see #64 though)
+        plugins_count = len(BUILTIN_PLUGINS)
         self.assertEqual(plugins_count, len(resp.json()['plugins']))
         # check following keys are returned for each plugin
         expected_inner_keys = ('class', 'name', 'version', 'weight')
