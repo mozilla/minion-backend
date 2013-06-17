@@ -37,4 +37,5 @@ setup(name="minion-backend",
                'scripts/minion-plugin-worker',
                'scripts/minion-start-scan',
                'scripts/minion-state-worker',
+               'scripts/minion-scan-worker',
                'scripts/minion-plugin-runner'])
