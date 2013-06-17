@@ -15,7 +15,7 @@ install_requires = [
 ]
 
 plugins_requires = [
-    'robots_scanner==0.1.1',
+    'robots_scanner==0.1.2',
 ]
 
 tests_requires = ['nose',]
