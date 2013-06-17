@@ -229,8 +229,8 @@ lets a web site tell browsers that it should only be communicated with using HTT
                 "URLs": [ { "URL": None, "Title": None} ],
                 "FurtherInfo": FURTHER_INFO
             },
-    }
-
+    }    
+    
     def do_run(self):
         r = minion.curly.get(self.configuration['target'], connect_timeout=5, timeout=15)
         r.raise_for_status()
@@ -253,6 +253,7 @@ lets a web site tell browsers that it should only be communicated with using HTT
                 self.report_issues([self._format_report('not-set')])
         else:
             self.report_issues([self._format_report('non-https')])
+
 
 class XContentTypeOptionsPlugin(BlockingPlugin):
 
