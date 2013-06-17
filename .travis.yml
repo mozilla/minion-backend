@@ -11,13 +11,20 @@ install:
   - "pip install dist/minion-backend-0.1.tar.gz --use-mirrors"
 
 # tells travis to start mongodb
-services: 
+services:
   - mongodb
+  - rabbitmq
 
 # tells travis to start these services before running script
 before_script:
-  - "scripts/minion-combined-worker start"
+  - "scripts/minion-scan-worker &"
+  - "sleep 3"
+  - "scripts/minion-state-worker &"
+  - "sleep 3"
+  - "scripts/minion-plugin-worker &"
+  - "sleep 3"
   - "scripts/minion-backend-api runserver &"
+  - "sleep 3"
   - "scripts/minion-create-plan plans/basic.plan"
 
 # command to run tests
