@@ -786,5 +786,5 @@ def put_scan_control(scan_id):
     # Handle stop
     if state == 'STOP':
         scans.update({"id": scan_id}, {"$set": {"state": "STOPPING", "queued": datetime.datetime.utcnow()}})
-        state_worker.scan_stop.apply_async([scan['id']], queue='state')
+        tasks.scan_stop.apply_async([scan['id']], queue='state')
     return jsonify(success=True)
