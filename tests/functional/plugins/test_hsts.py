@@ -25,6 +25,24 @@ def no_hsps():
     res = make_response("")
     return res
 
+@test_app.route("/negative-hsps")
+def has_negative_hsps():
+    res = make_response("")
+    res.headers['strict-transport-security'] = 'max-age=-1'
+    return res
+
+@test_app.route("/invalid-hsps")
+def invalid_hsps():
+    res = make_response("")
+    res.headers['strict-transport-security'] = 'max-agee=3153600'
+    return res
+
+@test_app.route('/hsps-include-subdomain')
+def include_subdomain():
+    res = make_response("")
+    res.headers['strict-transport-security'] = 'max-age=3153600; includeSubdomain'
+    return res
+
 class TestHSTSPlugin(TestPluginBaseClass):
     __test__ = True
 
@@ -68,6 +86,14 @@ class TestHSTSPlugin(TestPluginBaseClass):
                 runner_resp[1]['data']['Summary'])
         elif expectation is 'BAD-CERT':
             self.assertEqual('Error', runner_resp[1]['data']['Severity'])
+        elif expectation is "INVALID":
+            self.assertEqual('High', runner_resp[1]['data']['Severity'])
+            self.assertEqual("Site sets an invalid Strict-Transport-Security header", \
+                    runner_resp[1]['data']['Summary'])
+        elif expectation is "NEGATIVE":
+            self.assertEqual('High', runner_resp[1]['data']['Severity'])
+            self.assertEqual("Site sets a negative max-age in the Strict-Transport-Security header", \
+                    runner_resp[1]['data']['Summary'])
 
     def test_hsts_fail_on_cert_without_ca(self):
         api_name = '/has-hsts'
@@ -81,4 +107,3 @@ class TestHSTSPlugin(TestPluginBaseClass):
     def test_hsps_no_hsps_header_over_https(self):
         self.validate_plugin(None, self.validate_hsps, expectation=False,\
             target='https://google.com')
-   
