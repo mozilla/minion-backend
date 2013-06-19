@@ -135,8 +135,17 @@ class HSTSPlugin(BlockingPlugin):
             if 'strict-transport-security' not in r.headers:
                 self.report_issues([{ "Summary":"Site does not set Strict-Transport-Security header", "Severity":"High" }])
             else:
-                self.report_issues([{ "Summary":"Site sets Strict-Transport-Security header", "Severity":"Info" }])
-
+                regex = re.compile(r"^max-age=(?P<delta>\d+)(\s)?(;)?(?P<option> includeSubDomains)?$")
+                match = regex.match(r.headers['strict-transport-security'])
+                if match:
+                    groups = match.groupdict()
+                    if int(groups['delta']) < 0:
+                        self.report_issues([{"Summary": "Site sets a negative max-age in the Strict-Transport-Security header", \
+                            "Severity": "High"}])
+                    else:
+                        self.report_issues([{ "Summary":"Site sets Strict-Transport-Security header", "Severity":"Info" }])
+                else:
+                    self.report_issues([{"Summary": "Site sets an invalid Strict-Transport-Security header", "Severity":"High"}])
 
 class XContentTypeOptionsPlugin(BlockingPlugin):
 
