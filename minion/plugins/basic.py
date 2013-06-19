@@ -31,7 +31,7 @@ class AlivePlugin(BlockingPlugin):
 
     PLUGIN_NAME = "Alive"
     PLUGIN_WEIGHT = "light"
-    FUTHER_INFO = [ { 
+    FURTHER_INFO = [ { 
         "URL": "http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html",
         "Title": "Status Code Definitions (W3C)" } ],
 
@@ -43,7 +43,7 @@ class AlivePlugin(BlockingPlugin):
 This indicates the site is reachable.",
                 "Severity": "Info",
                 "URLs": [ {"URL": None, "Extra": None} ],
-                "FurtherInfo": FUTHER_INFO,
+                "FurtherInfo": FURTHER_INFO,
              },
         "bad": 
             {
@@ -51,7 +51,7 @@ This indicates the site is reachable.",
                 "Description": None,
                 "Severity": "Fatal",
                 "URLs": [ { "URL": None, "Extra": None} ],
-                "FurtherInfo": FUTHER_INFO,
+                "FurtherInfo": FURTHER_INFO,
             }
     }            
 
@@ -59,16 +59,9 @@ This indicates the site is reachable.",
         try:
             r = minion.curly.get(self.configuration['target'], connect_timeout=5, timeout=15)
             r.raise_for_status()
-            #issue = self.REPORTS['good']
-            #issue['Description'] = issue['Description'].format(status_code=str(r.status))
-            #issue['URLs'][0]['URL'] = self.configuration['target']
-            issue = self._format_report('good', 
-                    description_formats={'status_code': str(r.status)})
+            issue = self._format_report('good', description_formats={'status_code': str(r.status)})
             self.report_issue(issue)
         except minion.curly.BadResponseError as error:
-            #issue = self.REPORTS['bad']
-            #issue['Description'] = issue['Description'].format(error=error)
-            #issue['URLs'][0]['URL'] = self.configuration['target']
             issue = self._format_report('bad', description=str(error))
             self.report_issue(issue)
             return AbstractPlugin.EXIT_STATE_ABORTED
@@ -92,27 +85,37 @@ class XFrameOptionsPlugin(BlockingPlugin):
     PLUGIN_NAME = "XFrameOptions"
     PLUGIN_WEIGHT = "light"
 
-    FUTHER_INFO = [ { 
+    FURTHER_INFO = [ { 
         "URL": "https://developer.mozilla.org/en-US/docs/HTTP/X-Frame-Options",
         "Title": "The X-Frame-Options response header (Mozilla Developer Network)" }]
 
     REPORTS = {
-        "good": 
+        "set": 
             {
                 "Summary": "X-Frame-Options header is set properly",
                 "Description": "Site has the following X-Frame-Options set: {header}",
                 "Severity": "Info",
                 "URLs": [ {"URL": None, "Extra": None} ],
-                "FurtherInfo": FUTHER_INFO,
+                "FurtherInfo": FURTHER_INFO
              },
-        "bad": 
+        "invalid": 
             {
                 "Summary": "Invalid X-Frame-Options header detected",
-                "Description": None,
+                "Description": "The following X-Frame-Options header value is detected and is invalid: {header}",
                 "Severity": "High",
                 "URLs": [ { "URL": None, "Title": None} ],
-                "FurtherInfo": FUTHER_INFO
-            }
+                "FurtherInfo": FURTHER_INFO
+            },
+        "not-set":
+            {
+                "Summary": "X-Frame-Options header is not set",
+                "Description": "X-Frame-Options header is not found. Sites can use this to avoid clickjacking attacks, \
+by ensuring that their content is not embedded into other sites.",
+                "Severity": "High",
+                "URLs": [ { "URL": None, "Title": None} ],
+                "FurtherInfo": FURTHER_INFO
+            },
+            
     }            
     def _allow_from_validator(self, value):
         """ Only accept the following basic forms::
@@ -152,33 +155,22 @@ class XFrameOptionsPlugin(BlockingPlugin):
             xfo_value = r.headers['x-frame-options']
             # 'DENY' and 'SAMEORIGIN' don't carry extra values
             if xfo_value.upper() in ('DENY', 'SAMEORIGIN'):
-                issue = self.REPORTS['good']
-                issue['Description'] = issue['Description'].format(header=xfo_value)
-                issue['URLs'][0]['URL'] = self.configuration['target']
+                issue = self._format_report('set', description_formats={'header': xfo_value})
                 self.report_issues([issue])
             # only strict ALLOW-FROM syntax is allowed
             elif 'ALLOW-FROM' in xfo_value.upper():
                 if self._allow_from_validator(xfo_value):
-                    issue = self.REPORTS['good']
-                    issue['Description'] = issue['Description'].format(header=xfo_value)
-                    issue['URLs'][0]['URL'] = self.configuration['target']
+                    issue = self._format_report('set', description_formats={'header': xfo_value})
                     self.report_issues([issue])
                 else:
-                    issue = self.REPORTS['bad']
-                    issue['Description'] = "Site has X-Frame-Options header but the ALLOW-FROM directive contains \
-an invalid value: %s" % xfo_value
-                    issue['URLs'][0]['URL'] = self.configuration['target']
+                    issue = self._format_report('invalid', description_formats={'header': xfo_value})
                     self.report_issues([issue])
            # found invalid/unknown option value         
             else:
-                issue = self.REPORTS['bad']
-                issue['Description'] = "Site has X-Frame-Options header but the header is valid: %s" % xfo_value
-                issue['URLs'][0]['URL'] = self.configuration['target']
+                issue = self._format_report('invalid', description_formats={'header': xfo_value})
                 self.report_issues([issue])
         else:
-            issue = self.REPORTS['bad']
-            issue['Description'] = "Site has no X-Frame-Options header set"
-            issue['URLs'][0]['URL'] = self.configuration['target']
+            issue = self._format('not-set')
             self.report_issues([issue])
 
 

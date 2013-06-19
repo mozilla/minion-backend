@@ -57,14 +57,11 @@ class TestXFrameOptionsPlugin(TestPluginBaseClass):
             fragement = request_resp.headers['X-Frame-Options']
             self.assertEqual(True, fragement in runner_resp[1]['data']['Description'])
             self.assertEqual("High", runner_resp[1]['data']['Severity'])
-            if expectation == 'COLON':
-                self.assertEqual("Site has X-Frame-Options header but the ALLOW-FROM directive contains an invalid value: %s" % fragement, \
-                        runner_resp[1]['data']['Description'])
-            elif expectation == "INVALID":
-                self.assertEqual("Site has X-Frame-Options header but the header is valid: %s" % fragement, \
-                        runner_resp[1]['data']['Description'])
-            elif expectation is False:
-                self.assertEqual("Site has no X-Frame-Options header set", runner_resp[1]['data']['Description'])
+            if expectation == 'INVALID':
+                self.assertEqual("The following X-Frame-Options header value is detected and is invalid: %s" % fragement, \
+                    runner_resp[1]['data']['Description'])
+            else:
+                self.assertEqual(True, "X-Frame-Options header is not found." in runner_resp[1]['data']['Description'])
         self.assertEqual(expected, request_resp.headers['X-Frame-Options'])
 
     def test_bad_xframe_option(self):
@@ -87,9 +84,9 @@ class TestXFrameOptionsPlugin(TestPluginBaseClass):
     def test_xframe_option_with_allow_from_colon_gets_rejected(self):
         api_name = '/xfo-with-allow-from-with-colon'
         self.validate_plugin(api_name, self.validate_xframe_plugin, \
-                expected='ALLOW-FROM: http://localhost:1234/', expectation='COLON')
+                expected='ALLOW-FROM: http://localhost:1234/', expectation='INVALID')
 
     def test_xframe_option_without_http(self):
         api_name = '/xfo-with-allow-from-without-http'
         self.validate_plugin(api_name, self.validate_xframe_plugin, \
-                expected='ALLOW-FROM localhost:1234/', expectation='COLON')
+                expected='ALLOW-FROM localhost:1234/', expectation='INVALID')
