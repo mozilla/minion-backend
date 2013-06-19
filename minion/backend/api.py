@@ -214,7 +214,8 @@ def _check_required_fields(o, fields):
     return True
 
 def _check_site_url(url):
-    return re.compile(r"^(http|https)://(localhost|([a-z0-9][-a-z0-9]+)(\.[a-z0-9][-a-z0-9]+)+)(:\d+)?$") is not None
+    regex = re.compile(r"^(http|https)://(localhost|([a-z0-9][-a-z0-9]+)(\.[a-z0-9][-a-z0-9]+)+)(:\d+)?$")
+    return regex.match(url) is not None
 
 def _check_group_exists(group_name):
     return groups.find_one({'name': group_name}) is not None

@@ -146,7 +146,7 @@ class TestAPIBaseClass(unittest.TestCase):
         self.target_url = "http://foo.com"
         self.site2 = "http://bar.com"
 
-        self.target_url = 'http://localhost:1234/'
+        self.target_url = 'http://localhost:1234'
 
     def tearDown(self):
         self.mongodb.drop_database("minion")
