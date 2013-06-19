@@ -642,12 +642,7 @@ class TestScanAPIs(TestAPIBaseClass):
         self._test_keys(res11.json()['report'][0].keys(), expected_inner_keys)
 
         issues = res11.json()['report'][0]['issues']
-        # only 5 are reported. three of which are actually Info
-        self.assertEqual(len(issues), 5)
-        self.assertEqual(issues[3]['severity'], 'Medium')
-        self.assertEqual(issues[3]['summary'], "Site sets the 'Server' header")
-        self.assertEqual(issues[4]['severity'], 'Medium')
-        self.assertEqual(issues[4]['summary'], 'No robots.txt found')
+        self.assertEqual(len(issues), 6)
         self.assertEqual(res11.json()['report'][0]['target'], self.target_url)
         self.stop_server()
         #pprint.pprint(res11.json(), indent=3)

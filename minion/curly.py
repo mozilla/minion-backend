@@ -9,6 +9,16 @@ import urlparse
 import pycurl
 
 
+class BadResponseError(Exception):
+    def __init__(self, message=None, status_code=None):
+        if message is None and status_code is not None:
+            self.message = "The server has responded with %s status code. \
+Please refer to http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html \
+to learn about the meaning of the status code." % str(status_code)
+        else:
+            self.message = message
+        super(BadResponseError, self).__init__(self.message)
+
 class HTTPResponse:
     def __init__(self, url):
         self.url = url
@@ -48,8 +58,7 @@ class Response:
         return self.history[-1].headers
     def raise_for_status(self):
         if self.status != 200:
-            raise Exception("Got a non-200 response: " + str(self.status))
-
+            raise BadResponseError(status_code=self.status)
 
 def _get(c, url, headers={}, connect_timeout=None, timeout=None):
     http_response = HTTPResponse(url)
@@ -64,8 +73,11 @@ def _get(c, url, headers={}, connect_timeout=None, timeout=None):
         c.setopt(pycurl.TIMEOUT, timeout)
     if len(headers):
         c.setopt(c.HTTPHEADER, ["%s: %s" % (name,value) for name,value in headers.items()])
-    c.perform()
-    return http_response
+    try:
+        c.perform()
+        return http_response
+    except pycurl.error as e:
+        raise BadResponseError(message=e[1])    # e(error_code, reason)
 
 
 def get(url, headers={}, connect_timeout=None, timeout=None):

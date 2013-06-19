@@ -32,18 +32,44 @@ class AlivePlugin(BlockingPlugin):
     PLUGIN_NAME = "Alive"
     PLUGIN_WEIGHT = "light"
 
+    REPORTS = {
+        "good": 
+            {
+                "Summary": "Site is reachable",
+                "Description": "The server has responded with {status_code} status_code. \
+This indicates the site is reachable.",
+                "Severity": "Info",
+                "URLs": [ {"URL": None, "Extra": None} ],
+                "FurtherInfo": [ { 
+                    "URL": "http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html",
+                    "Title": "Status Code Definitions (W3C)"
+                 } ],
+             },
+        "bad": 
+            {
+                "Summary": "Site could not be reached",
+                "Description": "{error}",
+                "Severity": "Fatal",
+                "URLs": [ { "URL": None, "Title": None} ],
+                "FurtherInfo": [ {"URL": None, "Title": None} ]
+            }
+    }            
+
     def do_run(self):
         try:
             r = minion.curly.get(self.configuration['target'], connect_timeout=5, timeout=15)
             r.raise_for_status()
-        except Exception as e:
-            issue = { "Summary":"Site could not be reached",
-                      "Severity":"Fatal",
-                      "URLs": [ { "URL": self.configuration['target'], "Extra": str(e) } ] }
-            self.report_issues([issue])
+            issue = self.REPORTS['good']
+            issue['Description'] = issue['Description'].format(status_code=str(r.status))
+            issue['URLs'][0]['URL'] = self.configuration['target']
+            self.report_issue(issue)
+        except minion.curly.BadResponseError as error:
+            issue = self.REPORTS['bad']
+            issue['Description'] = issue['Description'].format(error=error)
+            issue['URLs'][0]['URL'] = self.configuration['target']
+            self.report_issue(issue)
             return AbstractPlugin.EXIT_STATE_ABORTED
-
-#
+#       
 # XFrameOptionsPlugin
 #
 
