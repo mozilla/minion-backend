@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/mozilla/minion-backend.png)](https://travis-ci.org/mozilla/minion-backend)
+[![Build Status](https://drone.io/github.com/yeukhon/minion-backend/status.png)](https://drone.io/github.com/yeukhon/minion-backend/latest)
 
 This project contains the code for the Minion Backend. It provides an API to create and start scans and the machinery to execute the scan.
 
