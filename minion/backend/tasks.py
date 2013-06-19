@@ -286,7 +286,7 @@ class Runner(ProcessProtocol):
 
 
 def get_scan(api_url, scan_id):
-    r = requests.get(api_url + "/scans/" + scan_id, headers={'Content-Type': 'text/json'})
+    r = requests.get(api_url + "/scans/" + scan_id)
     r.raise_for_status()
     j = r.json()
     return j['scan']
@@ -421,7 +421,7 @@ def run_plugin(scan_id, session_id):
 
 
 def get_scan(api_url, scan_id):
-    r = requests.get(api_url + "/scans/" + scan_id, headers={'Content-Type': 'text/plain'})
+    r = requests.get(api_url + "/scans/" + scan_id)
     r.raise_for_status()
     j = r.json()
     return j['scan']

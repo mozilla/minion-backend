@@ -120,8 +120,7 @@ def _call(task, method, auth=None, data=None, url_args=None, jsonify=True, \
             headers = {'Content-Type': 'application/json', 
                     'X-Minion-Backend-Key': BACKEND_KEY}
         else:
-            headers = {'Content-Type': 'text/plain',
-                    'X-Minion-Backend-Key': BACKEND_KEY}
+            headers = {'X-Minion-Backend-Key': BACKEND_KEY}
     
     if method == 'GET' or method == 'DELETE':
         res = req_objs(api, params=data, auth=auth, headers=headers)
