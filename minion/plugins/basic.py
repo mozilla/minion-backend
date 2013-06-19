@@ -48,9 +48,9 @@ This indicates the site is reachable.",
         "bad": 
             {
                 "Summary": "Site could not be reached",
-                "Description": "{error}",
+                "Description": None,
                 "Severity": "Fatal",
-                "URLs": [ { "URL": None, "Title": None} ],
+                "URLs": [ { "URL": None, "Extra": None} ],
                 "FurtherInfo": FUTHER_INFO,
             }
     }            
@@ -59,14 +59,17 @@ This indicates the site is reachable.",
         try:
             r = minion.curly.get(self.configuration['target'], connect_timeout=5, timeout=15)
             r.raise_for_status()
-            issue = self.REPORTS['good']
-            issue['Description'] = issue['Description'].format(status_code=str(r.status))
-            issue['URLs'][0]['URL'] = self.configuration['target']
+            #issue = self.REPORTS['good']
+            #issue['Description'] = issue['Description'].format(status_code=str(r.status))
+            #issue['URLs'][0]['URL'] = self.configuration['target']
+            issue = self._format_report('good', 
+                    description_formats={'status_code': str(r.status)})
             self.report_issue(issue)
         except minion.curly.BadResponseError as error:
-            issue = self.REPORTS['bad']
-            issue['Description'] = issue['Description'].format(error=error)
-            issue['URLs'][0]['URL'] = self.configuration['target']
+            #issue = self.REPORTS['bad']
+            #issue['Description'] = issue['Description'].format(error=error)
+            #issue['URLs'][0]['URL'] = self.configuration['target']
+            issue = self._format_report('bad', description=str(error))
             self.report_issue(issue)
             return AbstractPlugin.EXIT_STATE_ABORTED
 #       
