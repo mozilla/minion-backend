@@ -31,6 +31,9 @@ class AlivePlugin(BlockingPlugin):
 
     PLUGIN_NAME = "Alive"
     PLUGIN_WEIGHT = "light"
+    FUTHER_INFO = [ { 
+        "URL": "http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html",
+        "Title": "Status Code Definitions (W3C)" } ],
 
     REPORTS = {
         "good": 
@@ -40,10 +43,7 @@ class AlivePlugin(BlockingPlugin):
 This indicates the site is reachable.",
                 "Severity": "Info",
                 "URLs": [ {"URL": None, "Extra": None} ],
-                "FurtherInfo": [ { 
-                    "URL": "http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html",
-                    "Title": "Status Code Definitions (W3C)"
-                 } ],
+                "FurtherInfo": FUTHER_INFO,
              },
         "bad": 
             {
@@ -51,7 +51,7 @@ This indicates the site is reachable.",
                 "Description": "{error}",
                 "Severity": "Fatal",
                 "URLs": [ { "URL": None, "Title": None} ],
-                "FurtherInfo": [ {"URL": None, "Title": None} ]
+                "FurtherInfo": FUTHER_INFO,
             }
     }            
 
@@ -89,9 +89,28 @@ class XFrameOptionsPlugin(BlockingPlugin):
     PLUGIN_NAME = "XFrameOptions"
     PLUGIN_WEIGHT = "light"
 
-    SUMMARY_FOR_VALID = "Site has a correct X-Frame-Optons header"
-    SUMMARY_FOR_INVALID = "Site has X-Frame-Options header but it has an unknown or invalid value: {val}"
+    FUTHER_INFO = [ { 
+        "URL": "https://developer.mozilla.org/en-US/docs/HTTP/X-Frame-Options",
+        "Title": "The X-Frame-Options response header (Mozilla Developer Network)" }]
 
+    REPORTS = {
+        "good": 
+            {
+                "Summary": "X-Frame-Options header is set properly",
+                "Description": "Site has the following X-Frame-Options set: {header}",
+                "Severity": "Info",
+                "URLs": [ {"URL": None, "Extra": None} ],
+                "FurtherInfo": FUTHER_INFO,
+             },
+        "bad": 
+            {
+                "Summary": "Invalid X-Frame-Options header detected",
+                "Description": None,
+                "Severity": "High",
+                "URLs": [ { "URL": None, "Title": None} ],
+                "FurtherInfo": FUTHER_INFO
+            }
+    }            
     def _allow_from_validator(self, value):
         """ Only accept the following basic forms::
         ACCEPT-FROM http://example.org[:port]/[path]
@@ -130,19 +149,34 @@ class XFrameOptionsPlugin(BlockingPlugin):
             xfo_value = r.headers['x-frame-options']
             # 'DENY' and 'SAMEORIGIN' don't carry extra values
             if xfo_value.upper() in ('DENY', 'SAMEORIGIN'):
-                self.report_issues([{ "Summary": self.SUMMARY_FOR_VALID, "Severity":"Info" }])
-            # strict allow-from only
+                issue = self.REPORTS['good']
+                issue['Description'] = issue['Description'].format(header=xfo_value)
+                issue['URLs'][0]['URL'] = self.configuration['target']
+                self.report_issues([issue])
+            # only strict ALLOW-FROM syntax is allowed
             elif 'ALLOW-FROM' in xfo_value.upper():
                 if self._allow_from_validator(xfo_value):
-                    self.report_issues([{ "Summary": self.SUMMARY_FOR_VALID, "Severity":"Info" }])
+                    issue = self.REPORTS['good']
+                    issue['Description'] = issue['Description'].format(header=xfo_value)
+                    issue['URLs'][0]['URL'] = self.configuration['target']
+                    self.report_issues([issue])
                 else:
-                    self.report_issues([{ "Summary":"Site has X-Frame-Options header but ALLOW-FROM has an invalid value: %s" % xfo_value, "Severity":"High" }])
+                    issue = self.REPORTS['bad']
+                    issue['Description'] = "Site has X-Frame-Options header but the ALLOW-FROM directive contains \
+an invalid value: %s" % xfo_value
+                    issue['URLs'][0]['URL'] = self.configuration['target']
+                    self.report_issues([issue])
            # found invalid/unknown option value         
             else:
-                self.report_issues([{"Summary": self.SUMMARY_FOR_INVALID.format(val=xfo_value), "Severity":"High"}])
-            
+                issue = self.REPORTS['bad']
+                issue['Description'] = "Site has X-Frame-Options header but the header is valid: %s" % xfo_value
+                issue['URLs'][0]['URL'] = self.configuration['target']
+                self.report_issues([issue])
         else:
-            self.report_issues([{"Summary":"Site has no X-Frame-Options header set", "Severity":"High"}])
+            issue = self.REPORTS['bad']
+            issue['Description'] = "Site has no X-Frame-Options header set"
+            issue['URLs'][0]['URL'] = self.configuration['target']
+            self.report_issues([issue])
 
 
 class HSTSPlugin(BlockingPlugin):
