@@ -232,6 +232,8 @@ def get_user(email):
     user = users.find_one({'email': email})
     if not user:
         return jsonify(success=False, reason='no-such-user')
+    user['groups'] = _find_groups_for_user(user['email'])
+    user['sites'] = _find_sites_for_user(user['email'])
     return jsonify(success=True, user=sanitize_user(user))
 
 #
