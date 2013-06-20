@@ -44,21 +44,24 @@ class TestXXSSProtectionPlugin(TestPluginBaseClass):
     def validate_xxssprotection(self, runner_resp, request_resp, expected=None, expectation=True):
         if expectation is True:
             self.assertEqual('Info', runner_resp[1]['data']['Severity'])
-            self.assertEqual('Site sets X-XSS-Protection header', runner_resp[1]['data']['Summary'])
+            self.assertEqual('X-XSS-Protection is set properly', runner_resp[1]['data']['Summary'])
+            self.assertEqual('Site has the following X-XSS-Protection header set: %s' \
+                    % request_resp.headers['x-xss-protection'], runner_resp[1]['data']['Description'])
             self.assertEqual(200, request_resp.status_code)
         elif expectation == 'INVALID':
             self.assertEqual('High', runner_resp[1]['data']['Severity'])
-            self.assertEqual('Site sets an invalid X-XSS-Protection header: %s' % expected, \
-                    runner_resp[1]['data']['Summary'])
+            self.assertEqual('Invalid X-XSS-Protection header detected', runner_resp[1]['data']['Summary'])
+            self.assertEqual('The following X-XSS-Protection header value is detected and is invalid: %s' \
+                    % expected, runner_resp[1]['data']['Description'])
             self.assertEqual(expected, request_resp.headers['x-xss-protection'])
         elif expectation == 'DISABLE':
             self.assertEqual('High', runner_resp[1]['data']['Severity'])
-            self.assertEqual('Site sets X-XSS-Protection header to disable the XSS filter', \
+            self.assertEqual('X-XSS-Protection header is set to disable', 
                     runner_resp[1]['data']['Summary'])
             self.assertEqual(expected, request_resp.headers['x-xss-protection'])
         elif expectation is False:
             self.assertEqual('High', runner_resp[1]['data']['Severity'])
-            self.assertEqual('Site does not set X-XSS-Protection header', \
+            self.assertEqual('X-XSS-Protection header is not set', \
                     runner_resp[1]['data']['Summary'])
             self.assertEqual(True, 'x-xss-protection' not in request_resp.headers)
 

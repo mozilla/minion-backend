@@ -293,19 +293,59 @@ class XXSSProtectionPlugin(BlockingPlugin):
     PLUGIN_NAME = "XXSSProtection"
     PLUGIN_WEIGHT = "light"
 
+    FURTHER_INFO = [ { 
+        "URL": "http://blogs.msdn.com/b/ie/archive/2008/07/02/ie8-security-part-iv-the-xss-filter.aspx",
+        "Title": "IE8 Security Part IV: The XSS Filter" }]
+
+    REPORTS = {
+        "set": 
+            {
+                "Summary": "X-XSS-Protection is set properly",
+                "Description": "Site has the following X-XSS-Protection header set: {header}",
+                "Severity": "Info",
+                "URLs": [ {"URL": None, "Extra": None} ],
+                "FurtherInfo": FURTHER_INFO
+             },
+        "invalid": 
+            {
+                "Summary": "Invalid X-XSS-Protection header detected",
+                "Description": "The following X-XSS-Protection header value is detected and is invalid: {header}",
+                "Severity": "High",
+                "URLs": [ { "URL": None, "Title": None} ],
+                "FurtherInfo": FURTHER_INFO
+            },
+        "not-set":
+            {
+                "Summary": "X-XSS-Protection header is not set",
+                "Description": "X-XSS-Protection header is not found. \
+This header enables Cross-site scripting (XSS) filter built into most recent web browsers.",
+                "Severity": "High",
+                "URLs": [ { "URL": None, "Title": None} ],
+                "FurtherInfo": FURTHER_INFO
+            },    
+        "disabled":
+            {
+                "Summary": "X-XSS-Protection header is set to disable",
+                "Description": "X-XSS-Protection header is set to 0 and consequent disabled Cross-site-scripting (XSS) filter.",
+                "Severity": "High",
+                "URLs": [ { "URL": None, "Title": None} ],
+                "FurtherInfo": FURTHER_INFO
+            },
+    }            
+
     def do_run(self):
         r = minion.curly.get(self.configuration['target'], connect_timeout=5, timeout=15)
         r.raise_for_status()
         value = r.headers.get('x-xss-protection')
         if not value:
-            self.report_issues([{ "Summary":"Site does not set X-XSS-Protection header", "Severity":"High" }])
+            self.report_issues([self._format_report('not-set')])
         else:
             if value.lower() == '1; mode=block':
-                self.report_issues([{ "Summary":"Site sets X-XSS-Protection header", "Severity":"Info" }])
+                self.report_issues([self._format_report('set', description_formats={'header': value})])
             elif value == '0':
-                self.report_issues([{ "Summary":"Site sets X-XSS-Protection header to disable the XSS filter", "Severity":"High" }])
+                self.report_issues([self._format_report('disabled', description_formats={'header': value})])
             else:
-                self.report_issues([{ "Summary":"Site sets an invalid X-XSS-Protection header: %s" %value, "Severity":"High" }])
+                self.report_issues([self._format_report('invalid', description_formats={'header': value})])
 
 
 class ServerDetailsPlugin(BlockingPlugin):
