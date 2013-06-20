@@ -284,6 +284,66 @@ def create_user():
     return jsonify(success=True, user=sanitize_user(new_user))
 
 #
+# Expects a partially filled out user as POST data. The user with the
+# specified user_email (in the URL) will be updated.
+#
+# Fields that can be changed:
+#
+#  name
+#  role
+#  groups
+#
+# Fields that are specified in the new user object will replace those in
+# the existing user object.
+#
+# Returns the full user record.
+#
+
+@app.route('/users/<user_email>', methods=['POST'])
+@api_guard
+def update_user(user_email):
+    new_user = request.json
+    # Verify the incoming user: user must exist, groups must exist, role must exist
+    old_user = users.find_one({'email': user_email})
+    if old_user is None:
+        return jsonify(success=False, reason='unknown-user')
+    old_user['groups'] = _find_groups_for_user(user_email)
+    old_user['sites'] = _find_sites_for_user(user_email)
+    #
+    if 'groups' in new_user:
+        for group_name in new_user.get('groups', []):
+            if not _check_group_exists(group_name):
+                return jsonify(success=False, reason='unknown-group')
+    if 'role' in new_user:
+        if new_user["role"] not in ("user", "administrator"):
+            return jsonify(success=False, reason="invalid-role")
+    # Update the group memberships
+    if 'groups' in new_user:
+        # Add new groups
+        for group_name in new_user.get('groups', []):
+            if group_name not in old_user['groups']:
+                groups.update({'name':group_name},{'$addToSet': {'users': user_email}})
+        # Remove old groups
+        for group_name in old_user['groups']:
+            if group_name not in new_user.get('groups', []):
+                groups.update({'name':group_name},{'$pull': {'users': user_email}})
+    # Modify the user
+    changes = {}
+    if 'name' in new_user:
+        changes['name'] = new_user['name']
+    if 'role' in new_user:
+        changes['role'] = new_user['role']
+    if 'groups' in new_user:
+        changes['groups'] = new_user['groups']
+    users.update({'email': user_email}, {'$set': changes})
+    # Return the updated user
+    user = users.find_one({'email': user_email})
+    if not user:
+        return jsonify(success=False, reason='unknown-user')
+    user['groups'] = _find_groups_for_user(user_email)
+    return jsonify(success=True, user=sanitize_user(user))
+
+#
 # Retrieve all users in minion
 #
 #  GET /users

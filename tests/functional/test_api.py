@@ -23,7 +23,9 @@ APIS = {'users':
             {'POST': '/users',
              'GET': '/users'},
         'user':
-            {'DELETE': '/users/{user_email}'},
+            {'DELETE': '/users/{user_email}',
+             'GET': '/users/{user_email}',
+             'POST': '/users/{user_email}'},
         'groups':
             {'POST': '/groups',
               'GET': '/groups'},
@@ -208,9 +210,15 @@ class TestAPIBaseClass(unittest.TestCase):
             self.assertEqual("0.0", meta['version'])
 
 
-    def create_user(self, headers=None):
-        return _call('users', 'POST', data={"email": self.email, "role": "user"},\
-                headers=headers)
+    def create_user(self, email="bob@example.com", name="Bob", role="user", groups=[], headers=None):
+        return _call('users', 'POST', data={"email": email, "name": name, "role": role, "groups":groups},
+                     headers=headers)
+
+    def update_user(self, user_email, user):
+        return _call('user', 'POST', url_args={'user_email': user_email}, data=user)
+
+    def get_user(self, user_email):
+        return _call('user', 'GET', url_args={'user_email': user_email})
 
     def delete_user(self, user_email):
         return _call('user', 'DELETE', url_args={'user_email': user_email})
@@ -394,6 +402,39 @@ class TestUserAPIs(TestAPIBaseClass):
         r = self.delete_user('doesnotexist@doesnotexist.com')
         r.raise_for_status()
         self.assertEqual({'success': False, 'reason': 'no-such-user'}, r.json())
+
+    def test_update_user(self):
+        r = self.create_group('foo')
+        r = self.create_group('bar')
+        # Create a user
+        r = self.create_user(email="foo@example.com", name="Foo", role="user", groups=['foo'])
+        r.raise_for_status()
+        j = r.json()
+        self.assertEqual("foo@example.com", j['user']['email'])
+        self.assertEqual("Foo", j['user']['name'])
+        self.assertEqual(['foo'], j['user']['groups'])
+        self.assertEqual('user', j['user']['role'])
+        # Update the user
+        r = self.update_user('foo@example.com', {'name': 'New Foo', 'role': 'administrator',
+                                               'groups': ['bar']})
+        r.raise_for_status()
+        j = r.json()
+        print j
+        self.assertEqual(True, j['success'])
+        # Make sure the user returned is correct
+        self.assertEqual("foo@example.com", j['user']['email'])
+        self.assertEqual("New Foo", j['user']['name'])
+        self.assertEqual(['bar'], j['user']['groups'])
+        self.assertEqual('administrator', j['user']['role'])
+        # Make sure the user stored in the db is correct
+        r = self.get_user('foo@example.com')
+        r.raise_for_status()
+        j = r.json()
+        self.assertEqual(True, j['success'])
+        self.assertEqual("foo@example.com", j['user']['email'])
+        self.assertEqual("New Foo", j['user']['name'])
+        self.assertEqual(['bar'], j['user']['groups'])
+        self.assertEqual('administrator', j['user']['role'])
 
 class TestGroupAPIs(TestAPIBaseClass):
     def test_create_group(self):
