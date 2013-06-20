@@ -414,6 +414,44 @@ class RobotsPlugin(BlockingPlugin):
     PLUGIN_NAME = "Robots"
     PLUGIN_WEIGHT = "light"
 
+    FURTHER_INFO = [ 
+        { 
+            "URL": "http://www.robotstxt.org/robotstxt.html",
+            "Title": 'The Web Robots Pages - About /robots.txt',
+        },
+        {
+            "URL": "https://developers.google.com/webmasters/control-crawl-index/docs/robots_txt",
+            "Title": "Google Developers - Robots.txt Specification",
+        },
+]
+
+    REPORTS = {
+        "found": 
+        {
+            "Summary": "robots.txt found",
+            "Description": "Site has a valid robots.txt",
+            "Severity": "Info",
+            "URLs": [ {"URL": None, "Extra": None} ],
+            "FurtherInfo": FURTHER_INFO
+         },
+         "not-found":
+         {
+             "Summary": "robots.txt not found",
+             "Description": "Site has no robots.txt",
+             "Severity": "Medium",
+             "URLs": [ {"URL": None, "Extra": None} ],
+             "FurtherInfo": FURTHER_INFO
+         },
+         "invalid":
+         {
+            "Summary": "Invalid entry found in robots.txt",
+            "Description": "robots.txt may contain an invalid or unsupport entry.",
+            "Severity": "Medium",
+            "URLs": [ {"URL": None, "Extra": None}],
+            "FurtherInfo": FURTHER_INFO
+         }
+    }            
+
     def validator(self, url):
         """ This validator performs the following checkes:
 
@@ -446,10 +484,12 @@ class RobotsPlugin(BlockingPlugin):
 
     def do_run(self):
         result = self.validator(self.configuration['target'])
+        if result is True:
+            self.report_issues([self._format_report('found')])
         if result == 'NOT-FOUND':
-            self.report_issues([{"Summary":"No robots.txt found", "Severity": "Medium"}])
+            self.report_issues([self._format_report('not-found')])
         elif not result:
-            self.report_issues([{"Summary":"Invalid robots.txt found", "Severity": "Medium"}])
+            self.report_issues([self._format_report('invalid')])
         
 
 #
