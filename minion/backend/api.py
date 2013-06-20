@@ -505,6 +505,66 @@ def create_site():
     return jsonify(success=True, site=sanitize_site(new_site))
 
 #
+# Expects a partially filled out site as POST data. The site with the
+# specified site_id (in the URL) will be updated.
+#
+# It is not possible to change the url. For that you need to delete the
+# site and create a new one.
+#
+#  POST /sites/<site_id>
+#
+#  { 'url': 'https://www.mozilla.com',
+#    'plans': ['basic', 'nmap'],
+#    'groups': ['mozilla', 'key-initiatives'] }
+#
+# Returns the full site record including the generated id:
+#
+#  { 'success': True,
+#    'site': { 'id': 'b263bdc6-8692-4ace-aa8b-922b9ec0fc37',
+#              'url': 'https://www.mozilla.com',
+#              'plans': ['basic', 'nmap'],
+#              'groups': ['mozilla', 'key-initiatives'] } }
+#
+# Or returns an error:
+#
+#  { 'success': False, 'reason': 'no-such-site' }
+#  { 'success': False, 'reason': 'unknown-group' }
+#  { 'success': False, 'reason': 'unknown-plan' }
+#
+
+@app.route('/sites/<site_id>', methods=['POST'])
+@api_guard
+def update_site(site_id):
+    new_site = request.json
+    # Verify incoming site. It must exist, groups must exist, plans must exist.
+    site = sites.find_one({'id': site_id})
+    if not site:
+        return jsonify(success=False, reason='no-such-site')
+    site['groups'] = _find_groups_for_site(site['url'])
+    for group in new_site.get('groups', []):
+        if not _check_group_exists(group):
+            return jsonify(success=False, reason='unknown-group')
+    for plan_name in new_site.get('plans', []):
+        if not _check_plan_exists(plan_name):
+            return jsonify(success=False, reason='unknown-plan')
+    # Add new groups
+    for group_name in new_site.get('groups', []):
+        if group_name not in site['groups']:
+            groups.update({'name':group_name},{'$addToSet': {'sites': site['url']}})
+    # Remove old groups
+    for group_name in site.get('groups', []):
+        if group_name not in new_site['groups']:
+            groups.update({'name':group_name},{'$pull': {'sites': site['url']}})
+    # Update the site. At this point we can only update plans.
+    sites.update({'id': site_id}, {'$set': {'plans': new_site.get('plans')}})
+    # Return the updated site
+    site = sites.find_one({'id': site_id})
+    if not site:
+        return jsonify(success=False, reason='no-such-site')
+    site['groups'] = _find_groups_for_site(site['url'])
+    return jsonify(success=True, site=sanitize_site(site))
+
+#
 # Retrieve all sites in minion
 #
 #  GET /sites

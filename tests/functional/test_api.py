@@ -33,8 +33,9 @@ APIS = {'user':
             {'GET': '/sites',
              'POST': '/sites'},
         'site':
-            {'GET': '/sites/{site_id}'},
-        'get_plans': 
+            {'GET': '/sites/{site_id}',
+             'POST': '/sites/{site_id}'},
+        'get_plans':
             {'GET': '/plans'},
         'get_plan':
             {'GET': '/plans/{plan_name}'},
@@ -82,7 +83,7 @@ def _call(task, method, auth=None, data=None, url_args=None, jsonify=True, \
     data : optional, dict
         A dictionary of data to pass to the API.
     url_args : optional, dict
-        A dictionary of url arguments to replace in the 
+        A dictionary of url arguments to replace in the
         URL. For example, to match user's GET URL which
         requires ``id``, you'd pass ``{'id': '3a7a67'}``.
     jsonify : bool
@@ -95,7 +96,7 @@ def _call(task, method, auth=None, data=None, url_args=None, jsonify=True, \
     -------
     res : requests.Response
         The response object.
-    
+
     """
 
     req_objs = {'GET': requests.get,
@@ -117,12 +118,12 @@ def _call(task, method, auth=None, data=None, url_args=None, jsonify=True, \
 
     if headers is None:
         if jsonify:
-            headers = {'Content-Type': 'application/json', 
+            headers = {'Content-Type': 'application/json',
                     'X-Minion-Backend-Key': BACKEND_KEY}
         else:
             headers = {'Content-Type': 'text/plain',
                     'X-Minion-Backend-Key': BACKEND_KEY}
-    
+
     if method == 'GET' or method == 'DELETE':
         res = req_objs(api, params=data, auth=auth, headers=headers)
     else:
@@ -157,7 +158,7 @@ class TestAPIBaseClass(unittest.TestCase):
                     stdout=PIPE, stderr=PIPE, shell=True)
             p.communicate()
     def start_server(self):
-        """ Similar to plugin functional tests, we need 
+        """ Similar to plugin functional tests, we need
         to start server and kill ports. """
         def run_app():
             test_app.run(host='localhost', port=1234)
@@ -169,14 +170,14 @@ class TestAPIBaseClass(unittest.TestCase):
     def stop_server(self):
         self.server.terminate()
         self._kill_ports([1234,])
-        
 
-    def import_plan(self):
+
+    def import_plan(self, plan_name='basic'):
         ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         PLANS_ROOT = os.path.join(ROOT, 'plans')
         self.plans = self.db.plans
         self.scans = self.db.scans
-        with open(os.path.join(PLANS_ROOT, 'basic.plan'), 'r') as f:
+        with open(os.path.join(PLANS_ROOT, '%s.plan' % plan_name), 'r') as f:
             self.plan = json.load(f)
             self.plans.remove({'name': self.plan['name']})
             self.plans.insert(self.plan)
@@ -203,17 +204,21 @@ class TestAPIBaseClass(unittest.TestCase):
             self.assertEqual(p_name, meta['name'])
             self.assertEqual(base['workflow'][index]['plugin_name'], meta['class'])
             self.assertEqual("0.0", meta['version'])
-    
+
 
     def create_user(self, headers=None):
         return _call('user', 'POST', data={"email": self.email, "role": "user"},\
                 headers=headers)
-    
+
     def get_users(self):
         return _call('user', 'GET')
 
-    def create_group(self, users=None):
-        data = {'name': self.group_name, "description": self.group_description}
+    def create_group(self, group_name=None, group_description=None, users=None):
+        if group_name  is None:
+            group_name = self.group_name
+        if group_description  is None:
+            group_description = self.group_description
+        data = {'name': group_name, "description": self.group_description}
         if users is not None:
             data.update({'users': users})
         return _call('groups', 'POST', data=data)
@@ -230,12 +235,17 @@ class TestAPIBaseClass(unittest.TestCase):
     def modify_group(self, group_name, data=None):
         return _call('group', 'PATCH', url_args={'group_name': group_name},
                 data=data)
-    
-    def create_site(self, plans=None):
-        data = {'url': self.target_url, 'groups': [self.group_name,]}
+
+    def create_site(self, groups=None, plans=None):
+        if groups is None:
+            groups = [self.group_name,]
+        data = {'url': self.target_url, 'groups': groups}
         if plans is not None:
             data.update({'plans': plans})
         return _call('sites', 'POST', data=data)
+
+    def update_site(self, site_id, site):
+        return _call('site', 'POST', url_args={'site_id': site_id}, data=site)
 
     def get_sites(self):
         return _call('sites', 'GET')
@@ -245,16 +255,16 @@ class TestAPIBaseClass(unittest.TestCase):
 
     def get_plans(self):
         return _call('get_plans', 'GET')
-    
+
     def get_plan(self, plan_name):
         return _call('get_plan', 'GET', url_args={'plan_name': plan_name})
-    
+
     def get_plugins(self):
         return _call('get_plugins', 'GET')
 
     def create_scan(self):
-        return _call('scans', 'POST', 
-                data={'plan': 'basic', 
+        return _call('scans', 'POST',
+                data={'plan': 'basic',
                     'configuration': {'target': self.target_url}})
 
     def get_scan(self, scan_id):
@@ -290,7 +300,7 @@ class TestAPIBaseClass(unittest.TestCase):
         Compare keys are in the response. If there
         is a difference (more or fewer) assertion
         will raise False.
-        
+
         Parameters
         ----------
         target : tuple
@@ -325,7 +335,7 @@ class TestAccessToken(TestAPIBaseClass):
 
 class TestUserAPIs(TestAPIBaseClass):
     def test_create_user(self):
-        res = self.create_user() 
+        res = self.create_user()
         expected_top_keys = ('user', 'success')
         self._test_keys(res.json().keys(), expected_top_keys)
         expected_inner_keys = ('id', 'created', 'role', 'email')
@@ -429,6 +439,12 @@ class TestGroupAPIs(TestAPIBaseClass):
         self.assertEqual(res2.json()['group']['users'], [])
 
 class TestSitesAPIs(TestAPIBaseClass):
+    def setUp(self):
+        super(TestSitesAPIs, self).setUp()
+        self.import_plan(plan_name='basic')
+        self.import_plan(plan_name='nmap')
+        self.import_plan(plan_name='zap')
+
     def test_create_site(self):
         res = self.create_user()
         res1 = self.create_group()
@@ -469,14 +485,67 @@ class TestSitesAPIs(TestAPIBaseClass):
     def test_get_site(self):
         res = self.create_user()
         res1 = self.create_group()
-        res2 = self.create_site() 
+        res2 = self.create_site()
         site_id = res2.json()['site']['id']
         res3 = self.get_site(site_id)
         expected_top_keys = ('success', 'site', )
         self._test_keys(res3.json().keys(), expected_top_keys)
         # until #49, #50, #51 are resolved, this is commented
         #self.assertEqual(res3.json()['site'], res2.json()['site'])
-        
+
+    def test_update_site(self):
+        res = self.create_user()
+        res1 = self.create_group('foo')
+        res1 = self.create_group('bar')
+        res1 = self.create_group('baz')
+        res2 = self.create_site(groups=[], plans=[])
+        original_site = res2.json()['site']
+        # Verify that the new site has no plans and no groups
+        self.assertEqual(original_site['plans'], [])
+        self.assertEqual(original_site['groups'], [])
+        # Update the site, add a plan and group
+        self.update_site(original_site['id'], {'plans':['basic'], 'groups': ['foo']})
+        # Verify that the site has these new settings
+        r = self.get_site(original_site['id'])
+        site = r.json()['site']
+        self.assertEqual(sorted(site['plans']), sorted(['basic']))
+        self.assertEqual(sorted(site['groups']), sorted(['foo']))
+        self.assertEqual(original_site['url'], site['url'])
+        # Update the site, replace plans and groups
+        self.update_site(site['id'], {'plans':['nmap','zap'], 'groups': ['bar','baz']})
+        # Verify that the site has these new settings
+        r = self.get_site(original_site['id'])
+        site = r.json()['site']
+        self.assertEqual(sorted(site['plans']), sorted(['nmap', 'zap']))
+        self.assertEqual(sorted(site['groups']), sorted(['bar', 'baz']))
+        self.assertEqual(original_site['url'], site['url'])
+
+    def test_update_unknown_site(self):
+        r = self.update_site('e22dbe0c-b958-4050-a339-b9a88fa7cd01',
+                             {'plans':['nmap','zap'], 'groups': ['bar','baz']})
+        r.raise_for_status()
+        j = r.json()
+        self.assertEqual(j, {'success': False, 'reason': 'no-such-site'})
+
+    def test_update_site_with_unknown_group(self):
+        r = self.create_site(groups=[], plans=[])
+        r.raise_for_status()
+        site = r.json()['site']
+        r = self.update_site(site['id'], {'plans':[], 'groups': ['doesnotexist']})
+        r.raise_for_status()
+        j = r.json()
+        self.assertEqual(j, {'success': False, 'reason': 'unknown-group'})
+
+
+    def test_update_site_with_unknown_plan(self):
+        r = self.create_site(groups=[], plans=[])
+        r.raise_for_status()
+        site = r.json()['site']
+        r = self.update_site(site['id'], {'plans':['doesnotexist'], 'groups': []})
+        r.raise_for_status()
+        j = r.json()
+        self.assertEqual(j, {'success': False, 'reason': 'unknown-plan'})
+
 class TestPlanAPIs(TestAPIBaseClass):
     def setUp(self):
         super(TestPlanAPIs, self).setUp()
@@ -495,11 +564,11 @@ class TestPlanAPIs(TestAPIBaseClass):
     def test_get_plan(self):
         resp = self.get_plan('basic')
         self.assertEqual(200, resp.status_code)
-        
+
         # test plugin name and weight. weight is now always light for the built-in
         plan = resp.json()
         self.check_plugin_metadata(self.plan, plan['plan']['workflow'])
-    
+
     def test_get_built_in_plugins(self):
         resp = self.get_plugins()
 
@@ -542,7 +611,7 @@ class TestScanAPIs(TestAPIBaseClass):
         expected_scan_keys = ('id', 'state', 'created', 'queued', 'started', \
                 'finished', 'plan', 'configuration', 'sessions', 'meta',)
         self._test_keys(res4.json()['scan'].keys(), expected_scan_keys)
-        
+
         scan = res4.json()['scan']
         for session in scan['sessions']:
             expected_session_keys = ('id', 'state', 'plugin', 'configuration', \
@@ -594,7 +663,7 @@ class TestScanAPIs(TestAPIBaseClass):
         self.assertEqual(len(res5.json().keys()), 1)
         self.assertEqual(res5.json()['success'], True)
         #pprint.pprint(res5.json(), indent=3)
-    
+
         # GET /scans/<scan_id>
         res6 = self.get_scan(scan_id)
         self._test_keys(res6.json().keys(), set(res4.json().keys()))
@@ -651,4 +720,3 @@ class TestScanAPIs(TestAPIBaseClass):
         self.assertEqual(res11.json()['report'][0]['target'], self.target_url)
         self.stop_server()
         #pprint.pprint(res11.json(), indent=3)
-
