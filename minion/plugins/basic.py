@@ -357,14 +357,53 @@ class ServerDetailsPlugin(BlockingPlugin):
     PLUGIN_NAME = "ServerDetails"
     PLUGIN_WEIGHT = "light"
 
+    FURTHER_INFO = [ 
+        { 
+            "URL": "http://tools.ietf.org/html/rfc2616#section-14.38",
+            "Title": 'RFC 2616 - "Server" header'
+        },
+        {
+            "URL": "https://developer.mozilla.org/en-US/docs/HTTP/Headers",
+            "Title": "Mozilla Developer Network - HTTP Headers"
+        },
+        {
+            "URL": "https://en.wikipedia.org/wiki/List_of_HTTP_header_fields",
+            "Title": "Wikipedia - List of HTTP header fields",
+        }
+]
+
+    REPORTS = {
+        "set": 
+            {
+                "Summary": "",
+                "Description": "Site has set {header} header",
+                "Severity": "Medium",
+                "URLs": [ {"URL": None, "Extra": None} ],
+                "FurtherInfo": FURTHER_INFO
+             },
+         "none":
+         {
+             "Summary": "No server-detail-type headers set",
+             "Description": "None of the following headers is present: {headers}",
+             "Severity": "Info",
+             "URLs": [ {"URL": None, "Extra": None} ],
+             "FurtherInfo": FURTHER_INFO
+         }
+    }            
+
     def do_run(self):
         r = minion.curly.get(self.configuration['target'], connect_timeout=5, timeout=15)
         r.raise_for_status()
-        HEADERS = ('Server', 'X-Powered-By', 'X-AspNet-Version', 'X-AspNetMvc-Version', 'X-Backend-Server')
-        for header in HEADERS:
+        headers = ('Server', 'X-Powered-By', 'X-AspNet-Version', 'X-AspNetMvc-Version', 'X-Backend-Server')
+        at_least_one = False
+        for header in headers:
             if header.lower() in r.headers:
-                self.report_issues([{ "Summary":"Site sets the '%s' header" % header, "Severity":"Medium" }])
-
+                at_least_one = True
+                issue = self._format_report('set', description_formats={'header': header})
+                issue['Summary'] = "%s is found" % header
+                self.report_issues([issue])
+        if not at_least_one:
+            self.report_issues([self._format_report('none', description_formats={'headers': headers})])
 
 class RobotsPlugin(BlockingPlugin):
     
