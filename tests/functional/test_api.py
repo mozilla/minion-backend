@@ -210,7 +210,7 @@ class TestAPIBaseClass(unittest.TestCase):
             self.assertEqual("0.0", meta['version'])
 
 
-    def create_user(self, email="bob@example.com", name="Bob", role="user", groups=[], headers=None):
+    def create_user(self, email="bob@example.org", name="Bob", role="user", groups=[], headers=None):
         return _call('users', 'POST', data={"email": email, "name": name, "role": role, "groups":groups},
                      headers=headers)
 
