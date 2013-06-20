@@ -237,18 +237,52 @@ class XContentTypeOptionsPlugin(BlockingPlugin):
     PLUGIN_NAME = "XContentTypeOptions"
     PLUGIN_WEIGHT = "light"
 
+    FURTHER_INFO = [ { 
+        "URL": "http://msdn.microsoft.com/en-us/library/ie/gg622941%28v=vs.85%29.aspx",
+        "Title": "MIME-Handling Change: X-Content-Type-Options: nosniff" }]
+
+    REPORTS = {
+        "set": 
+            {
+                "Summary": "X-Content-Type-Options is set properly",
+                "Description": "Site has the following X-Content-Type-Options header set: {header}",
+                "Severity": "Info",
+                "URLs": [ {"URL": None, "Extra": None} ],
+                "FurtherInfo": FURTHER_INFO
+             },
+        "invalid": 
+            {
+                "Summary": "Invalid X-Content-Type-Options header detected",
+                "Description": "The following X-Content-Type-Options header value is detected and is invalid: {header}",
+                "Severity": "High",
+                "URLs": [ { "URL": None, "Title": None} ],
+                "FurtherInfo": FURTHER_INFO
+            },
+        "not-set":
+            {
+                "Summary": "X-Content-Type-Options header is not set",
+                "Description": "X-Content-Type-Options header is not found. This header is a security feature that helps \
+prevent attacks based on MIME-type confusion.",
+                "Severity": "High",
+                "URLs": [ { "URL": None, "Title": None} ],
+                "FurtherInfo": FURTHER_INFO
+            },
+            
+    }            
+
     def do_run(self):
         r = minion.curly.get(self.configuration['target'], connect_timeout=5, timeout=15)
         r.raise_for_status()
         value = r.headers.get('x-content-type-options')
         if not value:
-            self.report_issues([{ "Summary":"Site does not set X-Content-Type-Options header", "Severity":"High" }])
+            self.report_issues([self._format_report('not-set')])
         else:
             if value.lower() == 'nosniff':
-                self.report_issues([{ "Summary":"Site sets X-Content-Type-Options header", "Severity":"Info" }])
+                issue = self._format_report('set', description_formats={'header': value})
+                self.report_issues([issue])
             else:
-                self.report_issues([{ "Summary":"Site sets an invalid X-Content-Type-Options header", "Severity":"High" }])
-
+                issue = self._format_report('invalid', description_formats={'header': value})
+                self.report_issues([issue])
 
 class XXSSProtectionPlugin(BlockingPlugin):
 
