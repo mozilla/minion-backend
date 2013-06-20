@@ -354,6 +354,25 @@ class TestUserAPIs(TestAPIBaseClass):
         expected_inner_keys = ('id', 'created', 'role', 'email')
         self._test_keys(res.json()['user'].keys(), expected_inner_keys)
 
+    def test_get_user(self):
+        r = self.create_group('foo')
+        j = r.json()
+        self.assertEqual(True, r.json()['success'])
+        # Add a user
+        r = self.create_user(email="foo@example.com", name="Foo", role="user", groups=['foo'])
+        r.raise_for_status()
+        j = r.json()
+        self.assertEqual(True, r.json()['success'])
+        # Make sure the user stored in the db is correct
+        r = self.get_user('foo@example.com')
+        r.raise_for_status()
+        j = r.json()
+        self.assertEqual(True, j['success'])
+        self.assertEqual("foo@example.com", j['user']['email'])
+        self.assertEqual("Foo", j['user']['name'])
+        self.assertEqual(['foo'], j['user']['groups'])
+        self.assertEqual('user', j['user']['role'])
+
     def test_get_all_users(self):
         # we must recreate user
         self.create_user()
