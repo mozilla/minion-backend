@@ -547,16 +547,18 @@ def update_site(site_id):
     for plan_name in new_site.get('plans', []):
         if not _check_plan_exists(plan_name):
             return jsonify(success=False, reason='unknown-plan')
-    # Add new groups
-    for group_name in new_site.get('groups', []):
-        if group_name not in site['groups']:
-            groups.update({'name':group_name},{'$addToSet': {'sites': site['url']}})
-    # Remove old groups
-    for group_name in site.get('groups', []):
-        if group_name not in new_site['groups']:
-            groups.update({'name':group_name},{'$pull': {'sites': site['url']}})
-    # Update the site. At this point we can only update plans.
-    sites.update({'id': site_id}, {'$set': {'plans': new_site.get('plans')}})
+    if 'groups' in new_site:
+        # Add new groups
+        for group_name in new_site.get('groups', []):
+            if group_name not in site['groups']:
+                groups.update({'name':group_name},{'$addToSet': {'sites': site['url']}})
+        # Remove old groups
+        for group_name in site['groups']:
+            if group_name not in new_site.get('groups', []):
+                groups.update({'name':group_name},{'$pull': {'sites': site['url']}})
+    if 'plans' in new_site:
+        # Update the site. At this point we can only update plans.
+        sites.update({'id': site_id}, {'$set': {'plans': new_site.get('plans')}})
     # Return the updated site
     site = sites.find_one({'id': site_id})
     if not site:

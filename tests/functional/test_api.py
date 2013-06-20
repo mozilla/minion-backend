@@ -536,7 +536,6 @@ class TestSitesAPIs(TestAPIBaseClass):
         j = r.json()
         self.assertEqual(j, {'success': False, 'reason': 'unknown-group'})
 
-
     def test_update_site_with_unknown_plan(self):
         r = self.create_site(groups=[], plans=[])
         r.raise_for_status()
@@ -545,6 +544,43 @@ class TestSitesAPIs(TestAPIBaseClass):
         r.raise_for_status()
         j = r.json()
         self.assertEqual(j, {'success': False, 'reason': 'unknown-plan'})
+
+    def test_update_only_change_plans(self):
+        r = self.create_group('foo')
+        r.raise_for_status()
+        r = self.create_site(groups=['foo'], plans=['basic'])
+        r.raise_for_status()
+        original_site = r.json()['site']
+        # Verify that the new site is correct
+        self.assertEqual(['basic'], original_site['plans'])
+        self.assertEqual(['foo'], original_site['groups'])
+        # Update just the plans
+        r = self.update_site(original_site['id'], {'plans':['nmap']})
+        r.raise_for_status()
+        # Make sure the groups have not been changed
+        r = self.get_site(original_site['id'])
+        site = r.json()['site']
+        self.assertEqual(sorted(['nmap']), sorted(site['plans']))
+        self.assertEqual(sorted(['foo']), sorted(site['groups']))
+
+    def test_update_only_change_groups(self):
+        r = self.create_group('foo')
+        r = self.create_group('bar')
+        r.raise_for_status()
+        r = self.create_site(groups=['foo'], plans=['basic'])
+        r.raise_for_status()
+        original_site = r.json()['site']
+        # Verify that the new site is correct
+        self.assertEqual(['basic'], original_site['plans'])
+        self.assertEqual(['foo'], original_site['groups'])
+        # Update just the groups
+        r = self.update_site(original_site['id'], {'groups':['bar']})
+        r.raise_for_status()
+        # Make sure the plans have not been changed
+        r = self.get_site(original_site['id'])
+        site = r.json()['site']
+        self.assertEqual(sorted(['basic']), sorted(site['plans']))
+        self.assertEqual(sorted(['bar']), sorted(site['groups']))
 
 class TestPlanAPIs(TestAPIBaseClass):
     def setUp(self):
