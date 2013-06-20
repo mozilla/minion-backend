@@ -125,9 +125,8 @@ def _call(task, method, auth=None, data=None, url_args=None, jsonify=True, \
             headers = {'Content-Type': 'application/json',
                     'X-Minion-Backend-Key': BACKEND_KEY}
         else:
-            headers = {'Content-Type': 'text/plain',
-                    'X-Minion-Backend-Key': BACKEND_KEY}
-
+            headers = {'X-Minion-Backend-Key': BACKEND_KEY}
+    
     if method == 'GET' or method == 'DELETE':
         res = req_objs(api, params=data, auth=auth, headers=headers)
     else:
@@ -209,7 +208,6 @@ class TestAPIBaseClass(unittest.TestCase):
             self.assertEqual(base['workflow'][index]['plugin_name'], meta['class'])
             self.assertEqual("0.0", meta['version'])
 
-
     def create_user(self, email="bob@example.org", name="Bob", role="user", groups=[], headers=None):
         return _call('users', 'POST', data={"email": email, "name": name, "role": role, "groups":groups},
                      headers=headers)
@@ -237,13 +235,15 @@ class TestAPIBaseClass(unittest.TestCase):
         return _call('groups', 'POST', data=data)
 
     def get_groups(self):
-        return _call('groups', 'GET')
+        return _call('groups', 'GET', jsonify=False)
 
     def get_group(self, group_name):
-        return _call('group', 'GET', url_args={'group_name': group_name})
+        return _call('group', 'GET', url_args={'group_name': group_name},
+                jsonify=False)
 
     def delete_group(self, group_name):
-        return _call('group', 'DELETE', url_args={'group_name': group_name})
+        return _call('group', 'DELETE', url_args={'group_name': group_name},
+                jsonify=False)
 
     def modify_group(self, group_name, data=None):
         return _call('group', 'PATCH', url_args={'group_name': group_name},
@@ -261,19 +261,18 @@ class TestAPIBaseClass(unittest.TestCase):
         return _call('site', 'POST', url_args={'site_id': site_id}, data=site)
 
     def get_sites(self):
-        return _call('sites', 'GET')
+        return _call('sites', 'GET', jsonify=False)
 
     def get_site(self, site_id):
-        return _call('site', 'GET', url_args={'site_id': site_id})
+        return _call('site', 'GET', url_args={'site_id': site_id}, jsonify=False)
 
-    def get_plans(self):
-        return _call('get_plans', 'GET')
-
+        return _call('get_plans', 'GET', jsonify=False)
+    
     def get_plan(self, plan_name):
-        return _call('get_plan', 'GET', url_args={'plan_name': plan_name})
-
+        return _call('get_plan', 'GET', url_args={'plan_name': plan_name}, jsonify=False)
+    
     def get_plugins(self):
-        return _call('get_plugins', 'GET')
+        return _call('get_plugins', 'GET', jsonify=False)
 
     def create_scan(self):
         return _call('scans', 'POST',
@@ -281,32 +280,32 @@ class TestAPIBaseClass(unittest.TestCase):
                     'configuration': {'target': self.target_url}})
 
     def get_scan(self, scan_id):
-        return _call('scan', 'GET', url_args={'scan_id': scan_id})
+        return _call('scan', 'GET', url_args={'scan_id': scan_id}, jsonify=False)
 
     def control_scan(self, scan_id, state='START'):
         return _call('scan', 'PUT', url_args={'scan_id': scan_id},
                 data=state, jsonify=False)
 
     def get_scan_summary(self, scan_id):
-        return _call('scan_summary', 'GET', url_args={'scan_id': scan_id})
+        return _call('scan_summary', 'GET', url_args={'scan_id': scan_id}, jsonify=False)
 
     def get_reports_history(self, user=None):
         data = {}
         if user is not None:
             data = {'user': user}
-        return _call('history', 'GET', data=data)
+        return _call('history', 'GET', data=data, jsonify=False)
 
     def get_reports_status(self, user=None):
         data = None
         if user is not None:
             data = {'user': user}
-        return _call('status', 'GET', data=data)
+        return _call('status', 'GET', data=data, jsonify=False)
 
     def get_reports_issues(self, user=None):
         data = None
         if user is not None:
             data = {'user': user}
-        return _call('issues', 'GET', data=data)
+        return _call('issues', 'GET', data=data, jsonify=False)
 
     def _test_keys(self, target, expected):
         """
@@ -327,7 +326,7 @@ class TestAPIBaseClass(unittest.TestCase):
         keys1 = set(expected)
         self.assertEqual(set(), keys1.difference(target))
 
-class TestAccessToken(TestAPIBaseClass):
+class TestAPIGuardDecorator(TestAPIBaseClass):
     def test_create_user_200(self):
         res = self.create_user()
         self.assertEqual(res.status_code, 200)
@@ -345,6 +344,11 @@ class TestAccessToken(TestAPIBaseClass):
         res = self.create_user(headers={'Content-type': 'application/json',\
                    'x-minion-backend-key': BACKEND_KEY})
         self.assertEqual(res.status_code, 200)
+
+    def test_wrong_content_type_return_415(self):
+        res = self.create_user(headers={'Content-type': 'text/plain',\
+                   'x-minion-backend-key': BACKEND_KEY})
+        self.assertEqual(res.status_code, 415)
 
 class TestUserAPIs(TestAPIBaseClass):
     def test_create_user(self):
