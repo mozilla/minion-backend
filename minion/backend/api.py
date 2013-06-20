@@ -244,6 +244,7 @@ def get_user(email):
 # Expects a partially filled out user record
 #
 #  { email: "foo@bar",
+#    name: "Foo",
 #    groups: ["foo"],
 #    role: "user" }
 #
@@ -254,6 +255,7 @@ def get_user(email):
 #              "groups": ["foo"],
 #              "role": "user",
 #              "id": "51f8417d-f7b0-48d1-8c18-dbf5e06c3261",
+#              "name": "Foo",
 #              "email": "foo@bar" } }
 #
 
@@ -271,6 +273,7 @@ def create_user():
         return jsonify(success=False, reason="invalid-role")
     new_user = { 'id': str(uuid.uuid4()),
                  'email':  user['email'],
+                 'name': user.get('name'),
                  'role': user['role'],
                  'created': datetime.datetime.utcnow() }
     users.insert(new_user)
