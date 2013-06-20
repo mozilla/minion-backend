@@ -623,7 +623,7 @@ by setting Content-Security-Policy in the header only.",
         name = None
         value = None
         if len(matches) == 2:
-            name = t[0]
+            name = keys_tuple[0]
             value = headers[name]
         elif matches:
             name = matches.pop()
