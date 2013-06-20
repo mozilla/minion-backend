@@ -19,9 +19,11 @@ from minion.backend.api import BUILTIN_PLUGINS, TEST_PLUGINS
 
 BACKEND_KEY = backend_utils.backend_config()['api'].get('key')
 BASE = 'http://localhost:8383'
-APIS = {'user':
+APIS = {'users':
             {'POST': '/users',
              'GET': '/users'},
+        'user':
+            {'DELETE': '/users/{user_email}'},
         'groups':
             {'POST': '/groups',
               'GET': '/groups'},
@@ -207,11 +209,14 @@ class TestAPIBaseClass(unittest.TestCase):
 
 
     def create_user(self, headers=None):
-        return _call('user', 'POST', data={"email": self.email, "role": "user"},\
+        return _call('users', 'POST', data={"email": self.email, "role": "user"},\
                 headers=headers)
 
+    def delete_user(self, user_email):
+        return _call('user', 'DELETE', url_args={'user_email': user_email})
+
     def get_users(self):
-        return _call('user', 'GET')
+        return _call('users', 'GET')
 
     def create_group(self, group_name=None, group_description=None, users=None):
         if group_name  is None:
@@ -348,6 +353,47 @@ class TestUserAPIs(TestAPIBaseClass):
         expected_inner_keys = ('id', 'email', 'role', 'sites', 'groups')
         self._test_keys(res.json()['users'][0].keys(), expected_inner_keys)
         self.assertEqual(1, len(res.json()['users']))
+
+    def test_delete_user(self):
+        # Create a user
+        r = self.create_user()
+        r.raise_for_status()
+        j = r.json()
+        self.assertEqual(True, j['success'])
+        # Delete the user
+        r = self.delete_user(self.email)
+        r.raise_for_status()
+        self.assertEqual({'success': True}, r.json())
+        # Make sure the user is gone
+        r = self.delete_user(self.email)
+        r.raise_for_status()
+        self.assertEqual({'success': False, 'reason': 'no-such-user'}, r.json())
+
+    def test_delete_user_also_removes_group_membership(self):
+        # Create a user and add it to a group
+        r = self.create_user()
+        r.raise_for_status()
+        self.assertEqual(True, r.json()['success'])
+        r = self.create_group(users=[self.email])
+        r.raise_for_status()
+        self.assertEqual(True, r.json()['success'])
+        # Make sure the user is in the group
+        r = self.get_group(self.group_name)
+        r.raise_for_status()
+        self.assertEqual([self.email], r.json()['group']['users'])
+        # Delete the user
+        r = self.delete_user(self.email)
+        r.raise_for_status()
+        self.assertEqual({'success': True}, r.json())
+        # Make sure the user is not in the group anymore
+        r = self.get_group(self.group_name)
+        r.raise_for_status()
+        self.assertEqual([], r.json()['group']['users'])
+
+    def test_delete_unknown_user(self):
+        r = self.delete_user('doesnotexist@doesnotexist.com')
+        r.raise_for_status()
+        self.assertEqual({'success': False, 'reason': 'no-such-user'}, r.json())
 
 class TestGroupAPIs(TestAPIBaseClass):
     def test_create_group(self):

@@ -304,6 +304,25 @@ def list_users():
     return jsonify(success=True, users=userz)
 
 #
+# Delete a user
+#
+#  DELETE /users/{email}
+#
+
+@app.route('/users/<user_email>', methods=['DELETE'])
+@api_guard
+def delete_user(user_email):
+    user = users.find_one({'email': user_email})
+    if not user:
+        return jsonify(success=False, reason='no-such-user')
+    # Remove the user
+    users.remove({'email': user_email})
+    # Remove user group membership
+    for group_name in _find_groups_for_user(user_email):
+        groups.update({'name':group_name},{'$pull': {'users': user_email}})
+    return jsonify(success=True)
+
+#
 # Retrieve all groups in minion
 #
 #  GET /groups
