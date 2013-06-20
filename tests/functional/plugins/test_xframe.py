@@ -50,18 +50,23 @@ class TestXFrameOptionsPlugin(TestPluginBaseClass):
         cls.pname = "XFrameOptionsPlugin"
 
     def validate_xframe_plugin(self, runner_resp, request_resp, expected=None, expectation=True):
-        if expectation:
-            self.assertEqual(True, 'correct' in runner_resp[1]['data']['Summary'])
+        if expectation is True:
+            self.assertEqual('X-Frame-Options header is set properly', runner_resp[1]['data']['Summary'])
             self.assertEqual('Info', runner_resp[1]['data']['Severity'])
         else:
-            fragement = "invalid value: %s" % request_resp.headers['X-Frame-Options']
-            self.assertEqual(True, fragement in runner_resp[1]['data']['Summary'])
+            fragement = request_resp.headers['X-Frame-Options']
+            self.assertEqual(True, fragement in runner_resp[1]['data']['Description'])
             self.assertEqual("High", runner_resp[1]['data']['Severity'])
+            if expectation == 'INVALID':
+                self.assertEqual("The following X-Frame-Options header value is detected and is invalid: %s" % fragement, \
+                    runner_resp[1]['data']['Description'])
+            else:
+                self.assertEqual(True, "X-Frame-Options header is not found." in runner_resp[1]['data']['Description'])
         self.assertEqual(expected, request_resp.headers['X-Frame-Options'])
 
     def test_bad_xframe_option(self):
         api_name = "/bad-xfo"
-        self.validate_plugin(api_name, self.validate_xframe_plugin, expected='CHEESE', expectation=False)
+        self.validate_plugin(api_name, self.validate_xframe_plugin, expected='CHEESE', expectation='INVALID')
 
     def test_xframe_option_with_same_origin(self):
         api_name = '/xfo-with-sameorigin'
@@ -79,9 +84,9 @@ class TestXFrameOptionsPlugin(TestPluginBaseClass):
     def test_xframe_option_with_allow_from_colon_gets_rejected(self):
         api_name = '/xfo-with-allow-from-with-colon'
         self.validate_plugin(api_name, self.validate_xframe_plugin, \
-                expected='ALLOW-FROM: http://localhost:1234/', expectation=False)
+                expected='ALLOW-FROM: http://localhost:1234/', expectation='INVALID')
 
     def test_xframe_option_without_http(self):
         api_name = '/xfo-with-allow-from-without-http'
         self.validate_plugin(api_name, self.validate_xframe_plugin, \
-                expected='ALLOW-FROM localhost:1234/', expectation=False)
+                expected='ALLOW-FROM localhost:1234/', expectation='INVALID')
