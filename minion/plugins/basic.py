@@ -213,7 +213,15 @@ lets a web site tell browsers that it should only be communicated with using HTT
                 "URLs": [ { "URL": None, "Title": None} ],
                 "FurtherInfo": FURTHER_INFO
             },
-            
+        "non-https":
+            {
+                "Summary": "Target is a non-HTTPS site",
+                "Description": "Strict-Transport-Security header is only applicable on HTTPS-based site.",
+                "Severity": "Info",
+                "URLs": [ { "URL": None, "Title": None} ],
+                "FurtherInfo": FURTHER_INFO
+            },
+
     }            
 
     def do_run(self):
@@ -221,12 +229,13 @@ lets a web site tell browsers that it should only be communicated with using HTT
         r.raise_for_status()
         if r.url.startswith("https://"):
             if 'strict-transport-security' not in r.headers:
-                issues = self._format_report('not-set')
-                self.report_issues([issues])
+                issue = self._format_report('not-set')
+                self.report_issues([issue])
             else:
-                issues = self._format_report('set', description_formats={'header': r.headers['strict-transport-security']})
-                self.report_issues([issues])
-
+                issue = self._format_report('set', description_formats={'header': r.headers['strict-transport-security']})
+                self.report_issues([issue])
+        else:
+            self.report_issues([self._format_report('non-https')])
 
 class XContentTypeOptionsPlugin(BlockingPlugin):
 
@@ -400,7 +409,7 @@ class ServerDetailsPlugin(BlockingPlugin):
             if header.lower() in r.headers:
                 at_least_one = True
                 issue = self._format_report('set', description_formats={'header': header})
-                issue['Summary'] = "%s is found" % header
+                issue['Summary'] = "'%s' header is found" % header
                 self.report_issues([issue])
         if not at_least_one:
             self.report_issues([self._format_report('none', description_formats={'headers': headers})])
@@ -504,6 +513,92 @@ class CSPPlugin(BlockingPlugin):
     PLUGIN_NAME = "CSP"
     PLUGIN_WEIGHT = "light"
 
+    FURTHER_INFO = [ 
+        {
+            "URL": "http://www.w3.org/TR/CSP/",
+            "Title": "W3C - Content-Security Policy 1.0"
+        },
+        { 
+            "URL": "https://developer.mozilla.org/en-US/docs/Security/CSP",
+            "Title": 'Mozilla Developer Network - CSP (Content-Security Policy)',
+        },
+        {
+            "URL": "https://www.owasp.org/index.php/Content_Security_Policy",
+            "Title": "OWASP - Content-Security Policy"
+        },
+        {
+            "URL": "https://blog.mozilla.org/security/2013/06/11/content-security-policy-1-0-lands-in-firefox/",
+            "Title": "Mozilla Security Blog - Content Security Policy 1.0 Lands in Firefox",
+        },
+]
+
+    REPORTS = {
+        "set":
+        {
+            "Summary": "Content-Security-Policy header set properly",
+            "Description": "The Content-Security-Policy header is set properly. Neither 'unsafe-inline' or \
+'unsafe-eval' is enabled.",
+            "Severity": "Info",
+            "URLs": [ {"URL": None, "Extra": None} ],
+            "FurtherInfo": FURTHER_INFO
+         },
+         "not-set":
+         {
+             "Summary": "No Content-Security-Policy header set",
+             "Description": "Site has no Content-Security Policy header set. CSP defines the Content-Security-Policy \
+HTTP header that allows you to create a whitelist of sources of trusted content, and instructs the browser to only \
+execute or render resources from those sources.",
+             "Severity": "High",
+             "URLs": [ {"URL": None, "Extra": None} ],
+             "FurtherInfo": FURTHER_INFO
+         },
+         "report-mode":
+         {
+            "Summary": "Content-Security-Policy-Report-Only header set",
+            "Description": "Content-Security-Policy-Report-Only does not enforce any CSP policy. Use \
+Content-Security-Policy to secure your site.",
+            "Severity": "High",
+            "URLs": [ {"URL": None, "Extra": None}],
+            "FurtherInfo": FURTHER_INFO
+         },
+         "dual-policy":
+         {
+            "Summary": "Content-Security-Policy-Report-Only and Content-Security-Policy are set",
+            "Description": "While browsers will honored both headers (polices specify in Content-Security-Policy \
+are enforced), it is recommended to remove report-only header from production site",                    
+            "Severity": "High",
+            "URLs": [ {"URL": None, "Extra": None}],
+            "FurtherInfo": FURTHER_INFO
+         },
+         "unprefixed":
+         {
+            "Summary": "X-Content-Security-Policy header is set",
+            "Description": "While browsers still support prefixed CSP, it is recommended to use the unprefixed version \
+by setting Content-Security-Policy in the header only.",                    
+            "Severity": "High",
+            "URLs": [ {"URL": None, "Extra": None}],
+            "FurtherInfo": FURTHER_INFO
+         },
+         "malformed":
+         {
+            "Summary": "Malformed Content-Security-Policy header is set",
+            "Description": "",
+            "Severity": "High",
+            "URLs": [ {"URL": None, "Extra": None}],
+            "FurtherInfo": FURTHER_INFO
+         },
+         "unsafe":
+         {
+            "Summary": "{directive} is set in Content-Security-Policy header",
+            "Description": "By enabling either 'unsafe-inline' or 'unsafe-eval' can open ways for inline script injection \
+(both style and javascript) and malicious script execution, respectively.",                    
+            "Severity": "High",
+            "URLs": [ {"URL": None, "Extra": None}],
+            "FurtherInfo": FURTHER_INFO
+         },
+         
+    }            
+
     def _extract_csp_header(self, headers, keys_tuple):
         keys = set(headers)
         matches = keys.intersection(keys_tuple)
@@ -516,7 +611,6 @@ class CSPPlugin(BlockingPlugin):
             name = matches.pop()
             value = headers[name]
         return name, value
-
 
     def _parse_csp(self, csp):
         # adopted from Django
@@ -539,10 +633,10 @@ class CSPPlugin(BlockingPlugin):
                     elif value not in ("'self'", "'unsafe-inline'", "'unsafe-eval'", "'https:'", "'https'"):
                         if _url_regex.match(value) is None:
                             raise ValueError("%s does not seem like a valid uri for %s" % (value, a[0]))
-                    elif value == "'unsafe-inline'":
-                        self.report_issues([{"Summary":"CSP Rules allow unsafe-inline", "Severity":"High"}])
-                    elif value == "'unsafe-eval'":
-                        self.report_issues([{"Summary":"CSP Rules allow unsafe-eval", "Severity":"High"}])
+                    elif value == "'unsafe-inline'" or value == "'unsafe-eval'":
+                        issue = self._format_report('unsafe')
+                        issue['Summary'] = issue['Summary'].format(directive=value)
+                        self.report_issue(issue)
                 options[a[0]] += a[1:]
         return options
 
@@ -558,32 +652,27 @@ class CSPPlugin(BlockingPlugin):
 
         # Fast fail if both headers are set
         if csp and csp_report_only:
-            self.report_issues([{"Summary":"Both %s and %s headers set" %(csp_hname, csp_ro_name), "Severity": "High"}])
+            self.report_issues(self._format_report('dual-policy'))
             return
 
         # Fast fail if only reporting is enabled
         if csp_report_only:
-            self.report_issues([{"Summary":"%s header set" % csp_ro_name, "Severity": "High"}])
+            self.report_issues(self._format_report('report-mode'))
             return
 
         # Fast fail if no CSP header is set
         if csp is None:
-            self.report_issues([{"Summary":"No Content-Security-Policy header set", "Severity": "High"}])
+            self.report_issues([self._format_report('not-set')])
             return
 
         # Parse the CSP and look for issues
         try:
             csp_config = self._parse_csp(csp)
             if not csp_config:
-                self.report_issues([{"Summary":"Malformed %s header set" % csp_hname, "Severity":"High"}])
+                self.report_issues([self._format_report('malformed', description=csp_hname)])
                 return
-            # Allowing eval-script or inline-script defeats the purpose of CSP?
-            csp_options = csp_config.get('options')
-            if csp_options:
-                if 'eval-script' in csp_config['options']:
-                    self.report_issues([{"Summary":"CSP Rules allow eval-script", "Severity":"High"}])
-                if 'inline-script' in csp_config['options']:
-                    self.report_issues([{"Summary":"CSP Rules allow inline-script", "Severity":"High"}])
+            else:
+                self.report_issues([self._format_report('set')])
         except ValueError as e:
-                self.report_issues([{"Summary":"Malformed %s header set: %s" %(csp_hname, e), "Severity":"High"}])
+            self.report_issues([self._format_report('malformed', description='Malformed CSP header set: ' + str(e))])
                 

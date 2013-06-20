@@ -41,7 +41,7 @@ class TestServerDetailsPlugin(TestPluginBaseClass):
             self.assertEqual(expected, len(runner_resp)-2)
             count = 1
             for name, value in HEADERS.iteritems():
-                self.assertEqual("%s is found" % name, runner_resp[count]['data']['Summary'])
+                self.assertEqual("'%s' is found" % name, runner_resp[count]['data']['Summary'])
                 self.assertEqual("Site has set %s header" % name, \
                         runner_resp[count]['data']['Description'])
                 count += 1

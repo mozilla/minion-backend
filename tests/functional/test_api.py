@@ -520,7 +520,7 @@ test_app = Flask(__name__)
 @test_app.route('/')
 def basic_app():
     res = make_response('')
-    res.headers['X-Content-Type-oPTIONS'] = 'nosniff'
+    res.headers['X-Content-Type-Options'] = 'nosniff'
     res.headers['X-Frame-Options'] = 'SAMEORIGIN'
     res.headers['X-XSS-Protection'] = '1; mode=block'
     res.headers['Content-Security-Policy'] = 'default-src *'
@@ -642,7 +642,41 @@ class TestScanAPIs(TestAPIBaseClass):
         self._test_keys(res11.json()['report'][0].keys(), expected_inner_keys)
 
         issues = res11.json()['report'][0]['issues']
-        self.assertEqual(len(issues), 6)
+        # total of 8 basic plugins. they should all return something even if info 
+        self.assertEqual(len(issues), 8)
+
+        # alive scan
+        self.assertEqual('Site is reachable', issues[0]['summary'])
+        self.assertEqual('Info', issues[0]['severity'])
+
+        # x-frame-options scan
+        self.assertEqual('X-Frame-Options header is set properly', issues[1]['summary'])
+        self.assertEqual('Info', issues[1]['severity'])
+
+        # strict-transport
+        self.assertEqual('Target is a non-HTTPS site', issues[2]['summary'])
+        self.assertEqual('Info', issues[2]['severity'])
+
+        # x-content-type-options
+        self.assertEqual('X-Content-Type-Options is set properly', issues[3]['summary'])
+        self.assertEqual('Info', issues[3]['severity'])
+
+        # x-xss-protection
+        self.assertEqual('X-XSS-Protection is set properly', issues[4]['summary'])
+        self.assertEqual('Info', issues[4]['severity'])
+
+        # server details headers
+        self.assertEqual("'Server' header is found", issues[5]['summary'])
+        self.assertEqual('Medium', issues[5]['severity'])
+
+        # robots
+        self.assertEqual("robots.txt not found", issues[6]['summary'])
+        self.assertEqual('Medium', issues[6]['severity'])
+
+        # CSP
+        self.assertEqual('Content-Security-Policy header set properly', issues[7]['summary'])
+        self.assertEqual('Info', issues[7]['severity'])
+
         self.assertEqual(res11.json()['report'][0]['target'], self.target_url)
         self.stop_server()
         #pprint.pprint(res11.json(), indent=3)
