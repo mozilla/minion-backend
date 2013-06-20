@@ -33,14 +33,18 @@ class TestXContentTypeOptionsPlugin(TestPluginBaseClass):
 
     def validate_xcontent(self, runner_resp, request_resp, expected=None, expectation=True):
         if expectation:
-            self.assertEqual("Site sets X-Content-Type-Options header", runner_resp[1]['data']['Summary'])
+            self.assertEqual("X-Content-Type-Options is set properly", runner_resp[1]['data']['Summary'])
+            self.assertEqual("Site has the following X-Content-Type-Options header set: %s" \
+                    % request_resp.headers['x-content-type-options'], runner_resp[1]['data']['Description'])
             self.assertEqual("Info", runner_resp[1]['data']['Severity'])
         elif expectation == 'INVALID':
-            self.assertEqual("Site sets an invalid X-Content-Type-Options header", runner_resp[1]['data']['Summary'])
+            self.assertEqual('Invalid X-Content-Type-Options header detected', runner_resp[1]['data']['Summary'])
+            self.assertEqual("The following X-Content-Type-Options header value is detected and is \
+invalid: %s" % request_resp.headers['x-content-type-options'], runner_resp[1]['data']['Description'])
             self.assertEqual("High", runner_resp[1]['data']['Severity'])
             self.assertEqual(expected, request_resp.headers['x-content-type-options'])
         elif expectation is False:
-            self.assertEqual("Site does not set X-Content-Type-Options header", runner_resp[1]['data']['Summary'])
+            self.assertEqual("X-Content-Type-Options header is not set", runner_resp[1]['data']['Summary'])
             self.assertEqual("High", runner_resp[1]['data']['Severity'])
 
 

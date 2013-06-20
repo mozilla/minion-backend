@@ -76,13 +76,15 @@ class TestHSTSPlugin(TestPluginBaseClass):
 
     def validate_hsps(self, runner_resp, request_resp, expected=None, expectation=True):
         if expectation is True:
-            self.assertEqual('Site sets Strict-Transport-Security header', \
+            self.assertEqual('Strict-Transport-Security header is set properly', \
                 runner_resp[1]['data']['Summary'])
+            self.assertEqual("Site has the following Strict-Transport-Security header set: %s" \
+                    % request_resp.headers['strict-transport-security'], runner_resp[1]['data']['Description'])
             self.assertEqual(True, 'max-age' in request_resp.headers['strict-transport-security'])
             self.assertEqual('Info', runner_resp[1]['data']['Severity'])
         elif expectation is False:
             self.assertEqual('High', runner_resp[1]['data']['Severity'])
-            self.assertEqual('Site does not set Strict-Transport-Security header', \
+            self.assertEqual('Strict-Transport-Security header is not set', \
                 runner_resp[1]['data']['Summary'])
         elif expectation is 'BAD-CERT':
             self.assertEqual('Error', runner_resp[1]['data']['Severity'])

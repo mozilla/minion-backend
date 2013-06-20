@@ -19,8 +19,7 @@ def alive_alive():
 @test_app.route('/timeout')
 def alive_timeout():
     res = make_response('<h1> TIMEOUT </h1>')
-    time.sleep(16)
-    return res
+    time.sleep(7)
 
 class TestAlivePlugin(TestPluginBaseClass):
     __test__ = True
@@ -31,13 +30,18 @@ class TestAlivePlugin(TestPluginBaseClass):
 
     def validate_alive(self, runner_resp, request_resp, expected=None, expectation=True):
         if expectation is True:
-            self.assertEqual('FINISHED', runner_resp[1]['data']['state'])
+            self.assertEqual('FINISHED', runner_resp[2]['data']['state'])
+            self.assertEqual('Site is reachable', runner_resp[1]['data']['Summary'])
+            self.assertEqual(True, 'The server has responded with 200' in runner_resp[1]['data']['Description'])
             self.assertEqual(200, request_resp.status_code)
         elif expectation == '404':
+            self.assertEqual('ABORTED', runner_resp[2]['data']['state'])
             self.assertEqual('Fatal', runner_resp[1]['data']['Severity'])
             self.assertEqual(404, request_resp.status_code)
-            self.assertEqual(True, 'non-200 response: 404' in runner_resp[1]['data']['URLs'][0]['Extra'])
+            self.assertEqual('Site could not be reached', runner_resp[1]['data']['Summary'])
+            self.assertEqual(True, 'The server has responded with 404' in runner_resp[1]['data']['Description'])
         elif expectation in (False, 'TIMEOUT'):
+            self.assertEqual('ABORTED', runner_resp[2]['data']['state'])
             self.assertEqual('Fatal', runner_resp[1]['data']['Severity'])
             self.assertEqual('Site could not be reached', runner_resp[1]['data']['Summary'])
             self.assertEqual(expected, runner_resp[1]['data']['URLs'][0]['URL'])

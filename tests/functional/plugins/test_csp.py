@@ -71,34 +71,61 @@ class TestCSPPlugin(TestPluginBaseClass):
 
     def validate_csp(self, runner_resp, request_resp, expected=None, expectation=True):
         if expectation is True:
-            self.assertEqual('FINISHED', runner_resp[1]['data']['state'])
+            self.assertEqual('Info', runner_resp[1]['data']['Severity'])
+            self.assertEqual('Content-Security-Policy header set properly', runner_resp[1]['data']['Summary'])
+            self.assertEqual("The Content-Security-Policy header is set properly. Neither 'unsafe-inline' or \
+'unsafe-eval' is enabled.", runner_resp[1]['data']['Description'])
+            self.assertEqual('FINISHED', runner_resp[2]['data']['state'])
+
         elif expectation == 'BOTH-SET':
             self.assertEqual('Both X-Content-Security-Policy and X-Content-Security-Policy-Report-Only headers set',
                     runner_resp[1]['data']['Summary'])
             self.assertEqual('High', runner_resp[1]['data']['Severity'])
+
         elif expectation == 'REPORT-ONLY':
-            self.assertEqual('X-Content-Security-Policy-Report-Only header set',
+            self.assertEqial('Content-Security-Policy-Report-Only does not enforce any CSP policy. Use \
+Content-Security-Policy to secure your site.', runner_resp[1]['data']['Description'])                    
+            self.assertEqual('Content-Security-Policy-Report-Only header set',
                     runner_resp[1]['data']['Summary'])
             self.assertEqual('High', runner_resp[1]['data']['Severity'])
+
         elif expectation is False:
             self.assertEqual('No Content-Security-Policy header set',
                     runner_resp[1]['data']['Summary'])
             self.assertEqual('High', runner_resp[1]['data']['Severity'])
+
         elif expectation == 'INVALID':
-            self.assertEqual('Malformed {hname} header set: {value} does not seem like a valid uri for {name}'.format(
-                value=expected['value'], name=expected['name'], hname=expected['hname']), runner_resp[1]['data']['Summary'])
+            self.assertEqual('High', runner_resp[1]['data']['Severity'])
+            self.assertEqual('Malformed Content-Security-Policy header is set', \
+                runner_resp[1]['data']['Summary'])
+            self.assertEqual('Malformed CSP header set: {value} does not seem like a valid uri for {name}'.format(
+                value=expected['value'], name=expected['name']), runner_resp[1]['data']['Description'])
+
+        elif expectation == 'UNSAFE-INLINE':
+            self.assertEqual('High', runner_resp[1]['data']['Severity'])
+            self.assertEqual("'unsafe-inline' is set in Content-Security-Policy header", \
+                runner_resp[1]['data']['Summary'])
+
+        elif expectation == 'UNSAFE-EVAL':
+            self.assertEqual('High', runner_resp[1]['data']['Severity'])
+            self.assertEqual("'unsafe-eval' is set in Content-Security-Policy header", \
+                runner_resp[1]['data']['Summary'])
+
+        elif expectation is False:
+            self.assertEqual('High', runner_resp[1]['data']['Severity'])
+            self.assertEqual('No X-Content-Security-Policy header set"',
+                    runner_resp[1]['data']['Summary'])
+        """
         elif expectation == 'EVAL-ENABLED':
             self.assertEqual('CSP Rules allow unsafe-eval',
                     runner_resp[1]['data']['Summary'])
             self.assertEqual('High', runner_resp[1]['data']['Severity'])
+
         elif expectation == 'INLINE-ENABLED':
             self.assertEqual('CSP Rules allow unsafe-inline',
                     runner_resp[1]['data']['Summary'])
             self.assertEqual('High', runner_resp[1]['data']['Severity'])
-        elif expectation is False:
-            self.assertEqual('No X-Content-Security-Policy header set"',
-                    runner_resp[1]['data']['Summary'])
-            self.assertEqual('High', runner_resp[1]['data']['Severity'])
+        """  
 
     def test_no_csp(self):
         api_name = '/no-csp'
@@ -136,8 +163,8 @@ class TestCSPPlugin(TestPluginBaseClass):
                 expected={'value': 'img-src', 'name': 'default-src', 'hname': 'x-content-security-policy'})
     def test_eval_csp(self):
         api_name = '/eval-csp'
-        self.validate_plugin(api_name, self.validate_csp, expectation='EVAL-ENABLED')
+        self.validate_plugin(api_name, self.validate_csp, expectation='UNSAFE-EVAL')
     def test_inline_csp(self):
         api_name = '/inline-csp'
-        self.validate_plugin(api_name, self.validate_csp, expectation='INLINE-ENABLED')
+        self.validate_plugin(api_name, self.validate_csp, expectation='UNSAFE-INLINE')
 
