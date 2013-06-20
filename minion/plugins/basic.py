@@ -33,7 +33,7 @@ class AlivePlugin(BlockingPlugin):
     PLUGIN_WEIGHT = "light"
     FURTHER_INFO = [ { 
         "URL": "http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html",
-        "Title": "Status Code Definitions (W3C)" } ],
+        "Title": "W3C - Status Code Definitions" } ],
 
     REPORTS = {
         "good": 
@@ -87,7 +87,7 @@ class XFrameOptionsPlugin(BlockingPlugin):
 
     FURTHER_INFO = [ { 
         "URL": "https://developer.mozilla.org/en-US/docs/HTTP/X-Frame-Options",
-        "Title": "The X-Frame-Options response header (Mozilla Developer Network)" }]
+        "Title": "Mozilla Developer Network - The X-Frame-Options response header" }]
 
     REPORTS = {
         "set": 
@@ -183,14 +183,49 @@ class HSTSPlugin(BlockingPlugin):
     PLUGIN_NAME = "HSTS"
     PLUGIN_WEIGHT = "light"
 
+    FURTHER_INFO = [ { 
+        "URL": "https://developer.mozilla.org/en-US/docs/Security/HTTP_Strict_Transport_Security",
+        "Title": "Mozilla Developer Network - HTTP Strict Transport Security" }]
+
+    REPORTS = {
+        "set": 
+            {
+                "Summary": "Strict-Transport-Security header is set properly",
+                "Description": "Site has the following Strict-Transport-Security header set: {header}",
+                "Severity": "Info",
+                "URLs": [ {"URL": None, "Extra": None} ],
+                "FurtherInfo": FURTHER_INFO
+             },
+        "invalid": 
+            {
+                "Summary": "Invalid Strict-Transport-Security header detected",
+                "Description": "The following Strict-Transport-Security header value is detected and is invalid: {header}",
+                "Severity": "High",
+                "URLs": [ { "URL": None, "Title": None} ],
+                "FurtherInfo": FURTHER_INFO
+            },
+        "not-set":
+            {
+                "Summary": "Strict-Transport-Security header is not set",
+                "Description": "Strict-Transport-Security header is not found. This header is a security feature that \
+lets a web site tell browsers that it should only be communicated with using HTTPS, instead of using HTTP.",
+                "Severity": "High",
+                "URLs": [ { "URL": None, "Title": None} ],
+                "FurtherInfo": FURTHER_INFO
+            },
+            
+    }            
+
     def do_run(self):
         r = minion.curly.get(self.configuration['target'], connect_timeout=5, timeout=15)
         r.raise_for_status()
         if r.url.startswith("https://"):
             if 'strict-transport-security' not in r.headers:
-                self.report_issues([{ "Summary":"Site does not set Strict-Transport-Security header", "Severity":"High" }])
+                issues = self._format_report('not-set')
+                self.report_issues([issues])
             else:
-                self.report_issues([{ "Summary":"Site sets Strict-Transport-Security header", "Severity":"Info" }])
+                issues = self._format_report('set', description_formats={'header': r.headers['strict-transport-security']})
+                self.report_issues([issues])
 
 
 class XContentTypeOptionsPlugin(BlockingPlugin):
