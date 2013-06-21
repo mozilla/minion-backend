@@ -43,7 +43,8 @@ APIS = {'users':
             {'GET': '/plans',
              'POST': '/plans'},
         'plan':
-            {'GET': '/plans/{plan_name}'},
+            {'GET': '/plans/{plan_name}',
+             'DELETE': '/plans/{plan_name}'},
         'get_plugins':
             {'GET': '/plugins'},
         'scans':
@@ -273,6 +274,9 @@ class TestAPIBaseClass(unittest.TestCase):
     def create_plan(self, plan):
         return _call('plans', 'POST', data=plan)
 
+    def delete_plan(self, plan_name):
+        return _call('plan', 'DELETE', url_args={'plan_name': plan_name}, jsonify=False)
+
     def get_plan(self, plan_name):
         return _call('plan', 'GET', url_args={'plan_name': plan_name}, jsonify=False)
 
@@ -331,9 +335,12 @@ class TestAPIBaseClass(unittest.TestCase):
         keys1 = set(expected)
         self.assertEqual(set(), keys1.difference(target))
 
-    def assertSuccessfulResponse(self, r):
+    def assertSuccessfulResponse(self, r, success=True, reason=None):
         r.raise_for_status()
-        self.assertEqual(r.json()['success'], True)
+        print r.json()
+        self.assertEqual(r.json()['success'], success)
+        if not success and reason is not None:
+            self.assertEqual(r.json()['reason'], reason)
 
 class TestAPIGuardDecorator(TestAPIBaseClass):
     def test_create_user_200(self):
@@ -760,6 +767,28 @@ class TestPlanAPIs(TestAPIBaseClass):
         self.assertEqual("Test if the site is alive", plan["workflow"][0]["description"])
         self.assertEqual({"foo": "bar"}, plan["workflow"][0]["configuration"])
         self.assertEqual(plugin_descriptor, plan["workflow"][0]["plugin"])
+
+    def test_delete_plan(self):
+        # Create a plan
+        c = { "name": "test",
+              "description": "Test",
+              "workflow": [ { "plugin_name": "minion.plugins.basic.AlivePlugin",
+                              "description": "Test if the site is alive",
+                              "configuration": { "foo": "bar" }
+                              } ] }
+        r = self.create_plan(c)
+        self.assertSuccessfulResponse(r)
+        # Delete the plan
+        r = self.delete_plan('test')
+        self.assertSuccessfulResponse(r)
+        # Make sure the plan is gone
+        r = self.get_plan("test")
+        print "GOT PLAN", r.json()
+        self.assertSuccessfulResponse(r, success=False, reason='no-such-plan')
+
+    def test_delete_unknown_plan(self):
+        r = self.delete_plan('testfoodoesnotexist')
+        self.assertSuccessfulResponse(r, success=False, reason='no-such-plan')
 
 class TestPluginAPIs(TestAPIBaseClass):
 

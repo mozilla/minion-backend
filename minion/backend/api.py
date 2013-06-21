@@ -811,6 +811,22 @@ def get_plans():
     return jsonify(success=True, plans=[_plan_description(plan) for plan in plans.find()])
 
 #
+# Delete an existing plan
+#
+#  DELETE /plans/<plan_name>
+#
+
+@app.route('/plans/<plan_name>', methods=['DELETE'])
+@api_guard
+def delete_plan(plan_name):
+    plan = plans.find_one({'name': plan_name})
+    if not plan:
+        return jsonify(success=False, reason='no-such-plan')
+    # Remove the plan
+    plans.remove({'name': plan_name})
+    return jsonify(success=True)
+
+#
 # Create a new plan
 #
 
