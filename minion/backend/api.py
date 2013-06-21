@@ -869,7 +869,7 @@ def create_plan():
 def get_plan(plan_name):
     plan = plans.find_one({"name": plan_name})
     if not plan:
-        return jsonify(success=False)
+        return jsonify(success=False, reason='no-such-plan')
     # Fill in the details of the plugin
     for step in plan['workflow']:
         plugin = plugins.get(step['plugin_name'])
