@@ -29,7 +29,7 @@ if __name__ == "__main__":
    # Start the scan
 
    r = requests.put(MINION_BACKEND + "/scans/" + scan['id'] + "/control",
-                    headers={'Content-Type': 'text/plain'},
+                    headers={'Content-Type': 'application/json'})
                     data="START")
    r.raise_for_status()
    

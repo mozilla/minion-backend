@@ -30,21 +30,35 @@ def api_guard(view):
     a secret key in X-Minion-Backend-Key header for the decorated
     backend API. If 'key' is False or not found in the config file,
     the decorator will assume no protection is needed and will grant
-    access to all incoming request. """
-    @functools.wraps(view)
-    def verify_key(*args, **kwargs):
-        token_in_header = request.headers.get('x-minion-backend-key')
-        secret_key = backend_config['api'].get('key')
-        if secret_key:
-            if token_in_header:
-                if token_in_header == secret_key:
-                    return view(*args, **kwargs)
+    access to all incoming request.
+
+    """
+    def decorator(view):
+        @functools.wraps(view)
+        def check_session(*args, **kwargs):
+            if isinstance(decor_args[0], str):
+                if request.headers.get('content-type') != decor_args[0]:
+                    abort(415)
+            token_in_header = request.headers.get('x-minion-backend-key')
+            secret_key = backend_config['api'].get('key')
+            if secret_key:
+                if token_in_header:
+                    if token_in_header == secret_key:
+                        return view(*args, **kwargs)
+                    else:
+                        abort(401)
                 else:
                     abort(401)
-            else:
-                abort(401)
-        return view(*args, **kwargs)
-    return verify_key
+            return view(*args, **kwargs)
+        return check_session
+
+    # the decorator can implicilty take the function being
+    # decorated. We must ensure the arg is actually callable.
+    # Otherwise, we call the decorator without any argument.
+    if len(decor_args) == 1 and callable(decor_args[0]):
+        return decorator(decor_args[0])
+    else:
+        return decorator
 
 BUILTIN_PLUGINS = [
     'minion.plugins.basic.AlivePlugin',
@@ -259,7 +273,7 @@ def get_user(email):
 #
 
 @app.route('/users', methods=['POST'])
-@api_guard
+@api_guard('application/json')
 def create_user():
     user = request.json
     # Verify incoming user: email must not exist yet, groups must exist, role must exist
@@ -427,7 +441,7 @@ def list_groups():
 #
 
 @app.route('/groups', methods=['POST'])
-@api_guard
+@api_guard('application/json')
 def create_group():
     group = request.json
     # TODO Verify incoming group: name must be valid, group must not exist already
@@ -479,7 +493,7 @@ def delete_group(group_name):
 #
 
 @app.route('/groups/<group_name>', methods=['PATCH'])
-@api_guard
+@api_guard('application/json')
 def patch_group(group_name):
     group = groups.find_one({'name': group_name})
     if not group:
@@ -557,7 +571,7 @@ def get_site(site_id):
 #
 
 @app.route('/sites', methods=['POST'])
-@api_guard
+@api_guard('application/json')
 def create_site():
     site = request.json
     # Verify incoming site: url must be valid, groups must exist, plans must exist
@@ -811,6 +825,7 @@ def get_plans():
 #
 
 @app.route("/plans/<plan_name>")
+@api_guard
 def get_plan(plan_name):
     plan = plans.find_one({"name": plan_name})
     if not plan:
@@ -832,6 +847,7 @@ def get_plan(plan_name):
 #
 
 @app.route("/plugins")
+@api_guard
 def get_plugins():
     return jsonify(success=True, plugins=[plugin['descriptor'] for plugin in plugins.values()])
 
@@ -842,6 +858,7 @@ def get_plugins():
 #
 
 @app.route("/scans/<scan_id>")
+@api_guard
 def get_scan(scan_id):
     scan = scans.find_one({"id": scan_id})
     if not scan:
@@ -854,6 +871,7 @@ def get_scan(scan_id):
 #
 
 @app.route("/scans/<scan_id>/summary")
+@api_guard
 def get_scan_summary(scan_id):
     scan = scans.find_one({"id": scan_id})
     if not scan:
@@ -873,6 +891,7 @@ def get_scan_summary(scan_id):
 #
 
 @app.route("/scans", methods=["POST"])
+@api_guard('application/json')
 def put_scan_create():
     # try to decode the configuration
     configuration = request.json

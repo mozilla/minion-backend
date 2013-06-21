@@ -125,9 +125,8 @@ def _call(task, method, auth=None, data=None, url_args=None, jsonify=True, \
             headers = {'Content-Type': 'application/json',
                     'X-Minion-Backend-Key': BACKEND_KEY}
         else:
-            headers = {'Content-Type': 'text/plain',
-                    'X-Minion-Backend-Key': BACKEND_KEY}
-
+            headers = {'X-Minion-Backend-Key': BACKEND_KEY}
+    
     if method == 'GET' or method == 'DELETE':
         res = req_objs(api, params=data, auth=auth, headers=headers)
     else:
@@ -209,7 +208,6 @@ class TestAPIBaseClass(unittest.TestCase):
             self.assertEqual(base['workflow'][index]['plugin_name'], meta['class'])
             self.assertEqual("0.0", meta['version'])
 
-
     def create_user(self, email="bob@example.org", name="Bob", role="user", groups=[], headers=None):
         return _call('users', 'POST', data={"email": email, "name": name, "role": role, "groups":groups},
                      headers=headers)
@@ -237,13 +235,15 @@ class TestAPIBaseClass(unittest.TestCase):
         return _call('groups', 'POST', data=data)
 
     def get_groups(self):
-        return _call('groups', 'GET')
+        return _call('groups', 'GET', jsonify=False)
 
     def get_group(self, group_name):
-        return _call('group', 'GET', url_args={'group_name': group_name})
+        return _call('group', 'GET', url_args={'group_name': group_name},
+                jsonify=False)
 
     def delete_group(self, group_name):
-        return _call('group', 'DELETE', url_args={'group_name': group_name})
+        return _call('group', 'DELETE', url_args={'group_name': group_name},
+                jsonify=False)
 
     def modify_group(self, group_name, data=None):
         return _call('group', 'PATCH', url_args={'group_name': group_name},
@@ -261,19 +261,19 @@ class TestAPIBaseClass(unittest.TestCase):
         return _call('site', 'POST', url_args={'site_id': site_id}, data=site)
 
     def get_sites(self):
-        return _call('sites', 'GET')
+        return _call('sites', 'GET', jsonify=False)
 
     def get_site(self, site_id):
-        return _call('site', 'GET', url_args={'site_id': site_id})
+        return _call('site', 'GET', url_args={'site_id': site_id}, jsonify=False)
 
     def get_plans(self):
-        return _call('get_plans', 'GET')
-
+        return _call('get_plans', 'GET', jsonify=False)
+    
     def get_plan(self, plan_name):
-        return _call('get_plan', 'GET', url_args={'plan_name': plan_name})
-
+        return _call('get_plan', 'GET', url_args={'plan_name': plan_name}, jsonify=False)
+    
     def get_plugins(self):
-        return _call('get_plugins', 'GET')
+        return _call('get_plugins', 'GET', jsonify=False)
 
     def create_scan(self):
         return _call('scans', 'POST',
@@ -281,32 +281,32 @@ class TestAPIBaseClass(unittest.TestCase):
                     'configuration': {'target': self.target_url}})
 
     def get_scan(self, scan_id):
-        return _call('scan', 'GET', url_args={'scan_id': scan_id})
+        return _call('scan', 'GET', url_args={'scan_id': scan_id}, jsonify=False)
 
     def control_scan(self, scan_id, state='START'):
         return _call('scan', 'PUT', url_args={'scan_id': scan_id},
                 data=state, jsonify=False)
 
     def get_scan_summary(self, scan_id):
-        return _call('scan_summary', 'GET', url_args={'scan_id': scan_id})
+        return _call('scan_summary', 'GET', url_args={'scan_id': scan_id}, jsonify=False)
 
     def get_reports_history(self, user=None):
         data = {}
         if user is not None:
             data = {'user': user}
-        return _call('history', 'GET', data=data)
+        return _call('history', 'GET', data=data, jsonify=False)
 
     def get_reports_status(self, user=None):
         data = None
         if user is not None:
             data = {'user': user}
-        return _call('status', 'GET', data=data)
+        return _call('status', 'GET', data=data, jsonify=False)
 
     def get_reports_issues(self, user=None):
         data = None
         if user is not None:
             data = {'user': user}
-        return _call('issues', 'GET', data=data)
+        return _call('issues', 'GET', data=data, jsonify=False)
 
     def _test_keys(self, target, expected):
         """
@@ -327,7 +327,7 @@ class TestAPIBaseClass(unittest.TestCase):
         keys1 = set(expected)
         self.assertEqual(set(), keys1.difference(target))
 
-class TestAccessToken(TestAPIBaseClass):
+class TestAPIGuardDecorator(TestAPIBaseClass):
     def test_create_user_200(self):
         res = self.create_user()
         self.assertEqual(res.status_code, 200)
@@ -345,6 +345,11 @@ class TestAccessToken(TestAPIBaseClass):
         res = self.create_user(headers={'Content-type': 'application/json',\
                    'x-minion-backend-key': BACKEND_KEY})
         self.assertEqual(res.status_code, 200)
+
+    def test_wrong_content_type_return_415(self):
+        res = self.create_user(headers={'Content-type': 'text/plain',\
+                   'x-minion-backend-key': BACKEND_KEY})
+        self.assertEqual(res.status_code, 415)
 
 class TestUserAPIs(TestAPIBaseClass):
     def test_create_user(self):
@@ -731,7 +736,7 @@ test_app = Flask(__name__)
 @test_app.route('/')
 def basic_app():
     res = make_response('')
-    res.headers['X-Content-Type-oPTIONS'] = 'nosniff'
+    res.headers['X-Content-Type-Options'] = 'nosniff'
     res.headers['X-Frame-Options'] = 'SAMEORIGIN'
     res.headers['X-XSS-Protection'] = '1; mode=block'
     res.headers['Content-Security-Policy'] = 'default-src *'
@@ -853,12 +858,41 @@ class TestScanAPIs(TestAPIBaseClass):
         self._test_keys(res11.json()['report'][0].keys(), expected_inner_keys)
 
         issues = res11.json()['report'][0]['issues']
-        # only 5 are reported. three of which are actually Info
-        self.assertEqual(len(issues), 5)
-        self.assertEqual(issues[3]['severity'], 'Medium')
-        self.assertEqual(issues[3]['summary'], "Site sets the 'Server' header")
-        self.assertEqual(issues[4]['severity'], 'Medium')
-        self.assertEqual(issues[4]['summary'], 'No robots.txt found')
+        # total of 8 basic plugins. they should all return something even if info 
+        self.assertEqual(len(issues), 8)
+
+        # alive scan
+        self.assertEqual('Site is reachable', issues[0]['summary'])
+        self.assertEqual('Info', issues[0]['severity'])
+
+        # x-frame-options scan
+        self.assertEqual('X-Frame-Options header is set properly', issues[1]['summary'])
+        self.assertEqual('Info', issues[1]['severity'])
+
+        # strict-transport
+        self.assertEqual('Target is a non-HTTPS site', issues[2]['summary'])
+        self.assertEqual('Info', issues[2]['severity'])
+
+        # x-content-type-options
+        self.assertEqual('X-Content-Type-Options is set properly', issues[3]['summary'])
+        self.assertEqual('Info', issues[3]['severity'])
+
+        # x-xss-protection
+        self.assertEqual('X-XSS-Protection is set properly', issues[4]['summary'])
+        self.assertEqual('Info', issues[4]['severity'])
+
+        # server details headers
+        self.assertEqual("'Server' header is found", issues[5]['summary'])
+        self.assertEqual('Medium', issues[5]['severity'])
+
+        # robots
+        self.assertEqual("robots.txt not found", issues[6]['summary'])
+        self.assertEqual('Medium', issues[6]['severity'])
+
+        # CSP
+        self.assertEqual('Content-Security-Policy header set properly', issues[7]['summary'])
+        self.assertEqual('Info', issues[7]['severity'])
+
         self.assertEqual(res11.json()['report'][0]['target'], self.target_url)
         self.stop_server()
         #pprint.pprint(res11.json(), indent=3)

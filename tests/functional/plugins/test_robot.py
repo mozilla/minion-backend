@@ -57,12 +57,18 @@ class TestRobotsPlugin(TestPluginBaseClass):
 
     def validate_robots_plugin(self, runner_resp, request_resp, expected=None, expectation=True, url=None):
         if expectation is True:
-            self.assertEqual('FINISHED', runner_resp[1]['data']['state'])
+            self.assertEqual("robots.txt found", runner_resp[1]['data']['Summary'])
+            self.assertEqual("Site has a valid robots.txt", runner_resp[1]['data']['Description'])
+            self.assertEqual("Info", runner_resp[1]['data']['Severity'])
+            self.assertEqual('FINISHED', runner_resp[2]['data']['state'])
         elif expectation == 'INVALID':
-            self.assertEqual("Invalid robots.txt found", runner_resp[1]['data']['Summary'])
+            self.assertEqual("Invalid entry found in robots.txt", runner_resp[1]['data']['Summary'])
+            self.assertEqual("robots.txt may contain an invalid or unsupport entry.", \
+                runner_resp[1]['data']['Description'])
             self.assertEqual("Medium", runner_resp[1]['data']['Severity'])
         elif expectation is False:
-            self.assertEqual("No robots.txt found", runner_resp[1]['data']['Summary'])
+            self.assertEqual("robots.txt not found", runner_resp[1]['data']['Summary'])
+            self.assertEqual("Site has no robots.txt", runner_resp[1]['data']['Description'])
             self.assertEqual("Medium", runner_resp[1]['data']['Severity'])
 
 

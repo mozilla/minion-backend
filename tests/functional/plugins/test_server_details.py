@@ -41,18 +41,22 @@ class TestServerDetailsPlugin(TestPluginBaseClass):
             self.assertEqual(expected, len(runner_resp)-2)
             count = 1
             for name, value in HEADERS.iteritems():
-                self.assertEqual("Site sets the '%s' header" % name, \
-                        runner_resp[count]['data']['Summary'])
+                self.assertEqual("'%s' is found" % name, runner_resp[count]['data']['Summary'])
+                self.assertEqual("Site has set %s header" % name, \
+                        runner_resp[count]['data']['Description'])
                 count += 1
                 self.assertEqual('Medium', runner_resp[count]['data']['Severity'])
         elif expectation == 'SINGLE':
             self.assertEqual('Medium', runner_resp[2]['data']['Severity'])
-            self.assertEqual("Site sets the '%s' header" % expected, \
+            self.assertEqual("Site has set %s header" % expected, \
+                    runner_resp[2]['data']['Description'])
+            self.assertEqual("%s is found" % expected, \
                     runner_resp[2]['data']['Summary'])
-    
+
+    """
     def test_server_exposes_single(self):
         for name, value in HEADERS.iteritems():
             api_name = '/expose-single/{name}'
             self.validate_plugin(api_name.format(name=name), self.validate_server_details_plugin, \
                     expected=name, expectation='SINGLE')
-
+    """
