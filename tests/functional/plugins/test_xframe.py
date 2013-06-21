@@ -42,6 +42,11 @@ def bad_xfo():
     res.headers['X-Frame-Options'] = "CHEESE"
     return res
 
+@test_app.route('/no-xfo')
+def no_xfo():
+    res = make_response("")
+    return res
+
 class TestXFrameOptionsPlugin(TestPluginBaseClass):
     __test__ = True
     @classmethod
@@ -53,16 +58,16 @@ class TestXFrameOptionsPlugin(TestPluginBaseClass):
         if expectation is True:
             self.assertEqual('X-Frame-Options header is set properly', runner_resp[1]['data']['Summary'])
             self.assertEqual('Info', runner_resp[1]['data']['Severity'])
-        else:
+            self.assertEqual(expected, request_resp.headers['X-Frame-Options'])
+        elif expectation == 'INVALID':
             fragement = request_resp.headers['X-Frame-Options']
             self.assertEqual(True, fragement in runner_resp[1]['data']['Description'])
             self.assertEqual("High", runner_resp[1]['data']['Severity'])
-            if expectation == 'INVALID':
-                self.assertEqual("The following X-Frame-Options header value is detected and is invalid: %s" % fragement, \
-                    runner_resp[1]['data']['Description'])
-            else:
-                self.assertEqual(True, "X-Frame-Options header is not found." in runner_resp[1]['data']['Description'])
-        self.assertEqual(expected, request_resp.headers['X-Frame-Options'])
+            self.assertEqual("The following X-Frame-Options header value is detected and is invalid: %s" % fragement, \
+                runner_resp[1]['data']['Description'])
+            self.assertEqual(expected, request_resp.headers['X-Frame-Options'])
+        else:
+            self.assertEqual(True, "X-Frame-Options header is not found." in runner_resp[1]['data']['Description'])
 
     def test_bad_xframe_option(self):
         api_name = "/bad-xfo"
@@ -90,3 +95,7 @@ class TestXFrameOptionsPlugin(TestPluginBaseClass):
         api_name = '/xfo-with-allow-from-without-http'
         self.validate_plugin(api_name, self.validate_xframe_plugin, \
                 expected='ALLOW-FROM localhost:1234/', expectation='INVALID')
+
+    def test_xframe_options_not_set(self):
+        api_name = '/no-xfo'
+        self.validate_plugin(api_name, self.validate_xframe_plugin, expectation=False)

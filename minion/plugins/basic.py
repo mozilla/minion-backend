@@ -170,7 +170,7 @@ by ensuring that their content is not embedded into other sites.",
                 issue = self._format_report('invalid', description_formats={'header': xfo_value})
                 self.report_issues([issue])
         else:
-            issue = self._format('not-set')
+            issue = self._format_report('not-set')
             self.report_issues([issue])
 
 
