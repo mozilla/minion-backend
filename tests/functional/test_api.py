@@ -266,6 +266,7 @@ class TestAPIBaseClass(unittest.TestCase):
     def get_site(self, site_id):
         return _call('site', 'GET', url_args={'site_id': site_id}, jsonify=False)
 
+    def get_plans(self):
         return _call('get_plans', 'GET', jsonify=False)
     
     def get_plan(self, plan_name):
