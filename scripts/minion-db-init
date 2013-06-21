@@ -16,9 +16,13 @@ if __name__ == "__main__":
     # Import plans
     plans = glob.glob(PLANS_DIR + '/*.plan')
     for plan in plans:
-        cmd1 = "minion-create-plan {fname}".format(fname=plan)
-        p = Popen(shlex.split(cmd1), stdout=PIPE, stderr=PIPE)
-        p.communicate()
+        with open(plan, 'r') as f:
+            plan_json = json.load(f)
+        resp = requests.post('http://localhost:8383/plans',
+            headers={'content-type': 'application/json'},
+            data=json.dumps(plan_json),
+        )
+                
 
     # Create an admin
     email = raw_input("Enter the administrator's Persona email: ")
@@ -66,7 +70,7 @@ if __name__ == "__main__":
                 headers={'content-type': 'application/json'},
                 data=json.dumps({
                     'url': site,
-                    'plans': detail['plans'][0],
+                    'plans': detail['plans'],
                     'groups': [group]
             }))
             print resp.json()
