@@ -5,7 +5,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import optparse
-from minion.backend import app, configure_app
+from minion.backend.app import app, configure_app
 
 if __name__ == "__main__":
 

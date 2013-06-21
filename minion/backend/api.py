@@ -12,7 +12,7 @@ import uuid
 from flask import abort, Flask, render_template, redirect, url_for, session, jsonify, request, session
 from pymongo import MongoClient
 
-from minion.backend import app
+from minion.backend.app import app
 import minion.backend.utils as backend_utils
 import tasks
 
