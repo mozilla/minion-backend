@@ -6,7 +6,7 @@ from flask import Flask
 
 app = Flask(__name__)
 
-from minion.backend import api
+import minion.backend.api
 
 def configure_app(app, debug=False):
     app.debug = debug
