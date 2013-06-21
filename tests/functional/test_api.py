@@ -337,7 +337,6 @@ class TestAPIBaseClass(unittest.TestCase):
 
     def assertSuccessfulResponse(self, r, success=True, reason=None):
         r.raise_for_status()
-        print r.json()
         self.assertEqual(r.json()['success'], success)
         if not success and reason is not None:
             self.assertEqual(r.json()['reason'], reason)
@@ -767,6 +766,43 @@ class TestPlanAPIs(TestAPIBaseClass):
         self.assertEqual("Test if the site is alive", plan["workflow"][0]["description"])
         self.assertEqual({"foo": "bar"}, plan["workflow"][0]["configuration"])
         self.assertEqual(plugin_descriptor, plan["workflow"][0]["plugin"])
+    
+    def test_create_invalid_plugin_plan(self):
+        """ Check /plans return invalid-plan-exists when plugin is not importable. """
+        # Create a plan
+        c = { "name": "test",
+              "description": "Test",
+              "workflow": [ { "plugin_name": "minion.plugins.basic.Cheeseburger",
+                              "description": "Test if the site is cheeseburger",
+                              "configuration": { "foo": "bar" }
+                              } ] }
+        resp = self.create_plan(c)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()['reason'], 'invalid-plan-exists')
+
+    def test_create_plan_without_required_field(self):
+        """ Check /plans return invalid-plan-exists when plan submitted does
+        not contain plugin_name. """
+        # Create a plan
+        c = { "name": "test",
+              "description": "Test",
+              "workflow": [ {"description": "Test if the site is cheeseburger",
+                              "configuration": { "foo": "bar" }
+                              } ] }
+        resp = self.create_plan(c)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()['reason'], 'invalid-plan-exists')
+
+    def test_create_plan_without_proper_structure(self):
+        """ Check /plans return invalid-plan-exists when plan submitted does
+        not contain proper structure. """
+        # Create a plan
+        c = { "name": "test",
+              "description": "Test",
+              "workflow": []}
+        resp = self.create_plan(c)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.json()['reason'], 'invalid-plan-exists')
 
     def test_delete_plan(self):
         # Create a plan
@@ -783,7 +819,6 @@ class TestPlanAPIs(TestAPIBaseClass):
         self.assertSuccessfulResponse(r)
         # Make sure the plan is gone
         r = self.get_plan("test")
-        print "GOT PLAN", r.json()
         self.assertSuccessfulResponse(r, success=False, reason='no-such-plan')
 
     def test_delete_unknown_plan(self):

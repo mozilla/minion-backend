@@ -102,10 +102,13 @@ def _split_plugin_class_name(plugin_class_name):
     e = plugin_class_name.split(".")
     return '.'.join(e[:-1]), e[-1]
 
-def _register_plugin(plugin_class_name):
+def _import_plugin(plugin_class_name):
     package_name, class_name = _split_plugin_class_name(plugin_class_name)
     plugin_module = importlib.import_module(package_name, class_name)
-    plugin_class = getattr(plugin_module, class_name)
+    return getattr(plugin_module, class_name)
+
+def _register_plugin(plugin_class_name):
+    plugin_class = _import_plugin(plugin_class_name)
     plugins[plugin_class_name] = {'clazz': plugin_class,
                                   'descriptor': _plugin_descriptor(plugin_class)}
 
@@ -236,9 +239,28 @@ def _check_group_exists(group_name):
 def _check_plan_exists(plan_name):
     return plans.find_one({'name': plan_name}) is not None
 
-def _check_plan_workflow(workflow):
-    # TODO
-    return True
+def _check_plan_workflow(plan):
+    """ Ensure incoming plan and its workflow contain valid structure. """
+    if not isinstance(plan['name'], str) and not isinstance(plan['name'], unicode):
+        return False
+    if not all(isinstance(plugin, dict) for plugin in plan['workflow']):
+        return False
+
+    required_fields = set(('plugin_name', 'configuration', 'description'))
+    #
+    if len(plan['workflow']) == 0:
+        return False
+    for plugin in plan['workflow']:
+        # test whether every field in required_fields is in plugin keys
+        if not required_fields.issubset(set(plugin.keys())):
+            return False
+        if not isinstance(plugin['configuration'], dict):
+            return False
+        try:
+            _import_plugin(plugin['plugin_name'])
+        except (AttributeError, ImportError):
+            return False
+    return True            
 
 # API Methods to manage users
 
@@ -834,22 +856,21 @@ def delete_plan(plan_name):
 @api_guard('application/json')
 def create_plan():
     plan = request.json
+
     # Verify incoming plan
-    if 'description' not in plan:
-        return jsonify(success=False, reason='plan-already-exists')
-    for f in ('workflow', 'name', 'description'):
-        if f not in plan:
-            return jsonify(success=False, reason='invalid-plan-exists')
     if plans.find_one({'name': plan['name']}) is not None:
-        return jsonify(success=False, reason='plan-already-exists')
-    if not _check_plan_workflow(plan['workflow']):
-        return jsonify(success=False, reason='plan-already-exists')
+        return jsonify(success=False, reason='plan-already-exists') 
+
+    if not _check_plan_workflow(plan):
+        return jsonify(success=False, reason='invalid-plan-exists')
+
     # Create the plan
     new_plan = { 'name': plan['name'],
                  'description': plan['description'],
                  'workflow': plan['workflow'],
                  'created': datetime.datetime.utcnow() }
     plans.insert(new_plan)
+
     # Return the new plan
     plan = plans.find_one({"name": plan['name']})
     if not plan:
