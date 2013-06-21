@@ -23,7 +23,6 @@ if __name__ == "__main__":
             data=json.dumps(plan_json),
         )
                 
-
     # Create an admin
     email = raw_input("Enter the administrator's Persona email: ")
     cmd2 = "minion-create-user {email} administrator".format(email=email)
@@ -73,4 +72,3 @@ if __name__ == "__main__":
                     'plans': detail['plans'],
                     'groups': [group]
             }))
-            print resp.json()
