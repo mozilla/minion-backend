@@ -1,11 +1,22 @@
 #!/usr/bin/env python
 
-from flask.ext.script import Manager, Server
-from minion.backend.api import app
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-manager = Manager(app)
-server = Server(use_debugger=False, use_reloader=False, port=8383, host='127.0.0.1')
-manager.add_command("runserver", server)
+import optparse
+from minion.backend import app, configure_app
 
 if __name__ == "__main__":
-   manager.run()
+
+   parser = optparse.OptionParser()
+   parser.add_option("-d", "--debug", dest="debug", default=False, action="store_true")
+   parser.add_option("-r", "--reload", dest="reload", default=False, action="store_true")
+   parser.add_option("-a", "--address", default="127.0.0.1")
+   parser.add_option("-p", "--port", type="int", default=8383)
+
+   (options, args) = parser.parse_args()
+
+   app = configure_app(app, debug=options.debug)
+   app.run(host=options.address, port=options.port, debug=options.debug,
+           use_reloader=options.reload, use_evalex=False)

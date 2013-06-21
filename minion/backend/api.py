@@ -12,6 +12,7 @@ import uuid
 from flask import abort, Flask, render_template, redirect, url_for, session, jsonify, request, session
 from pymongo import MongoClient
 
+from minion.backend import app
 import minion.backend.utils as backend_utils
 import tasks
 
@@ -23,8 +24,6 @@ scans = mongo_client.minion.scans
 users = mongo_client.minion.users
 sites = mongo_client.minion.sites
 groups = mongo_client.minion.groups
-
-app = Flask(__name__)
 
 def api_guard(view):
     """ Decorate a view function to be protected by requiring
