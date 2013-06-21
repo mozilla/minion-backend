@@ -25,7 +25,7 @@ users = mongo_client.minion.users
 sites = mongo_client.minion.sites
 groups = mongo_client.minion.groups
 
-def api_guard(view):
+def api_guard(*decor_args):
     """ Decorate a view function to be protected by requiring
     a secret key in X-Minion-Backend-Key header for the decorated
     backend API. If 'key' is False or not found in the config file,
