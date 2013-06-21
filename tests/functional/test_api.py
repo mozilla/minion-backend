@@ -39,9 +39,10 @@ APIS = {'users':
         'site':
             {'GET': '/sites/{site_id}',
              'POST': '/sites/{site_id}'},
-        'get_plans':
-            {'GET': '/plans'},
-        'get_plan':
+        'plans':
+            {'GET': '/plans',
+             'POST': '/plans'},
+        'plan':
             {'GET': '/plans/{plan_name}'},
         'get_plugins':
             {'GET': '/plugins'},
@@ -126,7 +127,7 @@ def _call(task, method, auth=None, data=None, url_args=None, jsonify=True, \
                     'X-Minion-Backend-Key': BACKEND_KEY}
         else:
             headers = {'X-Minion-Backend-Key': BACKEND_KEY}
-    
+
     if method == 'GET' or method == 'DELETE':
         res = req_objs(api, params=data, auth=auth, headers=headers)
     else:
@@ -267,11 +268,14 @@ class TestAPIBaseClass(unittest.TestCase):
         return _call('site', 'GET', url_args={'site_id': site_id}, jsonify=False)
 
     def get_plans(self):
-        return _call('get_plans', 'GET', jsonify=False)
-    
+        return _call('plans', 'GET', jsonify=False)
+
+    def create_plan(self, plan):
+        return _call('plans', 'POST', data=plan)
+
     def get_plan(self, plan_name):
-        return _call('get_plan', 'GET', url_args={'plan_name': plan_name}, jsonify=False)
-    
+        return _call('plan', 'GET', url_args={'plan_name': plan_name}, jsonify=False)
+
     def get_plugins(self):
         return _call('get_plugins', 'GET', jsonify=False)
 
@@ -326,6 +330,10 @@ class TestAPIBaseClass(unittest.TestCase):
 
         keys1 = set(expected)
         self.assertEqual(set(), keys1.difference(target))
+
+    def assertSuccessfulResponse(self, r):
+        r.raise_for_status()
+        self.assertEqual(r.json()['success'], True)
 
 class TestAPIGuardDecorator(TestAPIBaseClass):
     def test_create_user_200(self):
@@ -716,6 +724,45 @@ class TestPlanAPIs(TestAPIBaseClass):
         plan = resp.json()
         self.check_plugin_metadata(self.plan, plan['plan']['workflow'])
 
+    def test_create_plan(self):
+        # Get the alive plugin descriptor
+        # TODO When we have /plugins/:pluginClass we can replace this with an API call
+        plugin_descriptor = { "class": "minion.plugins.basic.AlivePlugin",
+                              "name": "Alive",
+                              "version": "0.0",
+                              "weight": "light" }
+        # Create a plan
+        c = { "name": "test",
+              "description": "Test",
+              "workflow": [ { "plugin_name": "minion.plugins.basic.AlivePlugin",
+                              "description": "Test if the site is alive",
+                              "configuration": { "foo": "bar" }
+                              } ] }
+        r = self.create_plan(c)
+        self.assertSuccessfulResponse(r)
+        # Check if we got a valid plan back
+        j  = r.json()
+        plan = j["plan"]
+        self.assertEqual("test", plan["name"])
+        self.assertEqual("Test", plan["description"])
+        self.assertEqual(1, len(plan["workflow"]))
+        self.assertEqual("Test if the site is alive", plan["workflow"][0]["description"])
+        self.assertEqual({"foo": "bar"}, plan["workflow"][0]["configuration"])
+        self.assertEqual(plugin_descriptor, plan["workflow"][0]["plugin"])
+        # Check if we can retrieve the plan we just created
+        r = self.get_plan("test")
+        self.assertSuccessfulResponse(r)
+        j  = r.json()
+        plan = j["plan"]
+        self.assertEqual("test", plan["name"])
+        self.assertEqual("Test", plan["description"])
+        self.assertEqual(1, len(plan["workflow"]))
+        self.assertEqual("Test if the site is alive", plan["workflow"][0]["description"])
+        self.assertEqual({"foo": "bar"}, plan["workflow"][0]["configuration"])
+        self.assertEqual(plugin_descriptor, plan["workflow"][0]["plugin"])
+
+class TestPluginAPIs(TestAPIBaseClass):
+
     def test_get_built_in_plugins(self):
         resp = self.get_plugins()
 
@@ -858,7 +905,7 @@ class TestScanAPIs(TestAPIBaseClass):
         self._test_keys(res11.json()['report'][0].keys(), expected_inner_keys)
 
         issues = res11.json()['report'][0]['issues']
-        # total of 8 basic plugins. they should all return something even if info 
+        # total of 8 basic plugins. they should all return something even if info
         self.assertEqual(len(issues), 8)
 
         # alive scan

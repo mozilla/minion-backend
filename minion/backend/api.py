@@ -236,6 +236,10 @@ def _check_group_exists(group_name):
 def _check_plan_exists(plan_name):
     return plans.find_one({'name': plan_name}) is not None
 
+def _check_plan_workflow(workflow):
+    # TODO
+    return True
+
 # API Methods to manage users
 
 @app.route('/users/<email>', methods=['GET'])
@@ -799,12 +803,48 @@ def get_reports_issues():
 #               ... ] }
 #
 
-@app.route("/plans")
+@app.route("/plans", methods=['GET'])
 @api_guard
 def get_plans():
     def _plan_description(plan):
         return { 'description': plan['description'], 'name': plan['name'] }
     return jsonify(success=True, plans=[_plan_description(plan) for plan in plans.find()])
+
+#
+# Create a new plan
+#
+
+@app.route("/plans", methods=['POST'])
+@api_guard('application/json')
+def create_plan():
+    plan = request.json
+    # Verify incoming plan
+    if 'description' not in plan:
+        return jsonify(success=False, reason='plan-already-exists')
+    for f in ('workflow', 'name', 'description'):
+        if f not in plan:
+            return jsonify(success=False, reason='invalid-plan-exists')
+    if plans.find_one({'name': plan['name']}) is not None:
+        return jsonify(success=False, reason='plan-already-exists')
+    if not _check_plan_workflow(plan['workflow']):
+        return jsonify(success=False, reason='plan-already-exists')
+    # Create the plan
+    new_plan = { 'name': plan['name'],
+                 'description': plan['description'],
+                 'workflow': plan['workflow'],
+                 'created': datetime.datetime.utcnow() }
+    plans.insert(new_plan)
+    # Return the new plan
+    plan = plans.find_one({"name": plan['name']})
+    if not plan:
+        return jsonify(success=False)
+    for step in plan['workflow']: # TODO Should we get rid of this?
+        plugin = plugins.get(step['plugin_name'])
+        if plugin:
+            step['plugin'] = plugin['descriptor']
+        del step['plugin_name']
+    return jsonify(success=True, plan=sanitize_plan(plan))
+
 
 #
 # Return a single plan description. Takes the plan name.
