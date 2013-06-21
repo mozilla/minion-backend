@@ -10,13 +10,13 @@ from subprocess import Popen, PIPE
 
 if __name__ == "__main__":
 
-    ROOT_DIR = os.path.dirname(os.path.dirname(__file__))
+    ROOT_DIR = os.path.dirname(os.path.abspath(os.path.dirname(__file__)))
     PLANS_DIR = os.path.join(ROOT_DIR, 'plans')
 
     # Import plans
-    plans = glob.glob(PLANS_DIR + '*.plan')
+    plans = glob.glob(PLANS_DIR + '/*.plan')
     for plan in plans:
-        cmd1 = "minion-create-plan {plan} {fname}".format(plan=plan, fname=plan+'.plan')
+        cmd1 = "minion-create-plan {fname}".format(fname=plan)
         p = Popen(shlex.split(cmd1), stdout=PIPE, stderr=PIPE)
         p.communicate()
 
@@ -55,7 +55,7 @@ if __name__ == "__main__":
             data=json.dumps({
                 'name': group, 
                 'description': detail['description'],
-                'users': email,
+                'users': [email],
                 'sites': detail['sites']
             }))
 
@@ -66,6 +66,7 @@ if __name__ == "__main__":
                 headers={'content-type': 'application/json'},
                 data=json.dumps({
                     'url': site,
-                    'plans': detail['plans'],
+                    'plans': detail['plans'][0],
                     'groups': [group]
             }))
+            print resp.json()
