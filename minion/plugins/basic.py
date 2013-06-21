@@ -235,9 +235,7 @@ lets a web site tell browsers that it should only be communicated with using HTT
         r = minion.curly.get(self.configuration['target'], connect_timeout=5, timeout=15)
         r.raise_for_status()
         if r.url.startswith("https://"):
-            if 'strict-transport-security' not in r.headers:
-                issue = self._format_report('not-set')
-                self.report_issues([issue])
+            if 'strict-transport-security' in r.headers:
                 regex = re.compile(r"^max-age=(?P<delta>\d+)(\s)?(;)?(?P<option> includeSubDomains)?$")
                 match = regex.match(r.headers['strict-transport-security'])
                 if match:
@@ -251,9 +249,10 @@ lets a web site tell browsers that it should only be communicated with using HTT
                 else:
                     issue = self._format_report('invalid', description_formats={'header': r.headers['strict-transport-security']})
                     self.report_issues([issue])
+            else:
+                self.report_issues([self._format_report('not-set')])
         else:
             self.report_issues([self._format_report('non-https')])
-
 
 class XContentTypeOptionsPlugin(BlockingPlugin):
 
