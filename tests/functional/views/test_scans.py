@@ -5,13 +5,14 @@
 import pprint
 import requests
 import time
-from flask import Flask
+from flask import Flask, make_response
 from multiprocessing import Process
 from subprocess import Popen, PIPE
 
-from base import BACKEND_KEY, BASE, _call, TestAPIBaseClass, test_app
+from base import BACKEND_KEY, BASE, _call, TestAPIBaseClass
 
 test_app = Flask(__name__)
+
 @test_app.route('/')
 def basic_app():
     res = make_response('')
@@ -26,12 +27,11 @@ class TestScanAPIs(TestAPIBaseClass):
         super(TestScanAPIs, self).setUp()
         self.import_plan()
 
-    
     def _kill_ports(self, ports):
         for port in ports:
             p = Popen(['kill `fuser -n tcp %s`' % str(port)],\
                     stdout=PIPE, stderr=PIPE, shell=True)
-            print p.communicate()
+            p.communicate()
     
     def start_server(self):
         ''' Similar to plugin functional tests, we need
@@ -42,11 +42,10 @@ class TestScanAPIs(TestAPIBaseClass):
         self.server = Process(target=run_app)
         self.server.daemon = True
         self.server.start()
-
+       
     def stop_server(self):
         self.server.terminate()
-        self._kill_ports([1234,])
-    
+        self._kill_ports([1234,])    
 
     def test_create_scan(self):
         res1 = self.create_user()
@@ -96,8 +95,6 @@ class TestScanAPIs(TestAPIBaseClass):
         7. GET /reports/issues
         """
         self.start_server()
-
-        print requests.get('http://localhost:1234')
         res1 = self.create_user()
         res2 = self.create_group(users=[self.email,])
         res3 = self.create_site(plans=['basic'])
