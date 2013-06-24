@@ -6,6 +6,8 @@ import os
 import json
 import pprint
 import requests
+import shlex
+import tempfile
 import unittest
 from subprocess import Popen, PIPE
 from multiprocessing import Process
@@ -203,10 +205,10 @@ class TestAPIBaseClass(unittest.TestCase):
             self.assertEqual("0.0", meta['version'])
 
     def create_user(self, email="bob@example.org", name="Bob", role="user", groups=[], headers=None,
-            invitation=None):
-        return _call('users', 'POST', data={'invitation': invitation,
-            "email": email, "name": name, "role": role, "groups":groups},
-             headers=headers)
+            invitation=None, sender=None, url=None):
+        data = {"email": email, "name": name, "role": role, "groups":groups, 
+                "invitation": invitation, "sender": sender, 'url': url}
+        return _call('users', 'POST', headers=headers, data=data)
 
     def update_user(self, user_email, user):
         return _call('user', 'POST', url_args={'user_email': user_email}, data=user)
@@ -338,3 +340,30 @@ class TestAPIBaseClass(unittest.TestCase):
         self.assertEqual(r.json()['success'], success)
         if not success and reason is not None:
             self.assertEqual(r.json()['reason'], reason)
+
+    """
+    def start_smtp(self):
+        # pid is a list, a hack so we can get back the pid in the caller frame
+        self.stop_smtp()
+        def start():
+            p = Popen('/usr/bin/sudo /usr/bin/python -m smtpd -n -c DebuggingServer localhost:25',
+                    stdin=PIPE, stdout=PIPE, shell=True)
+            while True:
+                out = p.stdout.read()
+                err = p.stderr.read()
+                if len(out) > 0:
+                    with open('/tmp/minion_smtp_debug.txt', 'w+') as f:
+                        f.write(out)
+        p = Process(target=start)
+        p.daemon = True
+        p.start()
+
+    def stop_smtp(self):
+        def stop():
+            p = Popen("/usr/bin/sudo kill -9 `ps aux | grep DebuggingServer | awk '{print $2}'`", shell=True)
+            p.communicate()
+        p = Process(target=stop)
+        p.daemon = True
+        p.start()
+    """
+    
