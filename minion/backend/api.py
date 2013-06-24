@@ -826,7 +826,7 @@ def get_reports_issues():
 @api_guard
 def get_plans():
     def _plan_description(plan):
-        return { 'description': plan['description'], 'name': plan['name'] }
+        return { 'description': plan['description'], 'name': plan['name'], 'workflow': plan['workflow'] }
     return jsonify(success=True, plans=[_plan_description(plan) for plan in plans.find()])
 
 #
@@ -872,11 +872,6 @@ def create_plan():
     plan = plans.find_one({"name": plan['name']})
     if not plan:
         return jsonify(success=False)
-    for step in plan['workflow']: # TODO Should we get rid of this?
-        plugin = plugins.get(step['plugin_name'])
-        if plugin:
-            step['plugin'] = plugin['descriptor']
-        del step['plugin_name']
     return jsonify(success=True, plan=sanitize_plan(plan))
 
 #
@@ -904,11 +899,6 @@ def update_plan(plan_name):
     plans.update({'name': plan_name}, {'$set': changes})
     # Return the plan
     plan = plans.find_one({"name": plan_name})
-    for step in plan['workflow']: # TODO Should we get rid of this?
-        plugin = plugins.get(step['plugin_name'])
-        if plugin:
-            step['plugin'] = plugin['descriptor']
-        del step['plugin_name']
     return jsonify(success=True, plan=sanitize_plan(plan))
 
 
@@ -939,9 +929,6 @@ def get_plan(plan_name):
     # Fill in the details of the plugin
     for step in plan['workflow']:
         plugin = plugins.get(step['plugin_name'])
-        if plugin:
-            step['plugin'] = plugin['descriptor']
-        del step['plugin_name']
     return jsonify(success=True, plan=sanitize_plan(plan))
 
 # API Methods to manage plugins

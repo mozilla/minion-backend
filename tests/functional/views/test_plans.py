@@ -26,17 +26,7 @@ class TestPlanAPIs(TestAPIBaseClass):
         resp = self.get_plan('basic')
         self.assertEqual(200, resp.status_code)
 
-        # test plugin name and weight. weight is now always light for the built-in
-        plan = resp.json()
-        self.check_plugin_metadata(self.plan, plan['plan']['workflow'])
-
     def test_create_plan(self):
-        # Get the alive plugin descriptor
-        # TODO When we have /plugins/:pluginClass we can replace this with an API call
-        plugin_descriptor = { "class": "minion.plugins.basic.AlivePlugin",
-                              "name": "Alive",
-                              "version": "0.0",
-                              "weight": "light" }
         # Create a plan
         c = { "name": "test",
               "description": "Test",
@@ -54,7 +44,7 @@ class TestPlanAPIs(TestAPIBaseClass):
         self.assertEqual(1, len(plan["workflow"]))
         self.assertEqual("Test if the site is alive", plan["workflow"][0]["description"])
         self.assertEqual({"foo": "bar"}, plan["workflow"][0]["configuration"])
-        self.assertEqual(plugin_descriptor, plan["workflow"][0]["plugin"])
+        self.assertEqual("minion.plugins.basic.AlivePlugin", plan["workflow"][0]["plugin_name"])
         # Check if we can retrieve the plan we just created
         r = self.get_plan("test")
         self.assertSuccessfulResponse(r)
@@ -65,7 +55,7 @@ class TestPlanAPIs(TestAPIBaseClass):
         self.assertEqual(1, len(plan["workflow"]))
         self.assertEqual("Test if the site is alive", plan["workflow"][0]["description"])
         self.assertEqual({"foo": "bar"}, plan["workflow"][0]["configuration"])
-        self.assertEqual(plugin_descriptor, plan["workflow"][0]["plugin"])
+        self.assertEqual("minion.plugins.basic.AlivePlugin", plan["workflow"][0]["plugin_name"])
 
 
 
@@ -145,10 +135,6 @@ class TestPlanAPIs(TestAPIBaseClass):
         r = self.update_plan("test", u)
         self.assertSuccessfulResponse(r)
         # Make sure the plan has changed
-        plugin_descriptor = { "class": "minion.plugins.basic.XFrameOptionsPlugin",
-                              "name": "XFrameOptions",
-                              "version": "0.0",
-                              "weight": "light" }
         r = self.get_plan("test")
         self.assertSuccessfulResponse(r)
         j  = r.json()
@@ -158,7 +144,7 @@ class TestPlanAPIs(TestAPIBaseClass):
         self.assertEqual(1, len(plan["workflow"]))
         self.assertEqual("Test if the site has an X-Frame-Options header", plan["workflow"][0]["description"])
         self.assertEqual({"require": "DENY"}, plan["workflow"][0]["configuration"])
-        self.assertEqual(plugin_descriptor, plan["workflow"][0]["plugin"])
+        self.assertEqual("minion.plugins.basic.XFrameOptionsPlugin", plan["workflow"][0]["plugin_name"])
 
     def test_delete_unknown_plan(self):
         r = self.delete_plan('testfoodoesnotexist')
