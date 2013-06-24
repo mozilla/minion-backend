@@ -202,9 +202,11 @@ class TestAPIBaseClass(unittest.TestCase):
             self.assertEqual(base['workflow'][index]['plugin_name'], meta['class'])
             self.assertEqual("0.0", meta['version'])
 
-    def create_user(self, email="bob@example.org", name="Bob", role="user", groups=[], headers=None):
-        return _call('users', 'POST', data={"email": email, "name": name, "role": role, "groups":groups},
-                     headers=headers)
+    def create_user(self, email="bob@example.org", name="Bob", role="user", groups=[], headers=None,
+            invitation=None):
+        return _call('users', 'POST', data={'invitation': invitation,
+            "email": email, "name": name, "role": role, "groups":groups},
+             headers=headers)
 
     def update_user(self, user_email, user):
         return _call('user', 'POST', url_args={'user_email': user_email}, data=user)

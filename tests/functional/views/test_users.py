@@ -11,8 +11,25 @@ class TestUserAPIs(TestAPIBaseClass):
         res = self.create_user()
         expected_top_keys = ('user', 'success')
         self._test_keys(res.json().keys(), expected_top_keys)
-        expected_inner_keys = ('id', 'created', 'role', 'email')
+        expected_inner_keys = ('id', 'created', 'role', 'email', 'status')
         self._test_keys(res.json()['user'].keys(), expected_inner_keys)
+        self.assertEqual(res.json()['user']['status'], 'active')    # ticket #109
+
+    # ticket #109
+    def test_invite_user(self):
+        res = self.create_user(invitation=True)
+        expected_top_keys = ('user', 'success')
+        self._test_keys(res.json().keys(), expected_top_keys)
+        expected_inner_keys = ('id', 'created', 'role', 'email', 'status')
+        self._test_keys(res.json()['user'].keys(), expected_inner_keys)
+        self.assertEqual(res.json()['user']['status'], 'invited')
+
+    # ticket #109
+    def test_update_invited_user(self):
+        res1 = self.create_user(invitation=True)
+        res2 = self.update_user(self.email, user={'status': 'active'})
+        self.assertEqual(res2.json()['user']['status'], 'active')
+        self.assertEqual(res1.json()['user']['status'], 'invited')
 
     def test_get_user(self):
         r = self.create_group('foo')
@@ -98,7 +115,6 @@ class TestUserAPIs(TestAPIBaseClass):
                                                'groups': ['bar']})
         r.raise_for_status()
         j = r.json()
-        print j
         self.assertEqual(True, j['success'])
         # Make sure the user returned is correct
         self.assertEqual("foo@example.com", j['user']['email'])
