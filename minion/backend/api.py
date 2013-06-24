@@ -239,18 +239,15 @@ def _check_group_exists(group_name):
 def _check_plan_exists(plan_name):
     return plans.find_one({'name': plan_name}) is not None
 
-def _check_plan_workflow(plan):
-    """ Ensure incoming plan and its workflow contain valid structure. """
-    if not isinstance(plan['name'], str) and not isinstance(plan['name'], unicode):
+def _check_plan_workflow(workflow):
+    """ Ensure plan workflow contain valid structure. """
+    if not all(isinstance(plugin, dict) for plugin in workflow):
         return False
-    if not all(isinstance(plugin, dict) for plugin in plan['workflow']):
-        return False
-
     required_fields = set(('plugin_name', 'configuration', 'description'))
     #
-    if len(plan['workflow']) == 0:
+    if len(workflow) == 0:
         return False
-    for plugin in plan['workflow']:
+    for plugin in workflow:
         # test whether every field in required_fields is in plugin keys
         if not required_fields.issubset(set(plugin.keys())):
             return False
@@ -260,7 +257,7 @@ def _check_plan_workflow(plan):
             _import_plugin(plugin['plugin_name'])
         except (AttributeError, ImportError):
             return False
-    return True            
+    return True
 
 # API Methods to manage users
 
@@ -859,9 +856,9 @@ def create_plan():
 
     # Verify incoming plan
     if plans.find_one({'name': plan['name']}) is not None:
-        return jsonify(success=False, reason='plan-already-exists') 
+        return jsonify(success=False, reason='plan-already-exists')
 
-    if not _check_plan_workflow(plan):
+    if not _check_plan_workflow(plan['workflow']):
         return jsonify(success=False, reason='invalid-plan-exists')
 
     # Create the plan
@@ -894,8 +891,10 @@ def update_plan(plan_name):
     old_plan = plans.find_one({'name': plan_name})
     if old_plan is None:
         return jsonify(success=False, reason='unknown-plan')
+
     if not _check_plan_workflow(new_plan['workflow']):
         return jsonify(success=False, reason='invalid-plan')
+
     # Update the plan
     changes = {}
     if 'description' in new_plan:
