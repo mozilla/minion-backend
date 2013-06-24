@@ -188,6 +188,7 @@ def summarize_scan(scan):
                     count += 1
         return count
     summary = { 'id': scan['id'],
+                'meta': scan['meta'],
                 'state': scan['state'],
                 'configuration': scan['configuration'],
                 'plan': scan['plan'],
@@ -985,7 +986,7 @@ def get_scan_summary(scan_id):
 
 @app.route("/scans", methods=["POST"])
 @api_guard('application/json')
-def put_scan_create():
+def post_scan_create():
     # try to decode the configuration
     configuration = request.json
     # See if the plan exists
@@ -1004,7 +1005,7 @@ def put_scan_create():
              "plan": { "name": plan['name'], "revision": 0 },
              "configuration": configuration['configuration'],
              "sessions": [],
-             "meta": { "owner": None, "tags": [] } }
+             "meta": { "user": configuration['user'], "tags": [] } }
     for step in plan['workflow']:
         session_configuration = step['configuration']
         session_configuration.update(configuration['configuration'])

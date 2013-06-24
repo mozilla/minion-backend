@@ -281,7 +281,8 @@ class TestAPIBaseClass(unittest.TestCase):
     def create_scan(self):
         return _call('scans', 'POST',
             data={'plan': 'basic',
-                'configuration': {'target': self.target_url}})
+                'configuration': {'target': self.target_url},
+                'user': self.email})
 
     def get_scan(self, scan_id):
         return _call('scan', 'GET', url_args={'scan_id': scan_id}, jsonify=False)
