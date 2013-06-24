@@ -58,6 +58,10 @@ class TestScanAPIs(TestAPIBaseClass):
         expected_scan_keys = ('id', 'state', 'created', 'queued', 'started', \
                 'finished', 'plan', 'configuration', 'sessions', 'meta',)
         self._test_keys(res4.json()['scan'].keys(), expected_scan_keys)
+        # ticket 106, scans keeps track of who started the scan
+        meta = res4.json()['scan']['meta']
+        self.assertEqual(meta['user'], self.email)
+        self.assertEqual(meta['tags'], [])
 
         scan = res4.json()['scan']
         for session in scan['sessions']:
@@ -82,7 +86,7 @@ class TestScanAPIs(TestAPIBaseClass):
         res5 = self.get_scan(scan_id)
         # since scan hasn't started, should == res4
         self.assertEqual(res4.json(), res5.json())
-
+        
     def test_start_basic_scan(self):
         """
         This test is very comprehensive. It tests
@@ -127,7 +131,8 @@ class TestScanAPIs(TestAPIBaseClass):
 
         # GET /scans/<scan_id>/summary
         res8 = self.get_scan_summary(scan_id)
-        #pprint.pprint(res8.json(), indent=2)
+        self.assertEqual(res8.json()['summary']['meta'], 
+            {'user': self.email, 'tags': []}) # ticket 106
 
         # GET /reports/history
         res9 = self.get_reports_history()
