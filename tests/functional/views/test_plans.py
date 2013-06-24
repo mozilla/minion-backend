@@ -66,7 +66,9 @@ class TestPlanAPIs(TestAPIBaseClass):
         self.assertEqual("Test if the site is alive", plan["workflow"][0]["description"])
         self.assertEqual({"foo": "bar"}, plan["workflow"][0]["configuration"])
         self.assertEqual(plugin_descriptor, plan["workflow"][0]["plugin"])
-    
+
+
+
     def test_create_invalid_plugin_plan(self):
         """ Check /plans return invalid-plan-exists when plugin is not importable. """
         # Create a plan
@@ -125,6 +127,43 @@ class TestPlanAPIs(TestAPIBaseClass):
         r = self.delete_plan('testfoodoesnotexist')
         self.assertSuccessfulResponse(r, success=False, reason='no-such-plan')
 
+    def test_update_plan(self):
+        # Create a plan
+        c = { "name": "test",
+              "description": "Test",
+              "workflow": [ { "plugin_name": "minion.plugins.basic.AlivePlugin",
+                              "description": "Test if the site is alive",
+                              "configuration": { "foo": "bar" }
+                              } ] }
+        r = self.create_plan(c)
+        self.assertSuccessfulResponse(r)
+        # Update the plan
+        u = { "description": "Changed Test",
+              "workflow": [ { "plugin_name": "minion.plugins.basic.XFrameOptionsPlugin",
+                              "description": "Test if the site has an X-Frame-Options header",
+                              "configuration": { "require": "DENY" } } ] }
+        r = self.update_plan("test", u)
+        self.assertSuccessfulResponse(r)
+        # Make sure the plan has changed
+        plugin_descriptor = { "class": "minion.plugins.basic.XFrameOptionsPlugin",
+                              "name": "XFrameOptions",
+                              "version": "0.0",
+                              "weight": "light" }
+        r = self.get_plan("test")
+        self.assertSuccessfulResponse(r)
+        j  = r.json()
+        plan = j["plan"]
+        self.assertEqual("test", plan["name"])
+        self.assertEqual("Changed Test", plan["description"])
+        self.assertEqual(1, len(plan["workflow"]))
+        self.assertEqual("Test if the site has an X-Frame-Options header", plan["workflow"][0]["description"])
+        self.assertEqual({"require": "DENY"}, plan["workflow"][0]["configuration"])
+        self.assertEqual(plugin_descriptor, plan["workflow"][0]["plugin"])
+
+    def test_delete_unknown_plan(self):
+        r = self.delete_plan('testfoodoesnotexist')
+        self.assertSuccessfulResponse(r, success=False, reason='no-such-plan')
+
 class TestPluginAPIs(TestAPIBaseClass):
 
     def test_get_built_in_plugins(self):
@@ -142,4 +181,3 @@ class TestPluginAPIs(TestAPIBaseClass):
         expected_inner_keys = ('class', 'name', 'version', 'weight')
         for plugin in resp.json()['plugins']:
             self._test_keys(plugin.keys(), expected_inner_keys)
-
