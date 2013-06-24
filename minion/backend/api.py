@@ -284,6 +284,8 @@ def get_user(email):
 #    groups: ["foo"],
 #    role: "user" }
 #
+# Optionally, the POST accepts creating user via invitations by adding
+# 'invitation', 'url' and an optional 'sender' to the json input above.
 # Returns the full user record
 #
 #  { "success": true
@@ -308,6 +310,7 @@ def create_user():
     if user.get("role") not in ("user", "administrator"):
         return jsonify(success=False, reason="invalid-role")
     new_user = { 'id': str(uuid.uuid4()),
+                 'status': 'invited' if user.get('invitation') else 'active',
                  'email':  user['email'],
                  'name': user.get('name'),
                  'role': user['role'],
@@ -317,6 +320,9 @@ def create_user():
     for group_name in user.get('groups', []):
         groups.update({'name':group_name},{'$addToSet': {'users': user['email']}})
     new_user['groups'] = user.get('groups', [])
+    if user.get('invitation'):
+        backend_utils.send_invite(user['email'], user.get('url'), sender=user.get('sender'))
+
     return jsonify(success=True, user=sanitize_user(new_user))
 
 #
@@ -345,7 +351,7 @@ def update_user(user_email):
         return jsonify(success=False, reason='unknown-user')
     old_user['groups'] = _find_groups_for_user(user_email)
     old_user['sites'] = _find_sites_for_user(user_email)
-    #
+    
     if 'groups' in new_user:
         for group_name in new_user.get('groups', []):
             if not _check_group_exists(group_name):
@@ -353,6 +359,9 @@ def update_user(user_email):
     if 'role' in new_user:
         if new_user["role"] not in ("user", "administrator"):
             return jsonify(success=False, reason="invalid-role")
+    if 'status' in new_user:
+        if new_user['status'] not in ('active', 'banned'):
+            return jsonify(success=False, reason='unknown-status-option')
     # Update the group memberships
     if 'groups' in new_user:
         # Add new groups
@@ -371,6 +380,8 @@ def update_user(user_email):
         changes['role'] = new_user['role']
     if 'groups' in new_user:
         changes['groups'] = new_user['groups']
+    if 'status' in new_user:
+        changes['status'] = new_user['status']
     users.update({'email': user_email}, {'$set': changes})
     # Return the updated user
     user = users.find_one({'email': user_email})
