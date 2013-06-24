@@ -53,7 +53,8 @@ APIS = {'users':
              'POST': '/plans'},
         'plan':
             {'GET': '/plans/{plan_name}',
-             'DELETE': '/plans/{plan_name}'},
+             'DELETE': '/plans/{plan_name}',
+             'POST': '/plans/{plan_name}'},
         'get_plugins':
             {'GET': '/plugins'},
         'scans':
@@ -265,6 +266,9 @@ class TestAPIBaseClass(unittest.TestCase):
     def create_plan(self, plan):
         return _call('plans', 'POST', data=plan)
 
+    def update_plan(self, plan_name, plan):
+        return _call('plan', 'POST', url_args={'plan_name': plan_name}, data=plan)
+
     def delete_plan(self, plan_name):
         return _call('plan', 'DELETE', url_args={'plan_name': plan_name}, jsonify=False)
 
@@ -331,4 +335,3 @@ class TestAPIBaseClass(unittest.TestCase):
         self.assertEqual(r.json()['success'], success)
         if not success and reason is not None:
             self.assertEqual(r.json()['reason'], reason)
-
