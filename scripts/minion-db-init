@@ -1,0 +1,74 @@
+#!/usr/bin/env python
+
+import glob
+import json
+import os
+import requests
+import shlex
+import sys
+from subprocess import Popen, PIPE
+
+if __name__ == "__main__":
+
+    ROOT_DIR = os.path.dirname(os.path.abspath(os.path.dirname(__file__)))
+    PLANS_DIR = os.path.join(ROOT_DIR, 'plans')
+
+    # Import plans
+    plans = glob.glob(PLANS_DIR + '/*.plan')
+    for plan in plans:
+        with open(plan, 'r') as f:
+            plan_json = json.load(f)
+        resp = requests.post('http://localhost:8383/plans',
+            headers={'content-type': 'application/json'},
+            data=json.dumps(plan_json),
+        )
+                
+    # Create an admin
+    email = raw_input("Enter the administrator's Persona email: ")
+    cmd2 = "minion-create-user {email} administrator".format(email=email)
+    p = Popen(shlex.split(cmd2), stdout=PIPE, stderr=PIPE)
+    p.communicate()
+
+    # Create groups
+    groups = {
+        "moco": {
+            "description":"Mozilla Corporation",
+             "sites": [
+                "http://www.mozilla.org",
+                "http://blog.mozilla.org",
+                "http://support.mozilla.org",
+                "http://developer.mozilla.org",
+                "http://wiki.mozilla.org",
+                "http://quality.mozilla.org",
+                "http://localize.mozilla.org",
+                "http://marketplace.mozilla.org"
+            ],
+            "plans": ["basic"],
+         },
+         "labs": {
+             "description": "Mozilla Labs",
+             "sites": ["http://www.mozilla.com"],
+             "plans": ["basic"],
+         }
+    }
+
+    for group, detail in groups.iteritems():
+        resp = requests.post('http://localhost:8383/groups',
+            headers={'content-type': 'application/json'},
+            data=json.dumps({
+                'name': group, 
+                'description': detail['description'],
+                'users': [email],
+                'sites': detail['sites']
+            }))
+
+    # Import sites
+    for group, detail in groups.iteritems():
+        for site in detail['sites']:
+            resp = requests.post('http://localhost:8383/sites',
+                headers={'content-type': 'application/json'},
+                data=json.dumps({
+                    'url': site,
+                    'plans': detail['plans'],
+                    'groups': [group]
+            }))
