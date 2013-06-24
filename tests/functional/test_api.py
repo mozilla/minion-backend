@@ -44,7 +44,8 @@ APIS = {'users':
              'POST': '/plans'},
         'plan':
             {'GET': '/plans/{plan_name}',
-             'DELETE': '/plans/{plan_name}'},
+             'DELETE': '/plans/{plan_name}',
+             'POST': '/plans/{plan_name}'},
         'get_plugins':
             {'GET': '/plugins'},
         'scans':
@@ -273,6 +274,9 @@ class TestAPIBaseClass(unittest.TestCase):
 
     def create_plan(self, plan):
         return _call('plans', 'POST', data=plan)
+
+    def update_plan(self, plan_name, plan):
+        return _call('plan', 'POST', url_args={'plan_name': plan_name}, data=plan)
 
     def delete_plan(self, plan_name):
         return _call('plan', 'DELETE', url_args={'plan_name': plan_name}, jsonify=False)
@@ -785,6 +789,39 @@ class TestPlanAPIs(TestAPIBaseClass):
         r = self.get_plan("test")
         print "GOT PLAN", r.json()
         self.assertSuccessfulResponse(r, success=False, reason='no-such-plan')
+
+    def test_update_plan(self):
+        # Create a plan
+        c = { "name": "test",
+              "description": "Test",
+              "workflow": [ { "plugin_name": "minion.plugins.basic.AlivePlugin",
+                              "description": "Test if the site is alive",
+                              "configuration": { "foo": "bar" }
+                              } ] }
+        r = self.create_plan(c)
+        self.assertSuccessfulResponse(r)
+        # Update the plan
+        u = { "description": "Changed Test",
+              "workflow": [ { "plugin_name": "minion.plugins.basic.XFrameOptionsPlugin",
+                              "description": "Test if the site has an X-Frame-Options header",
+                              "configuration": { "require": "DENY" } } ] }
+        r = self.update_plan("test", u)
+        self.assertSuccessfulResponse(r)
+        # Make sure the plan has changed
+        plugin_descriptor = { "class": "minion.plugins.basic.XFrameOptionsPlugin",
+                              "name": "XFrameOptions",
+                              "version": "0.0",
+                              "weight": "light" }
+        r = self.get_plan("test")
+        self.assertSuccessfulResponse(r)
+        j  = r.json()
+        plan = j["plan"]
+        self.assertEqual("test", plan["name"])
+        self.assertEqual("Changed Test", plan["description"])
+        self.assertEqual(1, len(plan["workflow"]))
+        self.assertEqual("Test if the site has an X-Frame-Options header", plan["workflow"][0]["description"])
+        self.assertEqual({"require": "DENY"}, plan["workflow"][0]["configuration"])
+        self.assertEqual(plugin_descriptor, plan["workflow"][0]["plugin"])
 
     def test_delete_unknown_plan(self):
         r = self.delete_plan('testfoodoesnotexist')
