@@ -90,3 +90,21 @@ class TestInviteAPIs(TestAPIBaseClass):
         self.assertEqual(len(res9.json()['invites']), 1)
         self.assertEqual(res9.json()['invites'][0]['recipient'], recipient1)
 
+    def test_get_invite_by_id(self):
+        recipient1 = self.random_email()
+        recipient2 = self.random_email()
+
+        # create senders
+        res1 = self.create_user()
+
+        # create invites
+        res2 = self.create_invites(recipient=recipient1, sender=self.email)
+        res3 = self.create_invites(recipient=recipient2, sender=self.email)
+
+        # get recipient1
+        recipient1_id = res2.json()['invite']['id']
+        res4 = self.get_invite(id=recipient1_id)
+        self.assertEqual(res4.json().get('invite'), res2.json()['invite'])
+        self.assertEqual(res4.json()['invite']['recipient'], recipient1)
+        self.assertEqual(res4.json()['invite']['sender'], self.email)
+        self.assertEqual(res4.json()['invite']['id'], recipient1_id)

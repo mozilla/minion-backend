@@ -40,6 +40,9 @@ APIS = {'users':
         'invites':
             {'POST': '/invites',
              'GET': '/invites'},
+        'invite': 
+            {'POST': '/invites/{id}',
+             'GET': '/invites/{id}'},
         'groups':
             {'POST': '/groups',
               'GET': '/groups'},
@@ -230,6 +233,12 @@ class TestAPIBaseClass(unittest.TestCase):
 
     def get_invites(self, filters=None):
         return _call('invites', 'GET', data=filters)
+
+    def get_invite(self, id):
+        return _call('invite', 'GET', url_args={'id': id})
+
+    def update_invite(self, id):
+        return _call('invite', 'POST', url_args={'id': id})
 
     def create_group(self, group_name=None, group_description=None, users=None):
         if group_name  is None:

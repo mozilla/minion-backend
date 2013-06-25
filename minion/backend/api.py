@@ -465,11 +465,11 @@ def delete_user(user_email):
 #
 #  POST /invites
 # 
-#  [{'recipient': 'recipient@example.org,
+#  {'recipient': 'recipient@example.org,
 #    'sender': 'sender@example.org'
 #    'recipient_name': 'recipient',
-#    'sender_name': 'sender'},
-#  ]
+#    'sender_name': 'sender'}}
+#
 #
 #  Returns (id, recipient, sender, sent_on)
 
@@ -514,6 +514,28 @@ def get_invites():
     results = search(invites, filters={'sender': sender, 'recipient': recipient})
     return jsonify(success=True, invites=sanitize_invites(results))
 
+
+# 
+# GET an invitation record given the invitation id
+#
+# GET /invites/<id>
+#
+# Returns the invites data structure
+# {'id': 7be9f3b0-ca70-45df-a78a-fc86e541b5d6,
+#   'recipient': 'recipient@example.org',
+#   'sender': 'sender@example.org',
+#   'sent_on': '1372181278',
+#   'accepted_on': '1372181279'}}
+#
+
+@app.route('/invites/<id>', methods=['GET'])
+@api_guard
+def get_invite(id):
+    invitation = invites.find_one({'id': id})
+    if invitation:
+        return jsonify(success=True, invite=sanitize_invite(invitation))
+    else:
+        return jsonify(success=False, reason='invitation-does-not-exist')
 
 # Retrieve all groups in minion
 #
