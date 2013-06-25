@@ -345,7 +345,7 @@ def create_user():
         groups.update({'name':group_name},{'$addToSet': {'users': user['email']}})
     new_user['groups'] = user.get('groups', [])
     if user.get('invitation'):
-       backend_utils.send_invite(user['email'], user.get('url'), sender=user.get('sender'))
+        backend_utils.send_invite(user['email'], user.get('url'), sender=user.get('sender'))
 
     return jsonify(success=True, user=sanitize_user(new_user))
 
