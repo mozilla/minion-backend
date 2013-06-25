@@ -19,11 +19,12 @@ import tasks
 backend_config = backend_utils.backend_config()
 
 mongo_client = MongoClient(host=backend_config['mongodb']['host'], port=backend_config['mongodb']['port'])
+invites = mongo_client.minion.invites
+groups = mongo_client.minion.groups
 plans = mongo_client.minion.plans
 scans = mongo_client.minion.scans
-users = mongo_client.minion.users
 sites = mongo_client.minion.sites
-groups = mongo_client.minion.groups
+users = mongo_client.minion.users
 
 def api_guard(*decor_args):
     """ Decorate a view function to be protected by requiring
@@ -164,6 +165,15 @@ def sanitize_user(user):
     if 'created' in user:
         user['created'] = calendar.timegm(user['created'].utctimetuple())
     return user
+
+def sanitize_invite(invite):
+    if invite.get('_id'):
+        del invite['_id']
+    if invite.get('sent_on'):
+        invite['sent_on'] = calendar.timegm(invite['sent_on'].utctimetuple())
+    if invite.get('accepted_on'):
+        invite['accepted_on'] = calendar.timegm(invite['accepted_on'].utctimetuple())
+    return invite
 
 def sanitize_site(site):
     if '_id' in site:
@@ -322,7 +332,7 @@ def create_user():
         groups.update({'name':group_name},{'$addToSet': {'users': user['email']}})
     new_user['groups'] = user.get('groups', [])
     if user.get('invitation'):
-        backend_utils.send_invite(user['email'], user.get('url'), sender=user.get('sender'))
+       backend_utils.send_invite(user['email'], user.get('url'), sender=user.get('sender'))
 
     return jsonify(success=True, user=sanitize_user(new_user))
 
@@ -434,6 +444,37 @@ def delete_user(user_email):
     for group_name in _find_groups_for_user(user_email):
         groups.update({'name':group_name},{'$pull': {'users': user_email}})
     return jsonify(success=True)
+
+
+#
+#
+# Create a new invite
+#
+#  POST /invites
+# 
+#  [{'recipient': 'recipient@example.org,
+#    'sender': 'sender@example.org'
+#    'recipient_name': 'recipient',
+#    'sender_name': 'sender'},
+#  ]
+#
+#  Returns (_id, recipient, sender, sent_on)
+
+@app.route('/invites', methods=['POST'])
+@api_guard('application/json')
+def create_invites():
+    invite_id = str(uuid.uuid4())
+    invite = {'id': invite_id,
+              'recipient': request.json['recipient'],
+              'sender': request.json['sender'],
+              'sent_on': None,
+              'accepted_on': None}
+
+    backend_utils.send_invite(
+        invite['recipient'], invite_id, sender=invite['sender'])
+    invite['sent_on'] = datetime.datetime.utcnow()
+    invites.insert(invite)
+    return jsonify(success=True, invite=sanitize_invite(invite))
 
 #
 # Retrieve all groups in minion
