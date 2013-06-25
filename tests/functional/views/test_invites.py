@@ -3,11 +3,17 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import pprint
+import uuid
 
 from base import BACKEND_KEY, BASE, _call, TestAPIBaseClass
 
 # issue #114
 class TestInviteAPIs(TestAPIBaseClass):
+    def random_email(self):
+        name = str(uuid.uuid4())
+        name = ''.join(name.split('-'))
+        return name + '@example.org'
+
     def assertSMTPReceived(self, actual_msg, user_email, invite_url):
         msgs = actual_msg.split('\n')
         # the first and last elements must be '------- MESSAGE BEGING/END -------'
@@ -17,17 +23,70 @@ class TestInviteAPIs(TestAPIBaseClass):
         self.assertEqual(True, invite_url in '\n'.join(msgs[6:-1]))
 
     def test_post_invite(self):
+        recipient = self.random_email()
         res1 = self.create_user()
-        res2 = self.create_invite(recipient=self.email2, sender=self.email)
-        pprint.pprint(res2.json(), indent=2)
+        res2 = self.create_invites(recipient=recipient, sender=self.email)
         self.assertSuccessfulResponse(res2)
         expected_top_keys = ('success', 'invite',)
         self._test_keys(res2.json().keys(), expected_top_keys)
         expected_inner_keys = ('id', 'recipient', 'sender', 'sent_on', 'accepted_on')
         self._test_keys(res2.json()['invite'].keys(), expected_inner_keys)
-        self.assertEqual(res2.json()['invite']['recipient'], self.email2)
+        self.assertEqual(res2.json()['invite']['recipient'], recipient)
         self.assertEqual(res2.json()['invite']['sender'], self.email)
         self.assertEqual(True, res2.json()['invite']['accepted_on'] is None)
         self.assertEqual(True, res2.json()['invite']['sent_on'] is not None)
         self.assertEqual(True, res2.json()['invite']['id'] is not None)
-        raw_input('00000')
+
+    def test_get_all_invites(self):
+        recipient1 = self.random_email()
+        recipient2 = self.random_email()
+        recipient3 = self.random_email()
+        res1 = self.create_user()
+        res2 = self.create_invites(recipient=recipient1, sender=self.email)
+        res3 = self.create_invites(recipient=recipient2, sender=self.email)
+        res4 = self.create_invites(recipient=recipient3, sender=self.email)
+
+        res5 = self.get_invites()
+        self.assertEqual(len(res5.json()['invites']), 3)
+        self.assertEqual(res5.json()['invites'][0]['recipient'], recipient1)
+        self.assertEqual(res5.json()['invites'][1]['recipient'], recipient2)
+        self.assertEqual(res5.json()['invites'][2]['recipient'], recipient3)
+
+    def test_get_invites_filter_by_sender_and_or_recipient(self):
+        recipient1 = self.random_email()
+        recipient2 = self.random_email()
+        recipient3 = self.random_email()
+        sender2 = self.random_email()
+        
+        # create senders
+        res1 = self.create_user()
+        res2 = self.create_user(email=sender2)
+        
+        # create recipients
+        res3 = self.create_invites(recipient=recipient1, sender=self.email)
+        res4 = self.create_invites(recipient=recipient2, sender=sender2)
+        res5 = self.create_invites(recipient=recipient3, sender=self.email)
+
+        # only recipient2 is returned given filter by sender
+        res6 = self.get_invites(filters={'sender': sender2})
+        self.assertEqual(len(res6.json()['invites']), 1)
+        self.assertEqual(res6.json()['invites'][0]['recipient'], recipient2)
+        self.assertEqual(res6.json()['invites'][0]['sender'], sender2)
+
+        # recipient2 is not returned given filter by sender
+        res7 = self.get_invites(filters={'sender': self.email})
+        self.assertEqual(len(res7.json()['invites']), 2)
+        self.assertEqual(res7.json()['invites'][0]['recipient'], recipient1)
+        self.assertEqual(res7.json()['invites'][1]['recipient'], recipient3)
+
+        # only recipient1 is returned given filter by recipient
+        res8 = self.get_invites(filters={'recipient': recipient1})
+        self.assertEqual(len(res8.json()['invites']), 1)
+        self.assertEqual(res8.json()['invites'][0]['recipient'], recipient1)
+
+        # only recipient1 is returned given filter by recipient AND sender
+        res9 = self.get_invites(
+            filters={'recipient': recipient1, 'sender': self.email})
+        self.assertEqual(len(res9.json()['invites']), 1)
+        self.assertEqual(res9.json()['invites'][0]['recipient'], recipient1)
+

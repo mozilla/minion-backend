@@ -132,6 +132,13 @@ if app.debug:
         except ImportError as e:
             pass
 
+def search(model, filters=None):
+    if filters:
+        filters = {field: value for field, value in filters.iteritems() if value is not None}
+        return model.find(filters)
+    else:
+        return model.find()
+
 def sanitize_plan(plan):
     if plan.get('_id'):
         del plan['_id']
@@ -174,6 +181,12 @@ def sanitize_invite(invite):
     if invite.get('accepted_on'):
         invite['accepted_on'] = calendar.timegm(invite['accepted_on'].utctimetuple())
     return invite
+
+def sanitize_invites(invite_results):
+    results = []
+    for invite in invite_results:
+        results.append(sanitize_invite(invite))
+    return results
 
 def sanitize_site(site):
     if '_id' in site:
@@ -458,7 +471,7 @@ def delete_user(user_email):
 #    'sender_name': 'sender'},
 #  ]
 #
-#  Returns (_id, recipient, sender, sent_on)
+#  Returns (id, recipient, sender, sent_on)
 
 @app.route('/invites', methods=['POST'])
 @api_guard('application/json')
@@ -476,7 +489,32 @@ def create_invites():
     invites.insert(invite)
     return jsonify(success=True, invite=sanitize_invite(invite))
 
+
+# 
+# Get a list of invites based on filters.
+# 
+# GET /invites
+# GET /invites?sender=<sender_email>
+# GET /invites?recipient=<recipient_email>
 #
+# Returns a list of invites based on filters. Default to no filter.
+# [{'id': 7be9f3b0-ca70-45df-a78a-fc86e541b5d6,
+#   'recipient': 'recipient@example.org',
+#   'sender': 'sender@example.org',
+#   'sent_on': '1372181278',
+#   'accepted_on': '1372181279'},
+#   ....]
+#
+
+@app.route('/invites', methods=['GET'])
+@api_guard
+def get_invites():
+    recipient = request.args.get('recipient', None)
+    sender = request.args.get('sender', None)
+    results = search(invites, filters={'sender': sender, 'recipient': recipient})
+    return jsonify(success=True, invites=sanitize_invites(results))
+
+
 # Retrieve all groups in minion
 #
 #  GET /groups
