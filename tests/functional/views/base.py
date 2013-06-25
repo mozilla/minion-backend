@@ -41,7 +41,7 @@ APIS = {'users':
             {'POST': '/invites',
              'GET': '/invites'},
         'invite': 
-            {'POST': '/invites/{id}',
+            {'POST': '/invites/{id}/control',
              'GET': '/invites/{id}'},
         'groups':
             {'POST': '/groups',
@@ -237,8 +237,12 @@ class TestAPIBaseClass(unittest.TestCase):
     def get_invite(self, id):
         return _call('invite', 'GET', url_args={'id': id})
 
-    def update_invite(self, id):
-        return _call('invite', 'POST', url_args={'id': id})
+    def update_invite(self, id, resend=None, accept=None):
+        if resend:
+            data = {'action': 'resend'}
+        elif accept:
+            data = {'action': 'accept'}
+        return _call('invite', 'POST', url_args={'id': id}, data=data)
 
     def create_group(self, group_name=None, group_description=None, users=None):
         if group_name  is None:

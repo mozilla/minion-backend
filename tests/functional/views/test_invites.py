@@ -2,6 +2,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+import copy
 import pprint
 import uuid
 
@@ -108,3 +109,19 @@ class TestInviteAPIs(TestAPIBaseClass):
         self.assertEqual(res4.json()['invite']['recipient'], recipient1)
         self.assertEqual(res4.json()['invite']['sender'], self.email)
         self.assertEqual(res4.json()['invite']['id'], recipient1_id)
+
+    def test_resent_invite(self):
+        recipient = self.random_email()
+        # create senders
+        res1 = self.create_user()
+        
+        res2 = self.create_invites(recipient=recipient, sender=self.email)
+        res3 = self.update_invite(id=res2.json()['invite']['id'],
+                resend=True)
+        # everything else but sent_on should be the same
+        res2_json = copy.deepcopy(res2.json()['invite'])
+        del res2_json['sent_on']
+        res3_json = copy.deepcopy(res3.json()['invite'])
+        del res3_json['sent_on']
+        self.assertEqual(res2_json, res3_json)
+        #self.assertNotEqual(res2.json()['invite']['sent_on'], res3.json()['invite']['sent_on'])
