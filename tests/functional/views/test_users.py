@@ -26,11 +26,7 @@ class TestUserAPIs(TestAPIBaseClass):
     # ticket #109, #110
     def test_invite_user(self):
         #self.start_smtp()
-        res = self.create_user(
-                email=self.email,
-                invitation=True, 
-                sender='admin@example.org',
-                url='0.0.0.0:8080')
+        res = self.create_user(email=self.email, invitation=True)
         expected_top_keys = ('user', 'success')
         self._test_keys(res.json().keys(), expected_top_keys)
         expected_inner_keys = ('id', 'created', 'role', 'email', 'status')
@@ -44,11 +40,7 @@ class TestUserAPIs(TestAPIBaseClass):
     # ticket #109, #110
     def test_update_invited_user(self):
         #self.start_smtp()
-        res1 = self.create_user(
-                email=self.email,
-                invitation=True, 
-                sender='admin@example.org',
-                url='0.0.0.0:8080')
+        res1 = self.create_user(email=self.email, invitation=True)
         res2 = self.update_user(self.email, user={'status': 'active'})
         self.assertEqual(res2.json()['user']['status'], 'active')
         self.assertEqual(res1.json()['user']['status'], 'invited')

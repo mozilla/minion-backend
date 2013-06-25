@@ -344,9 +344,6 @@ def create_user():
     for group_name in user.get('groups', []):
         groups.update({'name':group_name},{'$addToSet': {'users': user['email']}})
     new_user['groups'] = user.get('groups', [])
-    if user.get('invitation'):
-        backend_utils.send_invite(user['email'], user.get('url'), sender=user.get('sender'))
-
     return jsonify(success=True, user=sanitize_user(new_user))
 
 #
@@ -514,7 +511,6 @@ def get_invites():
     results = search(invites, filters={'sender': sender, 'recipient': recipient})
     return jsonify(success=True, invites=sanitize_invites(results))
 
-
 # 
 # GET an invitation record given the invitation id
 #
@@ -533,6 +529,30 @@ def get_invites():
 def get_invite(id):
     invitation = invites.find_one({'id': id})
     if invitation:
+        return jsonify(success=True, invite=sanitize_invite(invitation))
+    else:
+        return jsonify(success=False, reason='invitation-does-not-exist')
+
+#
+# POST /invites/<id>/control
+# 
+# Returns an updated invitation record
+@app.route('/invites/<id>/control', methods=['POST'])
+@api_guard('application/json')
+def update_invite(id):
+    action = request.json['action'].lower()
+    invitation = invites.find_one({'id': id})
+    if invitation:
+        recipient, sender, id = (invitation['recipient'], invitation['sender'], id)
+        if not action in ('resend', 'accept'):
+            return jsonify(success=False, reason='invalid-action')
+        if action == 'resend':
+            backend_utils.send_invite(recipient, id, sender)
+            invitation['sent_on'] = datetime.datetime.utcnow()
+            invites.update({'id': id},{'$set': {'sent_on': invitation['sent_on']}})
+        else:
+            invitation['accepted_on'] = datetime.datetime.utcnow()
+            invites.update({'id': id},{'$set': {'accepted_on': invitation['accepted_on']}})
         return jsonify(success=True, invite=sanitize_invite(invitation))
     else:
         return jsonify(success=False, reason='invitation-does-not-exist')

@@ -118,10 +118,5 @@ class TestInviteAPIs(TestAPIBaseClass):
         res2 = self.create_invites(recipient=recipient, sender=self.email)
         res3 = self.update_invite(id=res2.json()['invite']['id'],
                 resend=True)
-        # everything else but sent_on should be the same
-        res2_json = copy.deepcopy(res2.json()['invite'])
-        del res2_json['sent_on']
-        res3_json = copy.deepcopy(res3.json()['invite'])
-        del res3_json['sent_on']
-        self.assertEqual(res2_json, res3_json)
-        #self.assertNotEqual(res2.json()['invite']['sent_on'], res3.json()['invite']['sent_on'])
+
+        self.assertEqual(res2.json(), res3.json())

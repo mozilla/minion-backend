@@ -211,9 +211,8 @@ class TestAPIBaseClass(unittest.TestCase):
             self.assertEqual("0.0", meta['version'])
 
     def create_user(self, email="bob@example.org", name="Bob", role="user", groups=[], headers=None,
-            invitation=None, sender=None, url=None):
-        data = {"email": email, "name": name, "role": role, "groups":groups, 
-                "invitation": invitation, "sender": sender, 'url': url}
+            invitation=None):
+        data = {"email": email, "name": name, "role": role, "groups":groups, "invitation": invitation}
         return _call('users', 'POST', headers=headers, data=data)
 
     def update_user(self, user_email, user):
