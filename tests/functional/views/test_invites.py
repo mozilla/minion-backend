@@ -120,3 +120,32 @@ class TestInviteAPIs(TestAPIBaseClass):
                 resend=True)
 
         self.assertEqual(res2.json(), res3.json())
+
+    def test_delete_invite(self):
+        recipient1 = self.random_email()
+        recipient2 = self.random_email()
+
+        res1 = self.create_user()
+        res2 = self.create_invites(recipient=recipient1, sender=self.email)
+        res3 = self.create_invites(recipient=recipient2, sender=self.email)
+
+        # ensure we have two records
+        res4 = self.get_invites()
+        self.assertEqual(len(res4.json()['invites']), 2)
+        self.assertEqual(res4.json()['invites'][0]['recipient'], recipient1)
+        self.assertEqual(res4.json()['invites'][1]['recipient'], recipient2)
+
+        # now delete recipient1
+        res5 = self.delete_invite(id=res2.json()['invite']['id'])
+        self.assertEqual(res5.json()['success'], True)
+        # re-delete should yield false
+        res6 = self.delete_invite(id=res2.json()['invite']['id'])
+        self.assertEqual(res6.json()['success'], False)
+        self.assertEqual(res6.json()['reason'], 'no-such-invitation')
+        # we should only get one back
+        res7 = self.get_invites()
+        self.assertEqual(len(res7.json()['invites']), 1)
+        self.assertEqual(res7.json()['invites'][0]['recipient'], recipient2)
+
+
+

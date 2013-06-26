@@ -42,7 +42,8 @@ APIS = {'users':
              'GET': '/invites'},
         'invite': 
             {'POST': '/invites/{id}/control',
-             'GET': '/invites/{id}'},
+             'GET': '/invites/{id}',
+             'DELETE': '/invites/{id}'},
         'groups':
             {'POST': '/groups',
               'GET': '/groups'},
@@ -242,6 +243,9 @@ class TestAPIBaseClass(unittest.TestCase):
         elif accept:
             data = {'action': 'accept'}
         return _call('invite', 'POST', url_args={'id': id}, data=data)
+
+    def delete_invite(self, id):
+        return _call('invite', 'DELETE', url_args={'id': id})
 
     def create_group(self, group_name=None, group_description=None, users=None):
         if group_name  is None:
