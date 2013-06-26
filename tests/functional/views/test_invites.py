@@ -127,25 +127,42 @@ class TestInviteAPIs(TestAPIBaseClass):
 
         res1 = self.create_user()
         res2 = self.create_invites(recipient=recipient1, sender=self.email)
+        recipient1_id = res2.json()['invite']['id']
+        res2 = self.create_user(email=recipient1)
         res3 = self.create_invites(recipient=recipient2, sender=self.email)
+        recipient2_id = res3.json()['invite']['id']
+        res3 = self.create_user(email=recipient2)
 
         # ensure we have two records
         res4 = self.get_invites()
         self.assertEqual(len(res4.json()['invites']), 2)
         self.assertEqual(res4.json()['invites'][0]['recipient'], recipient1)
         self.assertEqual(res4.json()['invites'][1]['recipient'], recipient2)
-
+        
+        # we need to ensure these users are created
+        res4 = self.get_user(recipient1)
+        self.assertEqual(res4.json()['user']['email'], recipient1)
+        res4 = self.get_user(recipient2)
+        self.assertEqual(res4.json()['user']['email'], recipient2)
+        
         # now delete recipient1
-        res5 = self.delete_invite(id=res2.json()['invite']['id'])
+        res5 = self.delete_invite(id=recipient1_id)
         self.assertEqual(res5.json()['success'], True)
+
         # re-delete should yield false
-        res6 = self.delete_invite(id=res2.json()['invite']['id'])
+        res6 = self.delete_invite(id=recipient1_id)
         self.assertEqual(res6.json()['success'], False)
         self.assertEqual(res6.json()['reason'], 'no-such-invitation')
+        
+        # recipient1 should not even be in users table anymore
+        res7 = self.get_user(recipient1)
+        self.assertEqual(res7.json()['success'], False)
+        self.assertEqual(res7.json()['reason'], 'no-such-user')
+
         # we should only get one back
-        res7 = self.get_invites()
-        self.assertEqual(len(res7.json()['invites']), 1)
-        self.assertEqual(res7.json()['invites'][0]['recipient'], recipient2)
+        res8 = self.get_invites()
+        self.assertEqual(len(res8.json()['invites']), 1)
+        self.assertEqual(res8.json()['invites'][0]['recipient'], recipient2)
 
 
 

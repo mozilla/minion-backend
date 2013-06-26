@@ -534,7 +534,20 @@ def get_invite(id):
         return jsonify(success=False, reason='invitation-does-not-exist')
 
 #
-# POST /invites/<id>/control
+# DELETE an invitation given the invitation id
+#
+
+@app.route('/invites/<id>', methods=['DELETE'])
+@api_guard
+def delete_invite(id):
+    invitation = invites.find_one({'id': id})
+    if not invitation:
+        return jsonify(success=False, reason='no-such-invitation')
+    users.remove({'email': invitation['recipient']})
+    invites.remove({'id': id})
+    return jsonify(success=True)
+
+## POST /invites/<id>/control
 # 
 # Returns an updated invitation record
 @app.route('/invites/<id>/control', methods=['POST'])
