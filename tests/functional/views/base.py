@@ -228,8 +228,9 @@ class TestAPIBaseClass(unittest.TestCase):
     def get_users(self):
         return _call('users', 'GET')
 
-    def create_invites(self, recipient=None, sender=None):
-        return _call('invites', 'POST', data={'recipient': recipient, 'sender': sender})
+    def create_invites(self, recipient=None, sender=None, base_url="http://localhost:8080"):
+        return _call('invites', 'POST', 
+                data={'recipient': recipient, 'sender': sender, "base_url": "http://localhost:8080"})
 
     def get_invites(self, filters=None):
         return _call('invites', 'GET', data=filters)
@@ -237,11 +238,13 @@ class TestAPIBaseClass(unittest.TestCase):
     def get_invite(self, id):
         return _call('invite', 'GET', url_args={'id': id})
 
-    def update_invite(self, id, resend=None, accept=None):
+    def update_invite(self, id, resend=None, accept=None, decline=None, base_url="http://localhost:8080"):
         if resend:
-            data = {'action': 'resend'}
+            data = {'action': 'resend', "base_url": base_url}
         elif accept:
             data = {'action': 'accept'}
+        elif decline:
+            data = {'action': 'decline'}
         return _call('invite', 'POST', url_args={'id': id}, data=data)
 
     def delete_invite(self, id):
