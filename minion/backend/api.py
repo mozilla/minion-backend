@@ -493,7 +493,7 @@ def create_invites():
               'recipient': recipient,
               'recipient_name': recipient_user['name'] or recipient,
               'sender': sender,
-              'sender_name': sender_user['name'] or recipient,
+              'sender_name': sender_user['name'] or sender,
               'sent_on': None,
               'accepted_on': None,
               'status': None,
@@ -614,13 +614,16 @@ def update_invite(id):
         if action == 'resend':
             new_id = str(uuid.uuid4())
             base_url = request.json['base_url']
-            backend_utils.send_invite(recipient, recipient_name, sender, sender_name, base_url, id)
+            backend_utils.send_invite(recipient, recipient_name, sender, sender_name, base_url, new_id)
             # generate new record
             sent_on = datetime.datetime.utcnow()
             expire_on = sent_on + datetime.timedelta(seconds=max_time_allowed)
+            invitation['id'] = new_id
             invitation['sent_on'] = sent_on
             invitation['expire_on'] = expire_on
-            invites.update({'id': new_id}, {'$set': {'sent_on': invitation['sent_on']}})
+            invites.update({'id': id}, {'$set': 
+                {'sent_on': invitation['sent_on'],
+                 'id': invitation['id']}})
             return jsonify(success=True, invite=sanitize_invite(invitation))
         elif action == 'accept':
             # if time now is ahead of expire_on, the delta is negative

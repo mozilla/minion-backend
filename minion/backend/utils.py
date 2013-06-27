@@ -52,7 +52,7 @@ def frontend_config():
 def send_invite(recipient, recipient_name, sender, sender_name, base_url, id):
     """ Send an invitation to a recipient. """
 
-    url = base_url.strip('/') + id
+    url = base_url.strip('/') + '/' + id
     invite_msg = """
 Dear {recp_name}:
 

@@ -140,8 +140,9 @@ class TestInviteAPIs(TestAPIBaseClass):
         res2 = self.create_invites(recipient=recipient, sender=self.email)
         res3 = self.update_invite(id=res2.json()['invite']['id'],
                 resend=True)
-
-        self.assertEqual(res2.json(), res3.json())
+        # should not equal
+        self.assertNotEqual(res2.json(), res3.json())
+        self.assertNotEqual(res2.json()['invite']['id'], res3.json()['invite']['id'])
 
     def test_decline_invite(self):
         recipient = self.random_email()
