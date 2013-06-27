@@ -32,8 +32,8 @@ class TestUserAPIs(TestAPIBaseClass):
         expected_inner_keys = ('id', 'created', 'role', 'email', 'status')
         self._test_keys(res.json()['user'].keys(), expected_inner_keys)
         self.assertEqual(res.json()['user']['status'], 'invited')
-        with open('/tmp/minion_smtp_debug.txt', 'r') as f:
-            data = f.read()
+        #with open('/tmp/minion_smtp_debug.txt', 'r') as f:
+        #    data = f.read()
         #self.assertSMTPReceived(data, self.email, '0.0.0.0:8080')
         #self.stop_smtp()
 
