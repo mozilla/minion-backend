@@ -17,6 +17,6 @@ if __name__ == "__main__":
 
    (options, args) = parser.parse_args()
 
-   app = configure_app(app, debug=options.debug)
+   app = configure_app(app, production=False, debug=options.debug)
    app.run(host=options.address, port=options.port, debug=options.debug,
-           use_reloader=options.reload, use_evalex=False)
+           use_reloader=options.reload)

@@ -8,6 +8,7 @@ app = Flask(__name__)
 
 import minion.backend.api
 
-def configure_app(app, debug=False):
+def configure_app(app, production=True, debug=False):
     app.debug = debug
+    app.use_evalex = False
     return app
