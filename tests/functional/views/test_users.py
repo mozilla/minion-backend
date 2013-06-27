@@ -7,12 +7,44 @@ import pprint
 from base import BACKEND_KEY, BASE, _call, TestAPIBaseClass
 
 class TestUserAPIs(TestAPIBaseClass):
+    def assertSMTPReceived(self, actual_msg, user_email, invite_url):
+        msgs = actual_msg.split('\n')
+        # the first and last elements must be '------- MESSAGE BEGING/END -------'
+        # [2] --> From ,  [3] --> To,   [4] --> Subject ,  [5] --> X-Peer,
+        # [6] --> len(actual_msg)-2  ---> rest of body
+        self.assertEqual(True, user_email in msgs[1])
+        self.assertEqual(True, invite_url in '\n'.join(msgs[6:-1]))
+
     def test_create_user(self):
         res = self.create_user()
         expected_top_keys = ('user', 'success')
         self._test_keys(res.json().keys(), expected_top_keys)
-        expected_inner_keys = ('id', 'created', 'role', 'email')
+        expected_inner_keys = ('id', 'created', 'role', 'email', 'status')
         self._test_keys(res.json()['user'].keys(), expected_inner_keys)
+        self.assertEqual(res.json()['user']['status'], 'active')    # ticket #109
+
+    # ticket #109, #110
+    def test_invite_user(self):
+        #self.start_smtp()
+        res = self.create_user(email=self.email, invitation=True)
+        expected_top_keys = ('user', 'success')
+        self._test_keys(res.json().keys(), expected_top_keys)
+        expected_inner_keys = ('id', 'created', 'role', 'email', 'status')
+        self._test_keys(res.json()['user'].keys(), expected_inner_keys)
+        self.assertEqual(res.json()['user']['status'], 'invited')
+        with open('/tmp/minion_smtp_debug.txt', 'r') as f:
+            data = f.read()
+        #self.assertSMTPReceived(data, self.email, '0.0.0.0:8080')
+        #self.stop_smtp()
+
+    # ticket #109, #110
+    def test_update_invited_user(self):
+        #self.start_smtp()
+        res1 = self.create_user(email=self.email, invitation=True)
+        res2 = self.update_user(self.email, user={'status': 'active'})
+        self.assertEqual(res2.json()['user']['status'], 'active')
+        self.assertEqual(res1.json()['user']['status'], 'invited')
+        #self.stop_smtp()
 
     def test_get_user(self):
         r = self.create_group('foo')
@@ -98,7 +130,6 @@ class TestUserAPIs(TestAPIBaseClass):
                                                'groups': ['bar']})
         r.raise_for_status()
         j = r.json()
-        print j
         self.assertEqual(True, j['success'])
         # Make sure the user returned is correct
         self.assertEqual("foo@example.com", j['user']['email'])

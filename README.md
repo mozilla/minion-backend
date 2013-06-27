@@ -16,7 +16,7 @@ This assumes a recent version of Ubuntu. We have only tested with Ubuntu 12.04.2
 First install the essentials:
 
 ```
-sudo apt-get install git build-essential python-virtualenv python-dev mongodb-server rabbitmq-server curl libcurl4-openssl-dev
+sudo apt-get install git build-essential python-virtualenv python-dev mongodb-server rabbitmq-server curl libcurl4-openssl-dev postfix
 ```
 
 Then checkout the project and set it up:

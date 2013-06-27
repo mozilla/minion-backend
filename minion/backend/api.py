@@ -19,11 +19,12 @@ import tasks
 backend_config = backend_utils.backend_config()
 
 mongo_client = MongoClient(host=backend_config['mongodb']['host'], port=backend_config['mongodb']['port'])
+invites = mongo_client.minion.invites
+groups = mongo_client.minion.groups
 plans = mongo_client.minion.plans
 scans = mongo_client.minion.scans
-users = mongo_client.minion.users
 sites = mongo_client.minion.sites
-groups = mongo_client.minion.groups
+users = mongo_client.minion.users
 
 def api_guard(*decor_args):
     """ Decorate a view function to be protected by requiring
@@ -131,6 +132,13 @@ if app.debug:
         except ImportError as e:
             pass
 
+def search(model, filters=None):
+    if filters:
+        filters = {field: value for field, value in filters.iteritems() if value is not None}
+        return model.find(filters)
+    else:
+        return model.find()
+
 def sanitize_plan(plan):
     if plan.get('_id'):
         del plan['_id']
@@ -164,6 +172,21 @@ def sanitize_user(user):
     if 'created' in user:
         user['created'] = calendar.timegm(user['created'].utctimetuple())
     return user
+
+def sanitize_invite(invite):
+    if invite.get('_id'):
+        del invite['_id']
+    if invite.get('sent_on'):
+        invite['sent_on'] = calendar.timegm(invite['sent_on'].utctimetuple())
+    if invite.get('accepted_on'):
+        invite['accepted_on'] = calendar.timegm(invite['accepted_on'].utctimetuple())
+    return invite
+
+def sanitize_invites(invite_results):
+    results = []
+    for invite in invite_results:
+        results.append(sanitize_invite(invite))
+    return results
 
 def sanitize_site(site):
     if '_id' in site:
@@ -285,6 +308,8 @@ def get_user(email):
 #    groups: ["foo"],
 #    role: "user" }
 #
+# Optionally, the POST accepts creating user via invitations by adding
+# 'invitation', 'url' and an optional 'sender' to the json input above.
 # Returns the full user record
 #
 #  { "success": true
@@ -309,6 +334,7 @@ def create_user():
     if user.get("role") not in ("user", "administrator"):
         return jsonify(success=False, reason="invalid-role")
     new_user = { 'id': str(uuid.uuid4()),
+                 'status': 'invited' if user.get('invitation') else 'active',
                  'email':  user['email'],
                  'name': user.get('name'),
                  'role': user['role'],
@@ -346,7 +372,7 @@ def update_user(user_email):
         return jsonify(success=False, reason='unknown-user')
     old_user['groups'] = _find_groups_for_user(user_email)
     old_user['sites'] = _find_sites_for_user(user_email)
-    #
+    
     if 'groups' in new_user:
         for group_name in new_user.get('groups', []):
             if not _check_group_exists(group_name):
@@ -354,6 +380,9 @@ def update_user(user_email):
     if 'role' in new_user:
         if new_user["role"] not in ("user", "administrator"):
             return jsonify(success=False, reason="invalid-role")
+    if 'status' in new_user:
+        if new_user['status'] not in ('active', 'banned'):
+            return jsonify(success=False, reason='unknown-status-option')
     # Update the group memberships
     if 'groups' in new_user:
         # Add new groups
@@ -372,6 +401,8 @@ def update_user(user_email):
         changes['role'] = new_user['role']
     if 'groups' in new_user:
         changes['groups'] = new_user['groups']
+    if 'status' in new_user:
+        changes['status'] = new_user['status']
     users.update({'email': user_email}, {'$set': changes})
     # Return the updated user
     user = users.find_one({'email': user_email})
@@ -424,7 +455,121 @@ def delete_user(user_email):
         groups.update({'name':group_name},{'$pull': {'users': user_email}})
     return jsonify(success=True)
 
+
 #
+#
+# Create a new invite
+#
+#  POST /invites
+# 
+#  {'recipient': 'recipient@example.org,
+#    'sender': 'sender@example.org'
+#    'recipient_name': 'recipient',
+#    'sender_name': 'sender'}}
+#
+#
+#  Returns (id, recipient, sender, sent_on)
+
+@app.route('/invites', methods=['POST'])
+@api_guard('application/json')
+def create_invites():
+    invite_id = str(uuid.uuid4())
+    invite = {'id': invite_id,
+              'recipient': request.json['recipient'],
+              'sender': request.json['sender'],
+              'sent_on': None,
+              'accepted_on': None}
+
+    backend_utils.send_invite(
+        invite['recipient'], invite_id, sender=invite['sender'])
+    invite['sent_on'] = datetime.datetime.utcnow()
+    invites.insert(invite)
+    return jsonify(success=True, invite=sanitize_invite(invite))
+
+
+# 
+# Get a list of invites based on filters.
+# 
+# GET /invites
+# GET /invites?sender=<sender_email>
+# GET /invites?recipient=<recipient_email>
+#
+# Returns a list of invites based on filters. Default to no filter.
+# [{'id': 7be9f3b0-ca70-45df-a78a-fc86e541b5d6,
+#   'recipient': 'recipient@example.org',
+#   'sender': 'sender@example.org',
+#   'sent_on': '1372181278',
+#   'accepted_on': '1372181279'},
+#   ....]
+#
+
+@app.route('/invites', methods=['GET'])
+@api_guard
+def get_invites():
+    recipient = request.args.get('recipient', None)
+    sender = request.args.get('sender', None)
+    results = search(invites, filters={'sender': sender, 'recipient': recipient})
+    return jsonify(success=True, invites=sanitize_invites(results))
+
+# 
+# GET an invitation record given the invitation id
+#
+# GET /invites/<id>
+#
+# Returns the invites data structure
+# {'id': 7be9f3b0-ca70-45df-a78a-fc86e541b5d6,
+#   'recipient': 'recipient@example.org',
+#   'sender': 'sender@example.org',
+#   'sent_on': '1372181278',
+#   'accepted_on': '1372181279'}}
+#
+
+@app.route('/invites/<id>', methods=['GET'])
+@api_guard
+def get_invite(id):
+    invitation = invites.find_one({'id': id})
+    if invitation:
+        return jsonify(success=True, invite=sanitize_invite(invitation))
+    else:
+        return jsonify(success=False, reason='invitation-does-not-exist')
+
+#
+# DELETE an invitation given the invitation id
+#
+
+@app.route('/invites/<id>', methods=['DELETE'])
+@api_guard
+def delete_invite(id):
+    invitation = invites.find_one({'id': id})
+    if not invitation:
+        return jsonify(success=False, reason='no-such-invitation')
+    users.remove({'email': invitation['recipient']})
+    invites.remove({'id': id})
+    return jsonify(success=True)
+
+## POST /invites/<id>/control
+# 
+# Returns an updated invitation record
+@app.route('/invites/<id>/control', methods=['POST'])
+@api_guard('application/json')
+def update_invite(id):
+    action = request.json['action'].lower()
+    invitation = invites.find_one({'id': id})
+    if invitation:
+        recipient, sender, id = (invitation['recipient'], invitation['sender'], id)
+        if not action in ('resend', 'accept'):
+            return jsonify(success=False, reason='invalid-action')
+        if action == 'resend':
+            backend_utils.send_invite(recipient, id, sender)
+            invitation['sent_on'] = datetime.datetime.utcnow()
+            invites.update({'id': id},{'$set': {'sent_on': invitation['sent_on']}})
+        else:
+            invitation['accepted_on'] = datetime.datetime.utcnow()
+            invites.update({'id': id},{'$set': {'accepted_on': invitation['accepted_on']}})
+        return jsonify(success=True, invite=sanitize_invite(invitation))
+    else:
+        return jsonify(success=False, reason='invitation-does-not-exist')
+
 # Retrieve all groups in minion
 #
 #  GET /groups
