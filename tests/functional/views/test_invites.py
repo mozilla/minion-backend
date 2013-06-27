@@ -25,24 +25,34 @@ class TestInviteAPIs(TestAPIBaseClass):
 
     def test_post_invite(self):
         recipient = self.random_email()
+        # must create both sender and user
         res1 = self.create_user()
-        res2 = self.create_invites(recipient=recipient, sender=self.email)
-        self.assertSuccessfulResponse(res2)
+        res2 = self.create_user(email=recipient, name='Alice')
+
+        res3 = self.create_invites(recipient=recipient, sender=self.email)
+        self.assertSuccessfulResponse(res3)
         expected_top_keys = ('success', 'invite',)
-        self._test_keys(res2.json().keys(), expected_top_keys)
-        expected_inner_keys = ('id', 'recipient', 'sender', 'sent_on', 'accepted_on')
-        self._test_keys(res2.json()['invite'].keys(), expected_inner_keys)
-        self.assertEqual(res2.json()['invite']['recipient'], recipient)
-        self.assertEqual(res2.json()['invite']['sender'], self.email)
-        self.assertEqual(True, res2.json()['invite']['accepted_on'] is None)
-        self.assertEqual(True, res2.json()['invite']['sent_on'] is not None)
-        self.assertEqual(True, res2.json()['invite']['id'] is not None)
+        self._test_keys(res3.json().keys(), expected_top_keys)
+        expected_inner_keys = ('id', 'recipient', 'sender', 'sent_on', 'accepted_on', \
+                'sender_name', 'recipient_name')
+        self._test_keys(res3.json()['invite'].keys(), expected_inner_keys)
+        self.assertEqual(res3.json()['invite']['recipient'], recipient)
+        self.assertEqual(res3.json()['invite']['sender'], self.email)
+        self.assertEqual(res3.json()['invite']['recipient_name'], 'Alice')
+        self.assertEqual(res3.json()['invite']['sender_name'], 'Bob')
+        self.assertEqual(True, res3.json()['invite']['accepted_on'] is None)
+        self.assertEqual(True, res3.json()['invite']['sent_on'] is not None)
+        self.assertEqual(True, res3.json()['invite']['id'] is not None)
 
     def test_get_all_invites(self):
         recipient1 = self.random_email()
         recipient2 = self.random_email()
         recipient3 = self.random_email()
         res1 = self.create_user()
+        res1 = self.create_user(email=recipient1, name='Alice')
+        res1 = self.create_user(email=recipient2, name='Betty')
+        res1 = self.create_user(email=recipient3, name='Cathy')
+
         res2 = self.create_invites(recipient=recipient1, sender=self.email)
         res3 = self.create_invites(recipient=recipient2, sender=self.email)
         res4 = self.create_invites(recipient=recipient3, sender=self.email)
@@ -62,6 +72,11 @@ class TestInviteAPIs(TestAPIBaseClass):
         # create senders
         res1 = self.create_user()
         res2 = self.create_user(email=sender2)
+
+        # create recipients in the user table
+        res2 = self.create_user(email=recipient1, name='Alice')
+        res2 = self.create_user(email=recipient2, name='Betty')
+        res2 = self.create_user(email=recipient3, name='Cathy')
         
         # create recipients
         res3 = self.create_invites(recipient=recipient1, sender=self.email)
@@ -98,6 +113,10 @@ class TestInviteAPIs(TestAPIBaseClass):
         # create senders
         res1 = self.create_user()
 
+        # create recipients in the user table
+        res1 = self.create_user(email=recipient1, name='Alice')
+        res1 = self.create_user(email=recipient2, name='Betty')
+
         # create invites
         res2 = self.create_invites(recipient=recipient1, sender=self.email)
         res3 = self.create_invites(recipient=recipient2, sender=self.email)
@@ -115,23 +134,38 @@ class TestInviteAPIs(TestAPIBaseClass):
         # create senders
         res1 = self.create_user()
         
+        # create recipients in the user table
+        res1 = self.create_user(email=recipient, name='Alice')
+
         res2 = self.create_invites(recipient=recipient, sender=self.email)
         res3 = self.update_invite(id=res2.json()['invite']['id'],
                 resend=True)
+        # should not equal
+        self.assertNotEqual(res2.json(), res3.json())
+        self.assertNotEqual(res2.json()['invite']['id'], res3.json()['invite']['id'])
 
-        self.assertEqual(res2.json(), res3.json())
+    def test_decline_invite(self):
+        recipient = self.random_email()
+        res1 = self.create_user()
+        res2 = self.create_user(email=recipient, name='Alice')
+        res3 = self.create_invites(recipient=recipient, sender=self.email)
+        res4 = self.update_invite(id=res3.json()['invite']['id'],
+                decline=True)
+        self.assertEqual(res4.json()['invite']['status'], 'declined')
 
     def test_delete_invite(self):
         recipient1 = self.random_email()
         recipient2 = self.random_email()
 
         res1 = self.create_user()
+        # create recipients in the user table
+        res1 = self.create_user(email=recipient1, name='Alice')
+        res1 = self.create_user(email=recipient2, name='Betty')
+
         res2 = self.create_invites(recipient=recipient1, sender=self.email)
         recipient1_id = res2.json()['invite']['id']
-        res2 = self.create_user(email=recipient1)
         res3 = self.create_invites(recipient=recipient2, sender=self.email)
         recipient2_id = res3.json()['invite']['id']
-        res3 = self.create_user(email=recipient2)
 
         # ensure we have two records
         res4 = self.get_invites()
@@ -163,6 +197,3 @@ class TestInviteAPIs(TestAPIBaseClass):
         res8 = self.get_invites()
         self.assertEqual(len(res8.json()['invites']), 1)
         self.assertEqual(res8.json()['invites'][0]['recipient'], recipient2)
-
-
-

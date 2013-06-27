@@ -20,9 +20,10 @@ DEFAULT_BACKEND_CONFIG = {
         'host': '127.0.0.1',
         'port': 27017
     },
-    'smtp': {
+    'invitation': {
         'host': '127.0.0.1',
         'port': 25,
+        'max_time_allowed': 3600 * 24 * 7 # seconds in 7 days
     }
 }
 
@@ -48,25 +49,27 @@ def backend_config():
 def frontend_config():
     return _load_config("frontend.json") or copy.deepcopy(DEFAULT_FRONTEND_CONFIG)
 
-def send_invite(recipient, url, sender=None):
+def send_invite(recipient, recipient_name, sender, sender_name, base_url, id):
     """ Send an invitation to a recipient. """
 
+    url = base_url.strip('/') + '/' + id
     invite_msg = """
-Dear {recp}:
+Dear {recp_name}:
 
-We are inviting you to use Minion ({url}). Minion is a security testing framework built by Mozilla to bridge the gap between \
-developers and security testers. Once you signup, you can scan your projects and receive friendly security assessment.
+{sender_name} is inviting you to use Minion ({url}). Minion is a security testing framework \
+built by Mozilla to bridge the gap between developers and security testers. Once you signup,
+you can scan your projects and receive friendly web security assessment.
 
 Thank you.
 
 Sincerely,
 Security Assurance Team at Mozilla
 
-"""
+""".format(recp_name=recipient_name, sender_name=sender_name, url=url)
 
     config = backend_config()
-    smtp = config['smtp']
-    subject = "You're invited to try Minion!"
+    smtp = config['invitation']
+    subject = "{sender_name} is inviting you to use Minion!".format(sender_name=sender_name)
 
     # we have the option to send this invitation 
     # via user's email (admin's own account) or

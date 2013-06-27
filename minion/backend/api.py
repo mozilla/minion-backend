@@ -180,6 +180,8 @@ def sanitize_invite(invite):
         invite['sent_on'] = calendar.timegm(invite['sent_on'].utctimetuple())
     if invite.get('accepted_on'):
         invite['accepted_on'] = calendar.timegm(invite['accepted_on'].utctimetuple())
+    if invite.get('expire_on'):
+        invite['expire_on'] = calendar.timegm(invite['expire_on'].utctimetuple())
     return invite
 
 def sanitize_invites(invite_results):
@@ -463,26 +465,52 @@ def delete_user(user_email):
 #  POST /invites
 # 
 #  {'recipient': 'recipient@example.org,
-#    'sender': 'sender@example.org'
-#    'recipient_name': 'recipient',
-#    'sender_name': 'sender'}}
+#    'sender': 'sender@example.org'}
 #
 #
-#  Returns (id, recipient, sender, sent_on)
+#  Returns (id, recipient, recipient_name, 
+#           sender, sender_name, sent_on, accepted_on,
+#           expire_on, status)
 
 @app.route('/invites', methods=['POST'])
 @api_guard('application/json')
 def create_invites():
+    recipient = request.json['recipient']
+    sender = request.json['sender']
+    recipient_user = users.find_one({'email': recipient})
+    # should be created at this point
+    if not recipient_user:
+        return jsonify(success=False, 
+                reason='recipient-not-found-in-user-record')
+    sender_user = users.find_one({'email': sender})
+    if not sender_user:
+        return jsonify(success=False,
+                reason='sender-not-found-in-user-record')
+
     invite_id = str(uuid.uuid4())
+    # some users may not have name filled out?
     invite = {'id': invite_id,
-              'recipient': request.json['recipient'],
-              'sender': request.json['sender'],
+              'recipient': recipient,
+              'recipient_name': recipient_user['name'] or recipient,
+              'sender': sender,
+              'sender_name': sender_user['name'] or sender,
               'sent_on': None,
-              'accepted_on': None}
+              'accepted_on': None,
+              'status': None,
+              'expire_on': None,
+              'max_time_allowed': request.json.get('max_time_allowed') \
+                      or backend_config.get('invitation').get('max_time_allowed')}
 
     backend_utils.send_invite(
-        invite['recipient'], invite_id, sender=invite['sender'])
+        invite['recipient'], 
+        invite['recipient_name'], 
+        invite['sender'],
+        invite['sender_name'],
+        request.json['base_url'],
+        invite_id)
     invite['sent_on'] = datetime.datetime.utcnow()
+    invite['expire_on'] = invite['sent_on'] + \
+        datetime.timedelta(seconds=invite['max_time_allowed'])
     invites.insert(invite)
     return jsonify(success=True, invite=sanitize_invite(invite))
 
@@ -497,9 +525,13 @@ def create_invites():
 # Returns a list of invites based on filters. Default to no filter.
 # [{'id': 7be9f3b0-ca70-45df-a78a-fc86e541b5d6,
 #   'recipient': 'recipient@example.org',
+#   'recipient_name': 'recipient',
 #   'sender': 'sender@example.org',
+#   'sender_name': 'sender',
 #   'sent_on': '1372181278',
-#   'accepted_on': '1372181279'},
+#   'accepted_on': '1372181279',
+#   'expire_on': 1372191288',
+#   'status': 'used/expired/declined',
 #   ....]
 #
 
@@ -519,9 +551,13 @@ def get_invites():
 # Returns the invites data structure
 # {'id': 7be9f3b0-ca70-45df-a78a-fc86e541b5d6,
 #   'recipient': 'recipient@example.org',
+#   'recipient_name': 'recipient',
 #   'sender': 'sender@example.org',
+#   'sender_name': 'sender',
 #   'sent_on': '1372181278',
-#   'accepted_on': '1372181279'}}
+#   'accepted_on': '1372181279',
+#   'expire_on': 1372191288',
+#   'status': 'used/expired/declined'}
 #
 
 @app.route('/invites/<id>', methods=['GET'])
@@ -548,25 +584,64 @@ def delete_invite(id):
     return jsonify(success=True)
 
 ## POST /invites/<id>/control
-# 
+# {'action': 'resend'}
+# {'action': 'accept'}
+# {'action': 'decline'}
 # Returns an updated invitation record
 @app.route('/invites/<id>/control', methods=['POST'])
 @api_guard('application/json')
 def update_invite(id):
+    timenow = datetime.datetime.utcnow()
     action = request.json['action'].lower()
+    
     invitation = invites.find_one({'id': id})
     if invitation:
-        recipient, sender, id = (invitation['recipient'], invitation['sender'], id)
-        if not action in ('resend', 'accept'):
+        max_time_allowed = invitation.get('max_time_allowed') \
+            or backend_config.get('invitation').get('max_time_allowed')
+        recipient = invitation['recipient']
+        recipient_name = invitation['recipient_name']
+        sender = invitation['sender']
+        sender_name = invitation['sender_name']
+        sent_on = invitation['sent_on']
+        accepted_on = invitation['accepted_on']
+        expire_on = invitation['expire_on']
+
+        if accepted_on is not None:
+            return jsonify(success=False, reason="invitation-has-been-used")
+        if not action in ('resend', 'accept', 'decline'):
             return jsonify(success=False, reason='invalid-action')
+
         if action == 'resend':
-            backend_utils.send_invite(recipient, id, sender)
-            invitation['sent_on'] = datetime.datetime.utcnow()
-            invites.update({'id': id},{'$set': {'sent_on': invitation['sent_on']}})
-        else:
-            invitation['accepted_on'] = datetime.datetime.utcnow()
-            invites.update({'id': id},{'$set': {'accepted_on': invitation['accepted_on']}})
-        return jsonify(success=True, invite=sanitize_invite(invitation))
+            new_id = str(uuid.uuid4())
+            base_url = request.json['base_url']
+            backend_utils.send_invite(recipient, recipient_name, sender, sender_name, base_url, new_id)
+            # generate new record
+            sent_on = datetime.datetime.utcnow()
+            expire_on = sent_on + datetime.timedelta(seconds=max_time_allowed)
+            invitation['id'] = new_id
+            invitation['sent_on'] = sent_on
+            invitation['expire_on'] = expire_on
+            invites.update({'id': id}, {'$set': 
+                {'sent_on': invitation['sent_on'],
+                 'id': invitation['id']}})
+            return jsonify(success=True, invite=sanitize_invite(invitation))
+        elif action == 'accept':
+            # if time now is ahead of expire_on, the delta is negative
+            if (expire_on - timenow).seconds < 0:
+                invitation['status'] = 'expired'
+                invites.update({'id': id}, {'$set': {'status': 'expired'}})
+                return jsonify(success=False, reason='invitation-expired')
+            else:
+                invitation['status'] = 'used'
+                invitation['accepted_on'] = datetime.datetime.utcnow()
+                invites.update({'id': id},{'$set': 
+                    {'accepted_on': invitation['accepted_on'],
+                     'status': 'used'}})
+                return jsonify(success=True, invite=sanitize_invite(invitation))
+        elif action == 'decline':
+            invitation['status'] = 'declined'
+            invites.update({'id': id}, {'$set': {'status': 'decline'}})
+            return jsonify(success=True, invite=sanitize_invite(invitation))
     else:
         return jsonify(success=False, reason='invitation-does-not-exist')
 
