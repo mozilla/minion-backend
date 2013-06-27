@@ -6,6 +6,8 @@ import os
 import json
 import pprint
 import requests
+import shlex
+import tempfile
 import unittest
 from subprocess import Popen, PIPE
 from multiprocessing import Process
@@ -35,6 +37,13 @@ APIS = {'users':
             {'DELETE': '/users/{user_email}',
              'GET': '/users/{user_email}',
              'POST': '/users/{user_email}'},
+        'invites':
+            {'POST': '/invites',
+             'GET': '/invites'},
+        'invite': 
+            {'POST': '/invites/{id}/control',
+             'GET': '/invites/{id}',
+             'DELETE': '/invites/{id}'},
         'groups':
             {'POST': '/groups',
               'GET': '/groups'},
@@ -202,9 +211,10 @@ class TestAPIBaseClass(unittest.TestCase):
             self.assertEqual(base['workflow'][index]['plugin_name'], meta['class'])
             self.assertEqual("0.0", meta['version'])
 
-    def create_user(self, email="bob@example.org", name="Bob", role="user", groups=[], headers=None):
-        return _call('users', 'POST', data={"email": email, "name": name, "role": role, "groups":groups},
-                     headers=headers)
+    def create_user(self, email="bob@example.org", name="Bob", role="user", groups=[], headers=None,
+            invitation=None):
+        data = {"email": email, "name": name, "role": role, "groups":groups, "invitation": invitation}
+        return _call('users', 'POST', headers=headers, data=data)
 
     def update_user(self, user_email, user):
         return _call('user', 'POST', url_args={'user_email': user_email}, data=user)
@@ -217,6 +227,25 @@ class TestAPIBaseClass(unittest.TestCase):
 
     def get_users(self):
         return _call('users', 'GET')
+
+    def create_invites(self, recipient=None, sender=None):
+        return _call('invites', 'POST', data={'recipient': recipient, 'sender': sender})
+
+    def get_invites(self, filters=None):
+        return _call('invites', 'GET', data=filters)
+
+    def get_invite(self, id):
+        return _call('invite', 'GET', url_args={'id': id})
+
+    def update_invite(self, id, resend=None, accept=None):
+        if resend:
+            data = {'action': 'resend'}
+        elif accept:
+            data = {'action': 'accept'}
+        return _call('invite', 'POST', url_args={'id': id}, data=data)
+
+    def delete_invite(self, id):
+        return _call('invite', 'DELETE', url_args={'id': id})
 
     def create_group(self, group_name=None, group_description=None, users=None):
         if group_name  is None:
@@ -336,3 +365,30 @@ class TestAPIBaseClass(unittest.TestCase):
         self.assertEqual(r.json()['success'], success)
         if not success and reason is not None:
             self.assertEqual(r.json()['reason'], reason)
+
+    """
+    def start_smtp(self):
+        # pid is a list, a hack so we can get back the pid in the caller frame
+        self.stop_smtp()
+        def start():
+            p = Popen('/usr/bin/sudo /usr/bin/python -m smtpd -n -c DebuggingServer localhost:25',
+                    stdin=PIPE, stdout=PIPE, shell=True)
+            while True:
+                out = p.stdout.read()
+                err = p.stderr.read()
+                if len(out) > 0:
+                    with open('/tmp/minion_smtp_debug.txt', 'w+') as f:
+                        f.write(out)
+        p = Process(target=start)
+        p.daemon = True
+        p.start()
+
+    def stop_smtp(self):
+        def stop():
+            p = Popen("/usr/bin/sudo kill -9 `ps aux | grep DebuggingServer | awk '{print $2}'`", shell=True)
+            p.communicate()
+        p = Process(target=stop)
+        p.daemon = True
+        p.start()
+    """
+    
