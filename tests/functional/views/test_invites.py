@@ -27,7 +27,7 @@ class TestInviteAPIs(TestAPIBaseClass):
         recipient = self.random_email()
         # must create both sender and user
         res1 = self.create_user()
-        res2 = self.create_user(email=recipient, name='Alice')
+        res2 = self.create_user(email=recipient, name='Alice', invitation=True)
 
         res3 = self.create_invites(recipient=recipient, sender=self.email)
         self.assertSuccessfulResponse(res3)
@@ -47,7 +47,7 @@ class TestInviteAPIs(TestAPIBaseClass):
     def test_invite_existing_recipient(self):
         # I know. Create yourself again? 
         recipient = self.random_email()
-        res1 = self.create_user(email=recipient, invitation=True)
+        res1 = self.create_user(email=recipient)
         res2 = self.create_invites(recipient=recipient, sender=recipient)
         self.assertEqual(res2.json()['success'], False)
         self.assertEqual(res2.json()['reason'], 'recipient-already-joined')
@@ -55,7 +55,7 @@ class TestInviteAPIs(TestAPIBaseClass):
     def test_duplicate_invitations(self):
         recipient = self.random_email()
         res1 = self.create_user()
-        res2 = self.create_user(email=recipient)
+        res2 = self.create_user(email=recipient, invitation=True)
         res3 = self.create_invites(recipient=recipient, sender=self.email)
         res4 = self.create_invites(recipient=recipient, sender=self.email)
         self.assertEqual(res3.json()['success'], True)
@@ -64,7 +64,7 @@ class TestInviteAPIs(TestAPIBaseClass):
 
     def test_sender_not_found(self):
         recipient = self.random_email()
-        res1 = self.create_user(email=recipient)
+        res1 = self.create_user(email=recipient, invitation=True)
         res2 = self.create_invites(recipient=recipient, sender=self.email)
         self.assertEqual(res2.json()['success'], False)
         self.assertEqual(res2.json()['reason'], 'sender-not-found-in-user-record')
@@ -74,9 +74,9 @@ class TestInviteAPIs(TestAPIBaseClass):
         recipient2 = self.random_email()
         recipient3 = self.random_email()
         res1 = self.create_user()
-        res1 = self.create_user(email=recipient1, name='Alice')
-        res1 = self.create_user(email=recipient2, name='Betty')
-        res1 = self.create_user(email=recipient3, name='Cathy')
+        res1 = self.create_user(email=recipient1, name='Alice', invitation=True)
+        res1 = self.create_user(email=recipient2, name='Betty', invitation=True)
+        res1 = self.create_user(email=recipient3, name='Cathy', invitation=True)
 
         res2 = self.create_invites(recipient=recipient1, sender=self.email)
         res3 = self.create_invites(recipient=recipient2, sender=self.email)
@@ -99,9 +99,9 @@ class TestInviteAPIs(TestAPIBaseClass):
         res2 = self.create_user(email=sender2)
 
         # create recipients in the user table
-        res2 = self.create_user(email=recipient1, name='Alice')
-        res2 = self.create_user(email=recipient2, name='Betty')
-        res2 = self.create_user(email=recipient3, name='Cathy')
+        res2 = self.create_user(email=recipient1, name='Alice', invitation=True)
+        res2 = self.create_user(email=recipient2, name='Betty', invitation=True)
+        res2 = self.create_user(email=recipient3, name='Cathy', invitation=True)
         
         # create recipients
         res3 = self.create_invites(recipient=recipient1, sender=self.email)
@@ -139,8 +139,8 @@ class TestInviteAPIs(TestAPIBaseClass):
         res1 = self.create_user()
 
         # create recipients in the user table
-        res1 = self.create_user(email=recipient1, name='Alice')
-        res1 = self.create_user(email=recipient2, name='Betty')
+        res1 = self.create_user(email=recipient1, name='Alice', invitation=True)
+        res1 = self.create_user(email=recipient2, name='Betty', invitation=True)
 
         # create invites
         res2 = self.create_invites(recipient=recipient1, sender=self.email)
@@ -160,7 +160,7 @@ class TestInviteAPIs(TestAPIBaseClass):
         res1 = self.create_user()
         
         # create recipients in the user table
-        res1 = self.create_user(email=recipient, name='Alice')
+        res1 = self.create_user(email=recipient, name='Alice', invitation=True)
 
         res2 = self.create_invites(recipient=recipient, sender=self.email)
         res3 = self.update_invite(id=res2.json()['invite']['id'],
@@ -172,7 +172,7 @@ class TestInviteAPIs(TestAPIBaseClass):
     def test_decline_invite(self):
         recipient = self.random_email()
         res1 = self.create_user()
-        res2 = self.create_user(email=recipient, name='Alice')
+        res2 = self.create_user(email=recipient, name='Alice', invitation=True)
         res3 = self.create_invites(recipient=recipient, sender=self.email)
         res4 = self.update_invite(id=res3.json()['invite']['id'],
                 decline=True)
@@ -184,8 +184,8 @@ class TestInviteAPIs(TestAPIBaseClass):
 
         res1 = self.create_user()
         # create recipients in the user table
-        res1 = self.create_user(email=recipient1, name='Alice')
-        res1 = self.create_user(email=recipient2, name='Betty')
+        res1 = self.create_user(email=recipient1, name='Alice', invitation=True)
+        res1 = self.create_user(email=recipient2, name='Betty', invitation=True)
 
         res2 = self.create_invites(recipient=recipient1, sender=self.email)
         recipient1_id = res2.json()['invite']['id']

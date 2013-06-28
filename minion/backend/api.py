@@ -490,7 +490,7 @@ def create_invites():
     if not recipient_user:
         return jsonify(success=False, 
                 reason='recipient-not-found-in-user-record')
-    elif recipient_user['status'] == 'invited':
+    elif recipient_user.get('status') != 'invited':
         return jsonify(success=False, 
                 reason='recipient-already-joined')
     if recipient_invite:

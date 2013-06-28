@@ -59,7 +59,7 @@ class TestSitesAPIs(TestAPIBaseClass):
         expected_top_keys = ('success', 'site', )
         self._test_keys(res3.json().keys(), expected_top_keys)
         # until #49, #50, #51 are resolved, this is commented
-        #self.assertEqual(res3.json()['site'], res2.json()['site'])
+        self.assertEqual(res3.json()['site'], res2.json()['site'])
 
     def test_update_site(self):
         res = self.create_user()
