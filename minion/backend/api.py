@@ -478,11 +478,24 @@ def create_invites():
     recipient = request.json['recipient']
     sender = request.json['sender']
     recipient_user = users.find_one({'email': recipient})
-    # should be created at this point
+    recipient_invite = invites.find_one({'recipient': recipient})
+    sender_user = users.find_one({'email': sender})
+    # issue #120
+    # To ensure no duplicate invitation is allowed, and to ensure
+    # we don't corrupt user record in user table, any POST invitation
+    # must check
+    # (1) if user is not created in users collection - FALSE
+    # (2) if user is created, BUT status is not 'invited' - FALSE
+    # (3) recipient email is found in existing invitation record - FALSE
     if not recipient_user:
         return jsonify(success=False, 
                 reason='recipient-not-found-in-user-record')
-    sender_user = users.find_one({'email': sender})
+    elif recipient_user['status'] == 'invited':
+        return jsonify(success=False, 
+                reason='recipient-already-joined')
+    if recipient_invite:
+        return jsonify(success=False,
+                reason='duplicate-invitation-not-allowed')
     if not sender_user:
         return jsonify(success=False,
                 reason='sender-not-found-in-user-record')

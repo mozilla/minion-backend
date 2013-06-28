@@ -44,6 +44,31 @@ class TestInviteAPIs(TestAPIBaseClass):
         self.assertEqual(True, res3.json()['invite']['sent_on'] is not None)
         self.assertEqual(True, res3.json()['invite']['id'] is not None)
 
+    def test_invite_existing_recipient(self):
+        # I know. Create yourself again? 
+        recipient = self.random_email()
+        res1 = self.create_user(email=recipient, invitation=True)
+        res2 = self.create_invites(recipient=recipient, sender=recipient)
+        self.assertEqual(res2.json()['success'], False)
+        self.assertEqual(res2.json()['reason'], 'recipient-already-joined')
+
+    def test_duplicate_invitations(self):
+        recipient = self.random_email()
+        res1 = self.create_user()
+        res2 = self.create_user(email=recipient)
+        res3 = self.create_invites(recipient=recipient, sender=self.email)
+        res4 = self.create_invites(recipient=recipient, sender=self.email)
+        self.assertEqual(res3.json()['success'], True)
+        self.assertEqual(res4.json()['success'], False)
+        self.assertEqual(res4.json()['reason'], 'duplicate-invitation-not-allowed')
+
+    def test_sender_not_found(self):
+        recipient = self.random_email()
+        res1 = self.create_user(email=recipient)
+        res2 = self.create_invites(recipient=recipient, sender=self.email)
+        self.assertEqual(res2.json()['success'], False)
+        self.assertEqual(res2.json()['reason'], 'sender-not-found-in-user-record')
+
     def test_get_all_invites(self):
         recipient1 = self.random_email()
         recipient2 = self.random_email()
