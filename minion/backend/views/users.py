@@ -21,11 +21,16 @@ def _find_sites_for_user(email):
             sitez.add(s)
     return list(sitez)
 
+
 def sanitize_user(user):
     if '_id' in user:
         del user['_id']
-    if 'created' in user:
-        user['created'] = calendar.timegm(user['created'].utctimetuple())
+    created = user.get('created')
+    last_login = user.get('last_login')
+    if created:
+        user['created'] = calendar.timegm(created.utctimetuple())
+    if last_login:
+        user['last_login'] = calendar.timegm(last_login.utctimetuple())
     return user
 
 # API Methods to manage users
@@ -37,6 +42,9 @@ def login_user():
     user = users.find_one({'email': email})
     if user:
         if user['status'] == 'active':
+            timestamp = datetime.datetime.utcnow()
+            users.update({'email': email}, {'$set': {'last_login': timestamp}})
+            user = users.find_one({'email': email})
             return jsonify(success=True, user=sanitize_user(user))
         else:
             return jsonify(success=False, reason=user['status'])
@@ -86,18 +94,23 @@ def create_user():
     # Verify incoming user: email must not exist yet, groups must exist, role must exist
     if users.find_one({'email': user['email']}) is not None:
         return jsonify(success=False, reason='user-already-exists')
+
     for group_name in user.get('groups', []):
         if not _check_group_exists(group_name):
             return jsonify(success=False, reason='unknown-group')
+
     if user.get("role") not in ("user", "administrator"):
         return jsonify(success=False, reason="invalid-role")
+
     new_user = { 'id': str(uuid.uuid4()),
                  'status': 'invited' if user.get('invitation') else 'active',
                  'email':  user['email'],
                  'name': user.get('name'),
                  'role': user['role'],
-                 'created': datetime.datetime.utcnow() }
+                 'created': datetime.datetime.utcnow(),
+                 'last_login': None }
     users.insert(new_user)
+
     # Add the user to the groups - group membership is stored in the group objet, not in the user
     for group_name in user.get('groups', []):
         groups.update({'name':group_name},{'$addToSet': {'users': user['email']}})
@@ -113,6 +126,7 @@ def create_user():
 #  name
 #  role
 #  groups
+#  status
 #
 # Fields that are specified in the new user object will replace those in
 # the existing user object.
