@@ -16,7 +16,7 @@ from flask import Flask
 from pymongo import MongoClient
 
 import minion.backend.utils as backend_utils
-from minion.backend.api import BUILTIN_PLUGINS, TEST_PLUGINS
+from minion.backend.views.base import BUILTIN_PLUGINS, TEST_PLUGINS
 
 test_app = Flask(__name__)
 @test_app.route('/')
