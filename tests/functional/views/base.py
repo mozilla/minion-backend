@@ -37,6 +37,8 @@ APIS = {'users':
             {'DELETE': '/users/{user_email}',
              'GET': '/users/{user_email}',
              'POST': '/users/{user_email}'},
+        'login':
+            {'PUT': '/login'},
         'invites':
             {'POST': '/invites',
              'GET': '/invites'},
@@ -210,6 +212,10 @@ class TestAPIBaseClass(unittest.TestCase):
             self.assertEqual(p_name, meta['name'])
             self.assertEqual(base['workflow'][index]['plugin_name'], meta['class'])
             self.assertEqual("0.0", meta['version'])
+
+    def login_user(self, email="bob@example.org"):
+        data = {"email": email}
+        return _call('login', 'PUT', headers={'content-type': 'application/json'}, data=data)
 
     def create_user(self, email="bob@example.org", name="Bob", role="user", groups=[], headers=None,
             invitation=None):

@@ -23,6 +23,27 @@ class TestUserAPIs(TestAPIBaseClass):
         self._test_keys(res.json()['user'].keys(), expected_inner_keys)
         self.assertEqual(res.json()['user']['status'], 'active')    # ticket #109
 
+    # issue #128
+    def test_login_user(self):
+        res1 = self.create_user(email="bob@example.org")
+        res2 = self.login_user(email="bob@example.org")
+        self.assertEqual(res2.json()['success'], True)
+
+    # issue #128
+    def test_login_non_existing_user(self):
+        res1 = self.login_user(email="bob@example.org")
+        self.assertEqual(res1.json()['success'], False)
+        self.assertEqual(res1.json()['reason'], "user-does-not-exist")
+    
+    # issue #128
+    def test_login_non_active_user(self):
+        res1 = self.create_user(email="bob@example.org")
+        # change user to banned
+        res2 = self.update_user("bob@example.org", {'status': 'banned'})
+        res3 = self.login_user(email="bob@example.org")
+        self.assertEqual(res3.json()['success'], False)
+        self.assertEqual(res3.json()['reason'], 'banned')
+        
     # ticket #109, #110
     def test_invite_user(self):
         #self.start_smtp()

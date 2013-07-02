@@ -30,6 +30,19 @@ def sanitize_user(user):
 
 # API Methods to manage users
 
+@app.route('/login', methods=['PUT'])
+@api_guard('application/json')
+def login_user():
+    email = request.json['email']
+    user = users.find_one({'email': email})
+    if user:
+        if user['status'] == 'active':
+            return jsonify(success=True, user=sanitize_user(user))
+        else:
+            return jsonify(success=False, reason=user['status'])
+    else:
+        return jsonify(success=False, reason='user-does-not-exist')
+
 @app.route('/users/<email>', methods=['GET'])
 @api_guard
 def get_user(email):
