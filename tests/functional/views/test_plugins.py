@@ -4,7 +4,7 @@
 
 import pprint
 
-from minion.backend.api import BUILTIN_PLUGINS, TEST_PLUGINS
+from minion.backend.views.base import BUILTIN_PLUGINS, TEST_PLUGINS
 
 from base import BACKEND_KEY, BASE, _call, TestAPIBaseClass
 
