@@ -179,6 +179,7 @@ class TestInviteAPIs(TestAPIBaseClass):
         self.assertEqual(res4.json()['invite']['status'], 'declined')
 
     def test_delete_invite(self):
+        """ Delete recipient1's invitation. """
         recipient1 = self.random_email()
         recipient2 = self.random_email()
 
@@ -198,11 +199,13 @@ class TestInviteAPIs(TestAPIBaseClass):
         self.assertEqual(res4.json()['invites'][0]['recipient'], recipient1)
         self.assertEqual(res4.json()['invites'][1]['recipient'], recipient2)
         
-        # we need to ensure these users are created
+        # we need to ensure users are created and are marked as 'invited' (bug #123)
         res4 = self.get_user(recipient1)
         self.assertEqual(res4.json()['user']['email'], recipient1)
+        self.assertEqual(res4.json()['user']['status'], 'invited')
         res4 = self.get_user(recipient2)
         self.assertEqual(res4.json()['user']['email'], recipient2)
+        self.assertEqual(res4.json()['user']['status'], 'invited')
         
         # now delete recipient1
         res5 = self.delete_invite(id=recipient1_id)
@@ -222,3 +225,36 @@ class TestInviteAPIs(TestAPIBaseClass):
         res8 = self.get_invites()
         self.assertEqual(len(res8.json()['invites']), 1)
         self.assertEqual(res8.json()['invites'][0]['recipient'], recipient2)
+
+    # bug #123
+    def test_delete_invite_does_not_delete_accepted_user(self):
+        """ Delete recipient1's invite does not delete the user if recipient1 
+        has already accepted the invitation. """
+
+        recipient1 = self.random_email()
+        
+        res1 = self.create_user() # create sender
+        res2 = self.create_user(email=recipient1, invitation=True)
+        
+        # send invitation
+        res3 = self.create_invites(recipient=recipient1, sender=self.email)
+        invite_id = res3.json()['invite']['id']
+        res4 = self.update_invite(invite_id, accept=True)
+
+        # check user is no long invited
+        res5 = self.get_user(recipient1)
+        self.assertEqual(res5.json()['user']['email'], recipient1)
+        self.assertEqual(res5.json()['user']['status'], 'active')
+        
+        # now delete invitation
+        res6 = self.delete_invite(invite_id)
+        # check invitation is gone
+        res7 = self.get_invite(invite_id)
+        self.assertEqual(res7.json()['success'], False)
+        self.assertEqual(res7.json()['reason'], 'invitation-does-not-exist')
+
+        # finally, check user still exist
+        res8 = self.get_user(recipient1)
+        self.assertEqual(res8.json()['success'], True)
+        self.assertEqual(res8.json()['user']['email'], recipient1)
+        self.assertEqual(res8.json()['user']['status'], 'active')
