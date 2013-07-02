@@ -168,7 +168,10 @@ def delete_invite(id):
     invitation = invites.find_one({'id': id})
     if not invitation:
         return jsonify(success=False, reason='no-such-invitation')
-    users.remove({'email': invitation['recipient']})
+    # do not delete users that are not invite pending (bug #123)
+    user = users.find_one({'email': invitation['recipient']})
+    if user and user.get('status') == "invited":
+        users.remove(user)
     invites.remove({'id': id})
     return jsonify(success=True)
 
@@ -195,6 +198,9 @@ def update_invite(id):
         accepted_on = invitation['accepted_on']
         expire_on = invitation['expire_on']
 
+        user = users.find_one({'email': recipient})
+        if user is None:
+            return jsonify(success=False, reason="user-not-created")
         if accepted_on is not None:
             return jsonify(success=False, reason="invitation-has-been-used")
         if not action in ('resend', 'accept', 'decline'):
@@ -226,6 +232,8 @@ def update_invite(id):
                 invites.update({'id': id},{'$set': 
                     {'accepted_on': invitation['accepted_on'],
                      'status': 'used'}})
+                users.update({'email': recipient}, {'$set': 
+                    {'status': 'active'}}) 
                 return jsonify(success=True, invite=sanitize_invite(invitation))
         elif action == 'decline':
             invitation['status'] = 'declined'
