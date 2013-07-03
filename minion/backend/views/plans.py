@@ -73,8 +73,14 @@ def _check_plan_exists(plan_name):
 @api_guard
 def get_plans():
     def _plan_description(plan):
-        return { 'description': plan['description'], 'name': plan['name'], 'workflow': plan['workflow'] }
-    return jsonify(success=True, plans=[_plan_description(plan) for plan in plans.find()])
+        return { 
+            'description': plan['description'], 
+            'name': plan['name'], 
+            'workflow': plan['workflow'],
+            'created' : plan['created'] }
+    
+    return jsonify(success=True, 
+    plans=[sanitize_plan(_plan_description(plan)) for plan in plans.find()])
 
 #
 # Delete an existing plan
