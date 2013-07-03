@@ -256,14 +256,18 @@ class TestAPIBaseClass(unittest.TestCase):
     def delete_invite(self, id):
         return _call('invite', 'DELETE', url_args={'id': id})
 
-    def create_group(self, group_name=None, group_description=None, users=None):
-        if group_name  is None:
+    def create_group(self, group_name=None, group_description=None, users=None, \
+        sites=None):
+        if group_name is None:
             group_name = self.group_name
         if group_description  is None:
             group_description = self.group_description
         data = {'name': group_name, "description": self.group_description}
-        if users is not None:
+        if users:
             data.update({'users': users})
+        if sites:
+            data.update({'sites': sites})
+
         return _call('groups', 'POST', data=data)
 
     def get_groups(self):
@@ -281,10 +285,10 @@ class TestAPIBaseClass(unittest.TestCase):
         return _call('group', 'PATCH', url_args={'group_name': group_name},
             data=data)
 
-    def create_site(self, groups=None, plans=None):
+    def create_site(self, groups=None, plans=None, site=None):
         if groups is None:
             groups = [self.group_name,]
-        data = {'url': self.target_url, 'groups': groups}
+        data = {'url': site or self.target_url, 'groups': groups}
         if plans is not None:
             data.update({'plans': plans})
         return _call('sites', 'POST', data=data)

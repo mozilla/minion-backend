@@ -120,6 +120,15 @@ for plugin_class_name in OPTIONAL_PLUGINS:
         _register_plugin(plugin_class_name)
     except ImportError as e:
         pass
+
+def _check_required_fields(expected, fields):
+    if isinstance(fields, dict):
+        fields = fields.keys()
+    for field in fields:
+        if field not in expected:
+            return False
+    return True
+
 """
 if app.debug:
     for plugin_class_name in TEST_PLUGINS:

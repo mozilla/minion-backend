@@ -59,7 +59,6 @@ if __name__ == "__main__":
                 'name': group, 
                 'description': detail['description'],
                 'users': [email],
-                'sites': detail['sites']
             }))
 
     # Import sites
@@ -72,3 +71,11 @@ if __name__ == "__main__":
                     'plans': detail['plans'],
                     'groups': [group]
             }))
+
+    for group, detail in groups.iteritems():
+        resp = requests.patch('http://localhost:8383/groups/%s'%group,
+            headers={'content-type': 'application/json'},
+            data=json.dumps({ 
+                'addSites': detail['sites'],
+            }))
+    

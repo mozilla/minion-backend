@@ -8,7 +8,7 @@ from flask import jsonify, request
 import minion.backend.utils as backend_utils
 import minion.backend.tasks as tasks
 from minion.backend.app import app
-from minion.backend.views.base import groups, api_guard
+from minion.backend.views.base import _check_required_fields, api_guard, groups, users, sites
 
 def _check_group_exists(group_name):
     return groups.find_one({'name': group_name}) is not None
@@ -63,9 +63,27 @@ def list_groups():
 @api_guard('application/json')
 def create_group():
     group = request.json
-    # TODO Verify incoming group: name must be valid, group must not exist already
+
+    # perform validations on incoming data; issue#132
+    if not group.get('name'):
+        return jsonify(success=False, reason='name-field-is-required')
+
+    userz = group.get('users')
+    sitez = group.get('sites')
+
+    if userz:
+        for user in userz:
+            if not users.find_one({'email': user}):
+                return jsonify(success=False, reason='user %s does not exist'%user)
+    if sitez:
+        for site in sitez:
+            if not sites.find_one({'name': site}):
+                return jsonify(success=False, reason='site %s does not exist'%site)
+
     if groups.find_one({'name': group['name']}) is not None:
         return jsonify(success=False, reason='group-already-exists')
+
+    # post-validation
     new_group = { 'id': str(uuid.uuid4()),
                   'name':  group['name'],
                   'description': group.get('description', ""),
