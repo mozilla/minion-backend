@@ -2,6 +2,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+import datetime
 import pprint
 
 from base import BACKEND_KEY, BASE, _call, TestAPIBaseClass
@@ -19,10 +20,32 @@ class TestUserAPIs(TestAPIBaseClass):
         res = self.create_user()
         expected_top_keys = ('user', 'success')
         self._test_keys(res.json().keys(), expected_top_keys)
-        expected_inner_keys = ('id', 'created', 'role', 'email', 'status')
+        expected_inner_keys = ('id', 'created', 'role', 'email', 'status', 'last_login')
         self._test_keys(res.json()['user'].keys(), expected_inner_keys)
         self.assertEqual(res.json()['user']['status'], 'active')    # ticket #109
 
+    # issue #128
+    def test_login_user(self):
+        res1 = self.create_user(email="bob@example.org")
+        res2 = self.login_user(email="bob@example.org")
+        self.assertEqual(res2.json()['success'], True)
+        self.assertEqual(True, res2.json()['user']['last_login'] is not None)
+
+    # issue #128
+    def test_login_non_existing_user(self):
+        res1 = self.login_user(email="bob@example.org")
+        self.assertEqual(res1.json()['success'], False)
+        self.assertEqual(res1.json()['reason'], "user-does-not-exist")
+    
+    # issue #128
+    def test_login_non_active_user(self):
+        res1 = self.create_user(email="bob@example.org")
+        # change user to banned
+        res2 = self.update_user("bob@example.org", {'status': 'banned'})
+        res3 = self.login_user(email="bob@example.org")
+        self.assertEqual(res3.json()['success'], False)
+        self.assertEqual(res3.json()['reason'], 'banned')
+        
     # ticket #109, #110
     def test_invite_user(self):
         #self.start_smtp()
