@@ -46,8 +46,7 @@ class TestSitesAPIs(TestAPIBaseClass):
         expected_inner_keys = ('id', 'url','groups', 'created', 'plans')
         self._test_keys(res3.json()['sites'][0].keys(), expected_inner_keys)
         self.assertEqual(res3.json()['sites'][0]['url'], self.target_url)
-        # groups should return self.group_name when #50 and #49 are fixed
-        self.assertEqual(res3.json()['sites'][0]['groups'], [self.group_name])
+        self.assertEqual(res3.json()['sites'][0]['groups'], [])
         self.assertEqual(res3.json()['sites'][0]['plans'], [])
 
     def test_get_site(self):
@@ -114,7 +113,7 @@ class TestSitesAPIs(TestAPIBaseClass):
         self.assertEqual(j, {'success': False, 'reason': 'unknown-plan'})
 
     def test_update_only_change_plans(self):
-        r = self.create_group('foo')
+        r = self.create_group(group_name='foo')
         r.raise_for_status()
         r = self.create_site(groups=['foo'], plans=['basic'])
         r.raise_for_status()
@@ -132,7 +131,7 @@ class TestSitesAPIs(TestAPIBaseClass):
         self.assertEqual(sorted(['foo']), sorted(site['groups']))
 
     def test_update_only_change_groups(self):
-        r = self.create_group('foo')
+        r = self.create_group(group_name='foo')
         r = self.create_group('bar')
         r.raise_for_status()
         r = self.create_site(groups=['foo'], plans=['basic'])

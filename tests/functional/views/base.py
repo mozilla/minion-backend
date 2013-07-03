@@ -260,7 +260,7 @@ class TestAPIBaseClass(unittest.TestCase):
         sites=None):
         if group_name is None:
             group_name = self.group_name
-        if group_description  is None:
+        if not group_description:
             group_description = self.group_description
         data = {'name': group_name, "description": self.group_description}
         if users:
@@ -286,11 +286,12 @@ class TestAPIBaseClass(unittest.TestCase):
             data=data)
 
     def create_site(self, groups=None, plans=None, site=None):
-        if groups is None:
-            groups = [self.group_name,]
-        data = {'url': site or self.target_url, 'groups': groups}
-        if plans is not None:
+        data = {'url': site or self.target_url}
+        if plans:
             data.update({'plans': plans})
+        if groups:
+            data.update({'groups':groups})
+        
         return _call('sites', 'POST', data=data)
 
     def update_site(self, site_id, site):

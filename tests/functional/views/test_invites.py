@@ -44,6 +44,33 @@ class TestInviteAPIs(TestAPIBaseClass):
         self.assertEqual(True, res3.json()['invite']['sent_on'] is not None)
         self.assertEqual(True, res3.json()['invite']['id'] is not None)
 
+
+    # bug #133
+    def test_send_invite_with_groups_and_sites(self):
+        recipient = self.random_email()
+        res1 = self.create_user()
+        res2 = self.create_user(email=recipient, name='Alice', invitation=True)
+        res2 = self.create_invites(recipient=recipient, sender=self.email)
+        invite_id = res2.json()['invite']['id']
+        # also create a group and a site
+        res3 = self.create_site()
+        site_id = res3.json()['site']['id']
+        res4 = self.create_group(group_name='test')
+        res5 = self.modify_group('test', data={'addSites': [self.target_url]})
+        # update user to the group and site
+        res6 = self.modify_group('test', data={'addUsers': [recipient,]})
+        res7 = self.update_site(site_id, {'users': ['test'],})
+        # check user belongs to them
+        res8 = self.get_group('test')
+        self.assertEqual(res8.json()['group']['users'], [recipient,])
+        res9 = self.get_site(site_id)
+        # remove invitation
+        res10 = self.delete_invite(invite_id)
+        self.assertEqual(res10.json()['success'], True)
+        # check user is removed from sites and groups association
+        res11 = self.get_group('test')
+        self.assertEqual(res11.json()['group']['users'], [])
+
     def test_invite_existing_recipient(self):
         # I know. Create yourself again? 
         recipient = self.random_email()
