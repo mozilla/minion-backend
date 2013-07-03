@@ -188,7 +188,8 @@ class TestAPIBaseClass(unittest.TestCase):
         with open(os.path.join(PLANS_ROOT, '%s.plan' % plan_name), 'r') as f:
             self.plan = json.load(f)
             self.plans.remove({'name': self.plan['name']})
-            self.plans.insert(self.plan)
+            resp = self.create_plan(self.plan)
+            self.assertEqual(resp.json()['success'], True)
 
     @staticmethod
     def _get_plugin_name(full):

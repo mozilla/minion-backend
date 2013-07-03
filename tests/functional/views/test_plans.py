@@ -17,11 +17,12 @@ class TestPlanAPIs(TestAPIBaseClass):
         self.assertEqual(200, resp.status_code)
         expected_top_keys = ('success', 'plans')
         self._test_keys(resp.json().keys(), expected_top_keys)
-        expected_inner_keys = ('name', 'description')
+        expected_inner_keys = ('name', 'description', 'workflow', 'created')
         self._test_keys(resp.json()['plans'][0].keys(), expected_inner_keys)
         self.assertEqual(resp.json()['plans'][0]['name'], "basic")
         self.assertEqual(resp.json()['plans'][0]['description'], "Run basic tests")
 
+    
     def test_get_plan(self):
         resp = self.get_plan('basic')
         self.assertEqual(200, resp.status_code)
