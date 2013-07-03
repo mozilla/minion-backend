@@ -7,7 +7,7 @@ import uuid
 from flask import jsonify, request
 
 from minion.backend.app import app
-from minion.backend.views.base import api_guard, groups, sites
+from minion.backend.views.base import _check_required_fields, api_guard, groups, sites
 from minion.backend.views.groups import _check_group_exists
 from minion.backend.views.plans import _check_plan_exists
 
@@ -15,11 +15,11 @@ def _check_site_url(url):
     regex = re.compile(r"^(http|https)://(localhost|([a-z0-9][-a-z0-9]+)(\.[a-z0-9][-a-z0-9]+)+)(:\d+)?$")
     return regex.match(url) is not None
 
-def _check_required_fields(o, fields):
-    for field in fields:
-        if field not in o:
-            return False
-    return True
+#def _check_required_fields(expected, fields):
+#    for field in fields:
+#        if field not in expected:
+#            return False
+#    return True
 
 def _find_groups_for_site(site):
     """Find all the groups the site is part of"""

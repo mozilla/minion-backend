@@ -3,6 +3,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import pprint
+import requests
 
 from base import BACKEND_KEY, BASE, _call, TestAPIBaseClass
 
@@ -25,6 +26,35 @@ class TestGroupAPIs(TestAPIBaseClass):
         self._test_keys(res.json().keys(), expected_top_keys)
         self.assertEqual(res.json()['success'], False)
         self.assertEqual(res.json()['reason'], 'group-already-exists')
+
+    # issue#132
+    def test_create_empty_group(self):
+        res = self.create_group(group_name='')
+        self.assertEqual(res.json()['success'], False)
+        self.assertEqual(res.json()['reason'], 'name-field-is-required')
+
+    #issue#132
+    def test_create_group_with_non_existing_user(self):
+        res = self.create_group(users=['user1', 'user2'])
+        self.assertEqual(res.json()['success'], False)
+        self.assertEqual(res.json()['reason'], 'user user1 does not exist')
+    
+    #issue#132
+    def test_create_group_with_non_existing_user(self):
+        res = self.create_group(sites=['https://example1.com',])
+        self.assertEqual(res.json()['success'], False)
+        self.assertEqual(res.json()['reason'], 'site https://example1.com does not exist')
+    
+    #issue#132
+    def test_create_group_with_existing_user(self):
+        res1 = self.create_user(email='user1@example.org')
+        res2 = self.create_user(email='user2@example.org')
+
+        res3 = self.create_group(
+            users=['user1@example.org', 'user2@example.org'])
+        self.assertEqual(res3.json()['success'], True)
+        self.assertEqual(res3.json()['group']['users'], ['user1@example.org', \
+            'user2@example.org'])
 
     def test_get_all_groups(self):
         res = self.create_user()
