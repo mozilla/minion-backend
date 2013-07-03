@@ -8,7 +8,8 @@ from flask import jsonify, request
 import minion.backend.utils as backend_utils
 import minion.backend.tasks as tasks
 from minion.backend.app import app
-from minion.backend.views.base import api_guard, backend_config, invites, users
+from minion.backend.views.base import api_guard, backend_config, invites, users, groups, sites
+from minion.backend.views.users import _find_groups_for_user, _find_sites_for_user
 
 def search(model, filters=None):
     if filters:
@@ -169,9 +170,15 @@ def delete_invite(id):
     if not invitation:
         return jsonify(success=False, reason='no-such-invitation')
     # do not delete users that are not invite pending (bug #123)
-    user = users.find_one({'email': invitation['recipient']})
+    email = invitation['recipient']
+    user = users.find_one({'email': email})
     if user and user.get('status') == "invited":
         users.remove(user)
+        # bug #133 delete user associations
+        for group_name in _find_groups_for_user(email):
+            groups.update({'name':group_name}, {'$pull': {'users': email}})
+        for site in _find_sites_for_user(email):
+            sites.update({'url':site}, {'$pull': {'users': email}})
     invites.remove({'id': id})
     return jsonify(success=True)
 

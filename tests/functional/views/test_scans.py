@@ -100,8 +100,8 @@ class TestScanAPIs(TestAPIBaseClass):
         """
         self.start_server()
         res1 = self.create_user()
-        res2 = self.create_group(users=[self.email,])
-        res3 = self.create_site(plans=['basic'])
+        res2 = self.create_group(users=[self.email,], group_name='test_group')
+        res3 = self.create_site(plans=['basic'], groups=['test_group'])
 
         # POST /scans
         res4 = self.create_scan()
