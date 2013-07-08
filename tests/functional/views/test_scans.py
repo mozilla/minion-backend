@@ -46,12 +46,14 @@ class TestScanAPIs(TestAPIBaseClass):
     def stop_server(self):
         self.server.terminate()
         self._kill_ports([1234,])    
-
+    
     def test_create_scan(self):
-        res1 = self.create_user()
-        res2 = self.create_group()
-        res3 = self.create_site(plans=['basic'])
-        res4 = self.create_scan()
+        res1 = self.create_user(email=self.email)
+        res2 = self.create_group(group_name='test', users=[self.email,])
+        res3 = self.create_site(plans=['basic'], groups=['test'])
+        # update group so it has the site as well
+        res3 = self.modify_group('test', data={'addSites': [self.target_url,]})
+        res4 = self.create_scan(email=self.email, target_url=self.target_url)
         expected_top_keys = ('success', 'scan',)
         self._test_keys(res4.json().keys(), expected_top_keys)
 
@@ -62,6 +64,8 @@ class TestScanAPIs(TestAPIBaseClass):
         meta = res4.json()['scan']['meta']
         self.assertEqual(meta['user'], self.email)
         self.assertEqual(meta['tags'], [])
+        self.assertEqual(res4.json()['scan']['configuration']['target'],
+            self.target_url)
 
         scan = res4.json()['scan']
         for session in scan['sessions']:
@@ -77,16 +81,33 @@ class TestScanAPIs(TestAPIBaseClass):
             for name in ('queued', 'started', 'finished', 'progress'):
                 self.assertEqual(session[name], None)
 
+    
     def test_get_scan(self):
-        res1 = self.create_user()
-        res2 = self.create_group()
-        res3 = self.create_site(plans=['basic'])
-        res4 = self.create_scan()
-        scan_id = res4.json()['scan']['id']
-        res5 = self.get_scan(scan_id)
-        # since scan hasn't started, should == res4
-        self.assertEqual(res4.json(), res5.json())
-        
+        res1 = self.create_user(email=self.email)
+        res2 = self.create_group(group_name='test', users=[self.email,])
+        res3 = self.create_site(plans=['basic'], groups=['test'])
+        # update group so it has the site as well
+        res4 = self.modify_group('test', data={'addSites': [self.target_url,]})
+        res5 = self.create_scan(email=self.email, target_url=self.target_url)
+        scan_id = res5.json()['scan']['id']
+        res6 = self.get_scan(scan_id, email=self.email)
+        # since scan hasn't started, should == res5
+        self.assertEqual(res5.json(), res6.json())
+
+    
+    # issue#140 and issue #146
+    def test_get_scan_with_bad_permission(self):
+        res1 = self.create_user(email=self.email)
+        res2 = self.create_group(group_name='test', users=[self.email,])
+        res3 = self.create_site(plans=['basic'], groups=['test'])
+        # update group so it has the site as well
+        res4 = self.modify_group('test', data={'addSites': [self.target_url,]})
+        res5 = self.create_scan(email=self.email, target_url=self.target_url)
+        scan_id = res5.json()['scan']['id']
+        res6 = self.get_scan(scan_id, email='fakeuser@example.org')
+        self.assertEqual(res6.json()['success'], False)
+        self.assertEqual(res6.json()['reason'], 'not-found')
+
     def test_start_basic_scan(self):
         """
         This test is very comprehensive. It tests
@@ -99,9 +120,11 @@ class TestScanAPIs(TestAPIBaseClass):
         7. GET /reports/issues
         """
         self.start_server()
-        res1 = self.create_user()
+
+        res1 = self.create_user(email=self.email)
         res2 = self.create_group(users=[self.email,], group_name='test_group')
         res3 = self.create_site(plans=['basic'], groups=['test_group'])
+        res3 = self.modify_group('test_group', data={'addSites': [self.target_url,]})
 
         # POST /scans
         res4 = self.create_scan()
@@ -125,15 +148,15 @@ class TestScanAPIs(TestAPIBaseClass):
         time.sleep(10)
         # GET /scans/<scan_id>
         # now check if the scan has completed or not
-        res7 = self.get_scan(scan_id)
+        res7 = self.get_scan(scan_id, email=self.email)
         #pprint.pprint(res7.json(), indent=3)
         self.assertEqual(res7.json()['scan']['state'], 'FINISHED')
-
+        
         # GET /scans/<scan_id>/summary
-        res8 = self.get_scan_summary(scan_id)
+        res8 = self.get_scan_summary(scan_id, email=self.email)
         self.assertEqual(res8.json()['summary']['meta'], 
             {'user': self.email, 'tags': []}) # ticket 106
-
+        
         # GET /reports/history
         res9 = self.get_reports_history()
         expected_top_keys = ('report', 'success',)
@@ -200,3 +223,5 @@ class TestScanAPIs(TestAPIBaseClass):
         self.assertEqual(res11.json()['report'][0]['target'], self.target_url)
         self.stop_server()
         #pprint.pprint(res11.json(), indent=3)
+
+    
