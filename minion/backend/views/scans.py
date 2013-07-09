@@ -2,24 +2,33 @@
 
 import calendar
 import datetime
+import functools
 import uuid
 from flask import jsonify, request
 
 import minion.backend.utils as backend_utils
 import minion.backend.tasks as tasks
 from minion.backend.app import app
-from minion.backend.views.base import api_guard, groups, plans, plugins, scans, sanitize_session
+from minion.backend.views.base import api_guard, groups, plans, plugins, scans, sanitize_session, users
 from minion.backend.views.plans import sanitize_plan
 
-def permission(email, site):
-    """ Given a user email, and a site url, find
-    whether the user has permission to view the scan. """
-    groupz = groups.find({'users': email, 'sites': site})
-    if not groupz.count():
-        return False
-    else:
-        return True
-    
+def permission(view):
+    @functools.wraps(view)
+    def has_permission(*args, **kwargs):
+        email = request.args.get('email')
+        if not email:
+            return jsonify(success=False, reason='user-not-specified')
+        user = users.find_one({'email': email})
+        if not user:
+            return jsonify(success=False, reason='user-does-not-exist')
+        scan = scans.find_one({"id": kwargs['scan_id']})
+        if user['role'] == 'user':
+            groupz = groups.find({'users': email, 'sites': scan['configuration']['target']})
+            if not groupz.count():
+                return jsonify(success=False, reason='not-found')
+        return view(*args, **kwargs) # if groupz.count is not zero, or user is admin
+    return has_permission
+
 def sanitize_scan(scan):
     if scan.get('plan'):
         sanitize_plan(scan['plan'])
@@ -68,14 +77,13 @@ def summarize_scan(scan):
 
 @app.route("/scans/<scan_id>")
 @api_guard
+@permission
 def get_scan(scan_id):
     email = request.args.get('email')
     if not email:
         return jsonify(success=False, reason='user-not-specified')
     scan = scans.find_one({"id": scan_id})
     if not scan:
-        return jsonify(success=False, reason='not-found')
-    if not permission(email, scan['configuration']['target']):
         return jsonify(success=False, reason='not-found')
     return jsonify(success=True, scan=sanitize_scan(scan))
 
@@ -86,14 +94,13 @@ def get_scan(scan_id):
 
 @app.route("/scans/<scan_id>/summary")
 @api_guard
+@permission
 def get_scan_summary(scan_id):
     email = request.args.get('email')
     if not email:
         return jsonify(success=False, reason='user-not-specified')
     scan = scans.find_one({"id": scan_id})
     if not scan:
-        return jsonify(success=False, reason='not-found')
-    if not permission(email, scan['configuration']['target']):
         return jsonify(success=False, reason='not-found')
     return jsonify(success=True, summary=summarize_scan(sanitize_scan(scan)))
 
@@ -152,14 +159,13 @@ def post_scan_create():
 
 @app.route("/scans/<scan_id>/control", methods=["PUT"])
 @api_guard
+@permission
 def put_scan_control(scan_id):
     email = request.args.get('email')
     if not email:
         return jsonify(success=False, reason='user-not-specified')
     # Find the scan
     scan = scans.find_one({"id": scan_id})
-    if not permission(email, scan['configuration']['target']):
-        return jsonify(success=False, reason='not-found')
     if not scan:
         return jsonify(success=False, error='no-such-scan')
     # Check if the state is valid

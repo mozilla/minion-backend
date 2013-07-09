@@ -97,6 +97,7 @@ class TestScanAPIs(TestAPIBaseClass):
     
     # issue#140 and issue #146
     def test_get_scan_with_bad_permission(self):
+        res0 = self.create_user(email='fakeuser@example.org')
         res1 = self.create_user(email=self.email)
         res2 = self.create_group(group_name='test', users=[self.email,])
         res3 = self.create_site(plans=['basic'], groups=['test'])
