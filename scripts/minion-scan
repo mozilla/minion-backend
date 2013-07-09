@@ -10,26 +10,31 @@ MINION_BACKEND = "http://127.0.0.1:8383"
 
 if __name__ == "__main__":
 
-   if len(sys.argv) != 3:
-      print "usage: minion-scan <plan> <target>"
+   if len(sys.argv) != 4:
+      print "usage: minion-scan <user> <plan> <target>"
       sys.exit(1)
 
-   plan = sys.argv[1]
-   target = sys.argv[2]
+   user = sys.argv[1]
+   plan = sys.argv[2]
+   target = sys.argv[3]
 
    print "Talking to minion-backend on", MINION_BACKEND, "to start plan", plan, "against target", target
 
    # Create a scan
 
-   r = requests.post(MINION_BACKEND + "/scans", headers={'Content-Type': 'application/json'},
-                     data=json.dumps({'plan': plan, 'configuration': { 'target': target }}))
+   r = requests.post(MINION_BACKEND + "/scans", 
+            headers={'Content-Type': 'application/json'},
+            data=json.dumps({
+                'plan': plan, 
+                'configuration': {'target': target},
+                'user': user}))
    r.raise_for_status()
    scan = r.json()['scan']
 
    # Start the scan
 
    r = requests.put(MINION_BACKEND + "/scans/" + scan['id'] + "/control",
-                    headers={'Content-Type': 'application/json'})
+                    headers={'Content-Type': 'application/json'},
                     data="START")
    r.raise_for_status()
    
