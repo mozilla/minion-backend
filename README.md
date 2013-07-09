@@ -55,7 +55,7 @@ Testing the development setup
 Minion comes with some basic plugins that are all executed from the `basic` plan. First we need to create a user account by providing a Personal email address, the name of the user and the role of the user, respectively.
 
 ```
-scripts/minion-create-user <your-persona-email-address> <admin-name> administrator
+scripts/minion-create-user <your-persona-email-address> "<admin-name>" administrator
 ```
 
 Next, we need to create the plan:
