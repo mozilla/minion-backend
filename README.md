@@ -52,7 +52,13 @@ scripts/minion-plugin-worker
 Testing the development setup
 -----------------------------
 
-Minion comes with some basic plugins that are all executed from the `basic` plan. First we need to create the plan:
+Minion comes with some basic plugins that are all executed from the `basic` plan. First we need to create a user account:
+
+```
+scripts/minion-create-user <your-persona-email-address> administrator
+```
+
+Next, we need to create the plan:
 
 ```
 scripts/minion-create-plan plans/basic.plan
@@ -63,7 +69,7 @@ The `basic.plan` file simply contains a JSON structure that defines the workflow
 Now we can start a new scan:
 
 ```
-scripts/minion-scan basic http://testfire.net/
+scripts/minion-scan <your-persona-email-address> basic http://testfire.net/
 ```
 
 The `minion-scan` script will create a new scan, start it and then monitor it until it finishes.
