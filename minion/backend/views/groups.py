@@ -138,16 +138,16 @@ def patch_group(group_name):
     # Process the edits. These can probably be done in one operation.
     patch = request.json
     for site in patch.get('addSites', []):
-        if isinstance(site, unicode):
+        if isinstance(site, unicode) or isinstance(site, str):
             groups.update({'name':group_name},{'$push': {'sites': site}})
     for site in patch.get('removeSites', []):
-        if isinstance(site, unicode):
+        if isinstance(site, unicode) or isinstance(site, str):
             groups.update({'name':group_name},{'$pull': {'sites': site}})
     for user in patch.get('addUsers', []):
-        if isinstance(user, unicode):
+        if isinstance(user, unicode) or isinstance(user, str):
             groups.update({'name':group_name},{'$push': {'users': user}})
     for user in patch.get('removeUsers', []):
-        if isinstance(user, unicode):
+        if isinstance(user, unicode) or isinstance(user, str):
             groups.update({'name':group_name},{'$pull': {'users': user}})
     # Return the modified group
     group = groups.find_one({'name': group_name})
