@@ -6,11 +6,11 @@ import requests
 
 if __name__ == "__main__":
 
-    if len(sys.argv) != 3:
-        print "usage: minion-create-user <email> <role>"
+    if len(sys.argv) != 4:
+        print "usage: minion-create-user <email> <name> <role>"
         sys.exit(1)
 
-    user = { "email": sys.argv[1], "role": sys.argv[2] }
+    user = { "email": sys.argv[1], "name": sys.argv[2], "role": sys.argv[3] }
 
     r = requests.post("http://127.0.0.1:8383/users",
                       headers={'Content-Type': 'application/json'},

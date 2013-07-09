@@ -25,7 +25,8 @@ if __name__ == "__main__":
                 
     # Create an admin
     email = raw_input("Enter the administrator's Persona email: ")
-    cmd2 = "minion-create-user {email} administrator".format(email=email)
+    name = raw_input("Enter the administrator's name: ")
+    cmd2 = "minion-create-user {email} {name} administrator".format(email=email, name=name)
     p = Popen(shlex.split(cmd2), stdout=PIPE, stderr=PIPE)
     p.communicate()
 
