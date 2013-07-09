@@ -46,7 +46,7 @@ class TestScanAPIs(TestAPIBaseClass):
     def stop_server(self):
         self.server.terminate()
         self._kill_ports([1234,])    
-    
+
     def test_create_scan(self):
         res1 = self.create_user(email=self.email)
         res2 = self.create_group(group_name='test', users=[self.email,])
@@ -108,6 +108,7 @@ class TestScanAPIs(TestAPIBaseClass):
         res6 = self.get_scan(scan_id, email='fakeuser@example.org')
         self.assertEqual(res6.json()['success'], False)
         self.assertEqual(res6.json()['reason'], 'not-found')
+    
 
     def test_start_basic_scan(self):
         """
@@ -145,6 +146,7 @@ class TestScanAPIs(TestAPIBaseClass):
         self.assertEqual(res6.json()['scan']['state'], 'QUEUED')
         #pprint.pprint(res6.json(), indent=3)
 
+       
         # give scanner a few seconds
         time.sleep(10)
         # GET /scans/<scan_id>
@@ -225,4 +227,4 @@ class TestScanAPIs(TestAPIBaseClass):
         self.stop_server()
         #pprint.pprint(res11.json(), indent=3)
 
-    
+        

@@ -16,16 +16,15 @@ def permission(view):
     @functools.wraps(view)
     def has_permission(*args, **kwargs):
         email = request.args.get('email')
-        if not email:
-            return jsonify(success=False, reason='user-not-specified')
-        user = users.find_one({'email': email})
-        if not user:
-            return jsonify(success=False, reason='user-does-not-exist')
-        scan = scans.find_one({"id": kwargs['scan_id']})
-        if user['role'] == 'user':
-            groupz = groups.find({'users': email, 'sites': scan['configuration']['target']})
-            if not groupz.count():
-                return jsonify(success=False, reason='not-found')
+        if email:
+            user = users.find_one({'email': email})
+            if not user:
+                return jsonify(success=False, reason='user-does-not-exist')
+            scan = scans.find_one({"id": kwargs['scan_id']})
+            if user['role'] == 'user':
+                groupz = groups.find({'users': email, 'sites': scan['configuration']['target']})
+                if not groupz.count():
+                    return jsonify(success=False, reason='not-found')
         return view(*args, **kwargs) # if groupz.count is not zero, or user is admin
     return has_permission
 
@@ -79,9 +78,6 @@ def summarize_scan(scan):
 @api_guard
 @permission
 def get_scan(scan_id):
-    email = request.args.get('email')
-    if not email:
-        return jsonify(success=False, reason='user-not-specified')
     scan = scans.find_one({"id": scan_id})
     if not scan:
         return jsonify(success=False, reason='not-found')
@@ -96,9 +92,6 @@ def get_scan(scan_id):
 @api_guard
 @permission
 def get_scan_summary(scan_id):
-    email = request.args.get('email')
-    if not email:
-        return jsonify(success=False, reason='user-not-specified')
     scan = scans.find_one({"id": scan_id})
     if not scan:
         return jsonify(success=False, reason='not-found')
@@ -161,9 +154,6 @@ def post_scan_create():
 @api_guard
 @permission
 def put_scan_control(scan_id):
-    email = request.args.get('email')
-    if not email:
-        return jsonify(success=False, reason='user-not-specified')
     # Find the scan
     scan = scans.find_one({"id": scan_id})
     if not scan:
@@ -178,7 +168,7 @@ def put_scan_control(scan_id):
             return jsonify(success=False, error='invalid-state-transition')
         # Queue the scan to start
         scans.update({"id": scan_id}, {"$set": {"state": "QUEUED", "queued": datetime.datetime.utcnow()}})
-        tasks.scan.apply_async([scan['id'], email], countdown=3, queue='scan')
+        tasks.scan.apply_async([scan['id']], countdown=3, queue='scan')
     # Handle stop
     if state == 'STOP':
         scans.update({"id": scan_id}, {"$set": {"state": "STOPPING", "queued": datetime.datetime.utcnow()}})

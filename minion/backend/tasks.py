@@ -301,7 +301,7 @@ def find_session(scan, session_id):
             return session
 
 @celery.task
-def run_plugin(scan_id, session_id, email):
+def run_plugin(scan_id, session_id):
 
     logger.debug("This is run_plugin " + str(scan_id) + " " + str(session_id))
 
@@ -312,7 +312,7 @@ def run_plugin(scan_id, session_id, email):
         # the state is not STARTED.
         #
 
-        scan = get_scan(cfg['api']['url'], scan_id, email)
+        scan = get_scan(cfg['api']['url'], scan_id)
         if not scan:
             logger.error("Cannot load scan %s" % scan_id)
             return
@@ -515,8 +515,8 @@ def run_plugin(scan_id, session_id, email):
 
 
 
-def get_scan(api_url, scan_id, email):
-    r = requests.get(api_url + "/scans/" + scan_id, params={'email': email})
+def get_scan(api_url, scan_id):
+    r = requests.get(api_url + "/scans/" + scan_id)
     r.raise_for_status()
     j = r.json()
     return j['scan']
@@ -530,13 +530,13 @@ def queue_for_session(session, cfg):
     return queue
 
 @celery.task(ignore_result=True)
-def scan(scan_id, email):
+def scan(scan_id):
 
     #
     # See if the scan exists.
     #
 
-    scan = get_scan(cfg['api']['url'], scan_id, email)
+    scan = get_scan(cfg['api']['url'], scan_id)
     if not scan:
         logger.error("Cannot load scan %s" % scan_id)
         return
@@ -583,7 +583,7 @@ def scan(scan_id, email):
 
         queue = queue_for_session(session, cfg)
         result = send_task("minion.backend.tasks.run_plugin",
-                           [scan_id, session['id'], email],
+                           [scan_id, session['id']],
                            queue=queue)
 
         #scans.update({"id": scan_id, "sessions.id": session['id']}, {"$set": {"sessions.$._task": result.id}})
