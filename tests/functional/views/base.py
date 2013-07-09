@@ -93,7 +93,7 @@ def get_api(api_name, method, args=None):
         return api
 
 def _call(task, method, auth=None, data=None, url_args=None, jsonify=True, \
-        headers=None):
+        headers=None, params=None):
     """
     Make HTTP request.
 
@@ -114,7 +114,7 @@ def _call(task, method, auth=None, data=None, url_args=None, jsonify=True, \
         URL. For example, to match user's GET URL which
         requires ``id``, you'd pass ``{'id': '3a7a67'}``.
     jsonify : bool
-        If set to True, data will be sent as plaintext like GET.
+        If set to False, data will be sent as plaintext like GET.
     headers : dict
         Default to None. GET will send as plain/text while
         POST, PUT, and PATCH will send as application/json.
@@ -153,7 +153,7 @@ def _call(task, method, auth=None, data=None, url_args=None, jsonify=True, \
     if method == 'GET' or method == 'DELETE':
         res = req_objs(api, params=data, auth=auth, headers=headers)
     else:
-        res = req_objs(api, data=data, auth=auth, headers=headers)
+        res = req_objs(api, params=params, data=data, auth=auth, headers=headers)
     return res
 
 class TestAPIBaseClass(unittest.TestCase):
@@ -322,21 +322,34 @@ class TestAPIBaseClass(unittest.TestCase):
     def get_plugins(self):
         return _call('get_plugins', 'GET', jsonify=False)
 
-    def create_scan(self):
+    def create_scan(self, email=None, target_url=None):
+        if not target_url:
+            target_url = self.target_url
+        if not email:
+            email = self.email
         return _call('scans', 'POST',
             data={'plan': 'basic',
-                'configuration': {'target': self.target_url},
-                'user': self.email})
+                'configuration': {'target': target_url},
+                'user': email})
 
-    def get_scan(self, scan_id):
-        return _call('scan', 'GET', url_args={'scan_id': scan_id}, jsonify=False)
+    def get_scan(self, scan_id, email=None):
+        if not email:
+            email = None
+        params = {'email': email}
+        return _call('scan', 'GET', url_args={'scan_id': scan_id}, \
+                data=params, jsonify=False)
 
-    def control_scan(self, scan_id, state='START'):
+    def control_scan(self, scan_id, state='START', email=None):
+        if not email:
+            email = self.email
         return _call('scan', 'PUT', url_args={'scan_id': scan_id},
-            data=state, jsonify=False)
+            data=state, params={'email': email},jsonify=False)
 
-    def get_scan_summary(self, scan_id):
-        return _call('scan_summary', 'GET', url_args={'scan_id': scan_id}, jsonify=False)
+    def get_scan_summary(self, scan_id, email=None):
+        if not email:
+            email = self.email
+        return _call('scan_summary', 'GET', \
+            url_args={'scan_id': scan_id}, data={'email': email}, jsonify=False)
 
     def get_reports_history(self, user=None):
         data = {}

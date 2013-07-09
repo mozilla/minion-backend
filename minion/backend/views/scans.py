@@ -2,14 +2,31 @@
 
 import calendar
 import datetime
+import functools
 import uuid
 from flask import jsonify, request
 
 import minion.backend.utils as backend_utils
 import minion.backend.tasks as tasks
 from minion.backend.app import app
-from minion.backend.views.base import api_guard, plans, plugins, scans, sanitize_session
+from minion.backend.views.base import api_guard, groups, plans, plugins, scans, sanitize_session, users
 from minion.backend.views.plans import sanitize_plan
+
+def permission(view):
+    @functools.wraps(view)
+    def has_permission(*args, **kwargs):
+        email = request.args.get('email')
+        if email:
+            user = users.find_one({'email': email})
+            if not user:
+                return jsonify(success=False, reason='user-does-not-exist')
+            scan = scans.find_one({"id": kwargs['scan_id']})
+            if user['role'] == 'user':
+                groupz = groups.find({'users': email, 'sites': scan['configuration']['target']})
+                if not groupz.count():
+                    return jsonify(success=False, reason='not-found')
+        return view(*args, **kwargs) # if groupz.count is not zero, or user is admin
+    return has_permission
 
 def sanitize_scan(scan):
     if scan.get('plan'):
@@ -59,10 +76,11 @@ def summarize_scan(scan):
 
 @app.route("/scans/<scan_id>")
 @api_guard
+@permission
 def get_scan(scan_id):
     scan = scans.find_one({"id": scan_id})
     if not scan:
-        return jsonify(success=False)
+        return jsonify(success=False, reason='not-found')
     return jsonify(success=True, scan=sanitize_scan(scan))
 
 #
@@ -72,10 +90,11 @@ def get_scan(scan_id):
 
 @app.route("/scans/<scan_id>/summary")
 @api_guard
+@permission
 def get_scan_summary(scan_id):
     scan = scans.find_one({"id": scan_id})
     if not scan:
-        return jsonify(success=False)
+        return jsonify(success=False, reason='not-found')
     return jsonify(success=True, summary=summarize_scan(sanitize_scan(scan)))
 
 #
@@ -92,6 +111,7 @@ def get_scan_summary(scan_id):
 
 @app.route("/scans", methods=["POST"])
 @api_guard('application/json')
+@permission
 def post_scan_create():
     # try to decode the configuration
     configuration = request.json
@@ -132,6 +152,8 @@ def post_scan_create():
     return jsonify(success=True, scan=sanitize_scan(scan))
 
 @app.route("/scans/<scan_id>/control", methods=["PUT"])
+@api_guard
+@permission
 def put_scan_control(scan_id):
     # Find the scan
     scan = scans.find_one({"id": scan_id})
