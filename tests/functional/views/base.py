@@ -334,7 +334,7 @@ class TestAPIBaseClass(unittest.TestCase):
 
     def get_scan(self, scan_id, email=None):
         if not email:
-            email = self.email
+            email = None
         params = {'email': email}
         return _call('scan', 'GET', url_args={'scan_id': scan_id}, \
                 data=params, jsonify=False)

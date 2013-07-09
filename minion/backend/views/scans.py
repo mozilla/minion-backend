@@ -111,6 +111,7 @@ def get_scan_summary(scan_id):
 
 @app.route("/scans", methods=["POST"])
 @api_guard('application/json')
+@permission
 def post_scan_create():
     # try to decode the configuration
     configuration = request.json
