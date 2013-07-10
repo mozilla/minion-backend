@@ -1,27 +1,28 @@
 #!/usr/bin/env python
 
 import json
+import requests
 import sys
 
-from pymongo import MongoClient
-
-# start-scan <plan-name> <configuration>
+# minion-create-plan <plan_path>
 
 if __name__ == "__main__":
 
-    plan_path = sys.argv[1]
+    api = 'http://127.0.0.1:8383/plans'
+    if len(sys.argv) < 2:
+        print "usage: minion-create-plan <plan_path>"
+        sys.exit(1)
 
-    mongodb = MongoClient()
-
-    db = mongodb.minion
-    plans = db.plans
-    scans = db.scans
-
-    #
-    # Insert the plan
-    #
-
+    plan_path = sys.argv[1]    
     with open(sys.argv[1]) as f:
         plan = json.load(f)
-        plans.remove({'name': plan['name']})
-        plans.insert(plan)
+
+    res = requests.post(api, 
+        data=json.dumps(plan), 
+        headers={'content-type': 'application/json'})
+    res.raise_for_status()
+
+    j = res.json()
+    if not j.get('success'):
+        print "failure: " + j.get("reason", "unknown")
+
