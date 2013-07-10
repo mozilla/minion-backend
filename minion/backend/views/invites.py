@@ -240,7 +240,10 @@ def update_invite(id):
                     {'accepted_on': invitation['accepted_on'],
                      'status': 'used'}})
                 users.update({'email': recipient}, {'$set': 
-                    {'status': 'active'}}) 
+                    {'status': 'active', \
+                     'email': request.json['login']}})
+                # if user's persona email is different
+                invitation['recipient'] = request.json['login']
                 return jsonify(success=True, invite=sanitize_invite(invitation))
         elif action == 'decline':
             invitation['status'] = 'declined'
