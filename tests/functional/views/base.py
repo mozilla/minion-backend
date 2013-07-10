@@ -245,13 +245,15 @@ class TestAPIBaseClass(unittest.TestCase):
     def get_invite(self, id):
         return _call('invite', 'GET', url_args={'id': id})
 
-    def update_invite(self, id, resend=None, accept=None, decline=None, base_url="http://localhost:8080"):
+    def update_invite(self, id, resend=None, accept=None, decline=None, base_url="http://localhost:8080", login=None):
         if resend:
             data = {'action': 'resend', "base_url": base_url}
         elif accept:
             data = {'action': 'accept'}
         elif decline:
             data = {'action': 'decline'}
+        if login:
+            data.update({'login': login})
         return _call('invite', 'POST', url_args={'id': id}, data=data)
 
     def delete_invite(self, id):
