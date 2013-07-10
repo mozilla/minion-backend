@@ -266,9 +266,9 @@ class TestInviteAPIs(TestAPIBaseClass):
         # send invitation
         res3 = self.create_invites(recipient=recipient1, sender=self.email)
         invite_id = res3.json()['invite']['id']
-        res4 = self.update_invite(invite_id, accept=True)
+        res4 = self.update_invite(invite_id, accept=True, login=recipient1)
 
-        # check user is no long invited
+        # check user is no longer invited
         res5 = self.get_user(recipient1)
         self.assertEqual(res5.json()['user']['email'], recipient1)
         self.assertEqual(res5.json()['user']['status'], 'active')
@@ -285,3 +285,34 @@ class TestInviteAPIs(TestAPIBaseClass):
         self.assertEqual(res8.json()['success'], True)
         self.assertEqual(res8.json()['user']['email'], recipient1)
         self.assertEqual(res8.json()['user']['status'], 'active')
+
+    # bug #155
+    def test_update_user_login_if_persona_is_different(self):
+        """ If persona email address is different, update the 
+        primary email account. """
+
+        recipient = self.random_email()
+        persona = self.random_email()
+        res1 = self.create_user() # create sender
+        res2 = self.create_user(email=recipient, invitation=True)
+        userid = res2.json()['user']['id']
+        
+        # now send an invite
+        res3 = self.create_invites(recipient=recipient, sender=self.email)
+        invite_id = res3.json()['invite']['id']
+
+        # accept invite and login with a different email
+        res4 = self.update_invite(invite_id, accept=True, login=persona)
+        self.assertEqual(res4.json()['success'], True)
+        
+        # this should raise not found
+        res5 = self.get_user(recipient)
+        self.assertEqual(res5.json()['success'], False)
+        self.assertEqual(res5.json()['reason'], 'no-such-user')
+
+        # get user by persona email
+        res6 = self.get_user(persona)
+        self.assertEqual(res6.json()['user']['email'], persona)
+        self.assertEqual(res6.json()['user']['status'], 'active')
+        # the userid should be the same as the one created through invite
+        self.assertEqual(userid, res6.json()['user']['id'])
