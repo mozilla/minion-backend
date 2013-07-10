@@ -36,7 +36,7 @@ setup(name="minion-backend",
                'scripts/minion-db-init',
                'scripts/minion-create-user',
                'scripts/minion-plugin-worker',
-               'scripts/minion-start-scan',
+               'scripts/minion-scan',
                'scripts/minion-state-worker',
                'scripts/minion-scan-worker',
                'scripts/minion-plugin-runner'])
