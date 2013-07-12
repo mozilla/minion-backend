@@ -55,10 +55,15 @@ from minion.backend.utils import backend_config
 
 cfg = backend_config()
 celery = Celery('tasks', broker=cfg['celery']['broker'], backend=cfg['celery']['backend'])
-mongodb = MongoClient(host=cfg['mongodb']['host'], port=cfg['mongodb']['port'])
-db = mongodb.minion
-plans = db.plans
-scans = db.scans
+
+# If the config does not mention mongo then we do not set it up. That is ok because
+# that will only happen in plugin-workers that do not need direct mongodb access.
+if cfg.get('mongodb') it not None:
+    mongodb = MongoClient(host=cfg['mongodb']['host'], port=cfg['mongodb']['port'])
+    db = mongodb.minion
+    plans = db.plans
+    scans = db.scans
+
 logger = get_task_logger(__name__)
 
 
