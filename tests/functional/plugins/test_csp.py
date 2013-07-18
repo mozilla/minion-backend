@@ -62,6 +62,19 @@ def eval_csp():
 def inline_csp():
     return _make_res('x', RULES['INLINE'])
 
+@test_app.route('/dual-policy')
+def daul_policy():
+    resp = make_response('')
+    resp.headers['Content-Security-Policy'] = 'default-src *;'
+    resp.headers['Content-Security-Policy-Report-Only'] = 'default *;'
+    return resp
+
+@test_app.route('/report-only')
+def report_only():
+    resp = make_response('')
+    resp.headers['Content-Security-Policy-Report-Only'] = 'default *;'
+    return resp
+
 class TestCSPPlugin(TestPluginBaseClass):
     __test__ = True
     @classmethod
@@ -78,7 +91,7 @@ class TestCSPPlugin(TestPluginBaseClass):
             self.assertEqual('FINISHED', runner_resp[2]['data']['state'])
 
         elif expectation == 'BOTH-SET':
-            self.assertEqual('Both X-Content-Security-Policy and X-Content-Security-Policy-Report-Only headers set',
+            self.assertEqual('Content-Security-Policy-Report-Only and Content-Security-Policy are set',
                     runner_resp[1]['data']['Summary'])
             self.assertEqual('High', runner_resp[1]['data']['Severity'])
 
@@ -167,4 +180,13 @@ Content-Security-Policy to secure your site.', runner_resp[1]['data']['Descripti
     def test_inline_csp(self):
         api_name = '/inline-csp'
         self.validate_plugin(api_name, self.validate_csp, expectation='UNSAFE-INLINE')
+
+    def test_dual_policy(self):
+        api_name = '/dual-policy'
+        self.validate_plugin(api_name, self.validate_csp, expectation='BOTH-SET')
+
+    def test_report_only(self):
+        api_name = '/report_only'
+        self.validate_plugin(api_name, self.validate_csp, expectation='REPORT_ONLY')
+
 
