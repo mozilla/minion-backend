@@ -52,7 +52,22 @@ scripts/minion-plugin-worker
 Testing the development setup
 -----------------------------
 
-Minion comes with some basic plugins that are all executed from the `basic` plan. First we need to create a user account by providing a Personal email address, the name of the user and the role of the user, respectively.
+Minion comes with some basic plugins that are all executed from the `basic` plan. To get started with Minion, there are two methods to test development.
+
+#### Method 1: ``minion-db-init``
+
+This script will load fixtures into the database in addition to prompting for user email address and user's name.
+
+```
+scripts/minion-db-init
+```
+
+After this, visit ``http://localhost:8080`` using a browser and login with the user email you have just provided.
+
+
+#### Method 2: run individal scripts
+
+First we need to create a user account by providing a Personal email address, the name of the user and the role of the user, respectively.
 
 ```
 scripts/minion-create-user <your-persona-email-address> "<admin-name>" administrator
