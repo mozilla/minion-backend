@@ -670,12 +670,12 @@ by setting Content-Security-Policy in the header only.",
 
         # Fast fail if both headers are set
         if csp and csp_report_only:
-            self.report_issues(self._format_report('dual-policy'))
+            self.report_issues([self._format_report('dual-policy')])
             return
 
         # Fast fail if only reporting is enabled
         if csp_report_only:
-            self.report_issues(self._format_report('report-mode'))
+            self.report_issues([self._format_report('report-mode')])
             return
 
         # Fast fail if no CSP header is set
