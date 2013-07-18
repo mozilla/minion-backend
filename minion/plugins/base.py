@@ -5,6 +5,7 @@
 import logging
 import os
 import sys
+import urlparse
 import uuid
 
 from twisted.internet import reactor
@@ -96,8 +97,40 @@ class AbstractPlugin:
     def do_stop(self):
         pass
 
-    # These are simply mapped to the callbacks for convenience
+    def get_site_info(self, std_ports=None):
+        """
+        Parse and retrieve url-based information.
+      
+        Parameters
+        ----------
+        std_ports : optional, dict
+            Default to ``None`` which will use
+            the internal definition: 
+            ``{'http': '80', 'https': 443}``.
 
+        Returns
+        -------
+        info : dict
+            Return a dictionary containing the following
+            keys: ``url, ``netloc``, ``scheme``, ``port``, 
+            ``port`` and ``path``;similar to what 
+            ``urlparse.urlparse`` returns.
+
+        """
+
+        if not std_ports:
+            std_ports = {'http': '80', 'https': 443}
+        url = self.configuration['target']
+        parsed = urlparse.urlparse(url)
+        return {'url': url,
+            'netloc': parsed.netloc,
+            'scheme': parsed.scheme,
+            'hostname': parsed.hostname,
+            'port': parsed.port or std_ports[parsed.scheme],
+            'path': parsed.path}
+    
+    # These are simply mapped to the callbacks for convenience
+    
     def report_start(self):
         self.callbacks.report_start()
 
