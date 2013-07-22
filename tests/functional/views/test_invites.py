@@ -43,6 +43,8 @@ class TestInviteAPIs(TestAPIBaseClass):
         self.assertEqual(True, res3.json()['invite']['accepted_on'] is None)
         self.assertEqual(True, res3.json()['invite']['sent_on'] is not None)
         self.assertEqual(True, res3.json()['invite']['id'] is not None)
+        # issue 172
+        self.assertEqual(res3.json()['invite']['status'], 'pending')
 
 
     # bug #133

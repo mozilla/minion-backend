@@ -86,7 +86,7 @@ def create_invites():
               'sender_name': sender_user['name'] or sender,
               'sent_on': None,
               'accepted_on': None,
-              'status': None,
+              'status': 'pending',
               'expire_on': None,
               'max_time_allowed': request.json.get('max_time_allowed') \
                       or backend_config.get('invitation').get('max_time_allowed')}
