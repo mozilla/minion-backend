@@ -199,10 +199,10 @@ def delete_invite(id):
     if user and user.get('status') == "invited":
         users.remove(user)
         # bug #133 delete user associations
-        for group_name in _find_groups_for_user(email):
-            groups.update({'name':group_name}, {'$pull': {'users': email}})
+        remove_group_association(email)
         for site in _find_sites_for_user(email):
             sites.update({'url':site}, {'$pull': {'users': email}})
+        
     invites.remove({'id': id})
     return jsonify(success=True)
 
