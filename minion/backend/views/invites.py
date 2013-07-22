@@ -176,8 +176,6 @@ def delete_invite(id):
         users.remove(user)
         # bug #133 delete user associations
         remove_group_association(email)
-        for site in _find_sites_for_user(email):
-            sites.update({'url':site}, {'$pull': {'users': email}})
         
     invites.remove({'id': id})
     return jsonify(success=True)
