@@ -299,22 +299,37 @@ class TestInviteAPIs(TestAPIBaseClass):
         res2 = self.create_user(email=recipient, invitation=True)
         userid = res2.json()['user']['id']
         
+        # create a group (bug #170)
+        res3 = self.create_group(group_name='test_group')
+        self.assertEqual(res3.json()['success'], True)
+        self.assertEqual(res3.json()['group']['name'], 'test_group')
+
+        # add user to a group (bug #170)
+        res4 = self.update_user(recipient, {'groups': ['test_group']})
+        self.assertEqual(res4.json()['user']['groups'], ['test_group'])
+
         # now send an invite
-        res3 = self.create_invites(recipient=recipient, sender=self.email)
-        invite_id = res3.json()['invite']['id']
+        res5 = self.create_invites(recipient=recipient, sender=self.email)
+        invite_id = res5.json()['invite']['id']
 
         # accept invite and login with a different email
-        res4 = self.update_invite(invite_id, accept=True, login=persona)
-        self.assertEqual(res4.json()['success'], True)
+        res6 = self.update_invite(invite_id, accept=True, login=persona)
+        self.assertEqual(res6.json()['success'], True)
         
         # this should raise not found
-        res5 = self.get_user(recipient)
-        self.assertEqual(res5.json()['success'], False)
-        self.assertEqual(res5.json()['reason'], 'no-such-user')
+        res7 = self.get_user(recipient)
+        self.assertEqual(res7.json()['success'], False)
+        self.assertEqual(res7.json()['reason'], 'no-such-user')
 
         # get user by persona email
-        res6 = self.get_user(persona)
-        self.assertEqual(res6.json()['user']['email'], persona)
-        self.assertEqual(res6.json()['user']['status'], 'active')
+        res8 = self.get_user(persona)
+        self.assertEqual(res8.json()['user']['email'], persona)
+        self.assertEqual(res8.json()['user']['status'], 'active')
         # the userid should be the same as the one created through invite
-        self.assertEqual(userid, res6.json()['user']['id'])
+        self.assertEqual(userid, res8.json()['user']['id'])
+
+        # bug #170
+        # check original email recipient is not in group anymore
+        res9 = self.get_group('test_group')
+        self.assertEqual(res9.json()['group']['users'], [persona])
+

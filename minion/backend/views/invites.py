@@ -35,6 +35,17 @@ def sanitize_invites(invite_results):
         results.append(sanitize_invite(invite))
     return results
 
+def update_group_association(old_email, new_email):
+    """ Update all associations with the old email
+    to the new email. """
+
+    # first update all associations found in a group
+    groups.update({'users': old_email}, 
+        {'$set': {'users.$': new_email}},
+        upsert=False,
+        multi=True)
+    
+    
 #
 #
 # Create a new invite
@@ -242,6 +253,8 @@ def update_invite(id):
                 users.update({'email': recipient}, {'$set': 
                     {'status': 'active', \
                      'email': request.json['login']}})
+                if invitation['recipient'] != request.json['login']:
+                    update_group_association(invitation['recipient'], request.json['login'])
                 # if user's persona email is different
                 invitation['recipient'] = request.json['login']
                 return jsonify(success=True, invite=sanitize_invite(invitation))
