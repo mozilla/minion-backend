@@ -220,6 +220,11 @@ class TestInviteAPIs(TestAPIBaseClass):
         res7 = self.get_group('test_group')
         self.assertEqual(res7.json()['group']['users'], [])
 
+        # check user no longer exist  (bug #176)
+        res8 = self.get_user(recipient)
+        self.assertEqual(res8.json()['success'], False)
+        self.assertEqual(res8.json()['reason'], 'no-such-user')
+
     def test_delete_invite(self):
         """ Delete recipient1's invitation. """
         recipient1 = self.random_email()

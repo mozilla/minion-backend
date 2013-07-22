@@ -274,6 +274,7 @@ def update_invite(id):
         elif action == 'decline':
             invitation['status'] = 'declined'
             invites.update({'id': id}, {'$set': {'status': 'declined'}})
+            users.remove(user)
             remove_group_association(invitation['recipient'])
             return jsonify(success=True, invite=sanitize_invite(invitation))
     else:

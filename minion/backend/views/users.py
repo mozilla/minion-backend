@@ -21,7 +21,6 @@ def _find_sites_for_user(email):
             sitez.add(s)
     return list(sitez)
 
-
 def sanitize_user(user):
     if '_id' in user:
         del user['_id']
