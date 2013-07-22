@@ -202,10 +202,28 @@ class TestInviteAPIs(TestAPIBaseClass):
         recipient = self.random_email()
         res1 = self.create_user()
         res2 = self.create_user(email=recipient, name='Alice', invitation=True)
-        res3 = self.create_invites(recipient=recipient, sender=self.email)
-        res4 = self.update_invite(id=res3.json()['invite']['id'],
+        # create a group (bug #175)
+        res3 = self.create_group(group_name='test_group')
+        self.assertEqual(res3.json()['success'], True)
+        self.assertEqual(res3.json()['group']['name'], 'test_group')
+
+        # add user to a group (bug #175)
+        res4 = self.update_user(recipient, {'groups': ['test_group']})
+        self.assertEqual(res4.json()['user']['groups'], ['test_group'])
+
+        res5 = self.create_invites(recipient=recipient, sender=self.email)
+        res6 = self.update_invite(id=res5.json()['invite']['id'],
                 decline=True)
-        self.assertEqual(res4.json()['invite']['status'], 'declined')
+        self.assertEqual(res6.json()['invite']['status'], 'declined')
+
+        # check user is no longer in the group (bug #175)
+        res7 = self.get_group('test_group')
+        self.assertEqual(res7.json()['group']['users'], [])
+
+        # check user no longer exist  (bug #176)
+        res8 = self.get_user(recipient)
+        self.assertEqual(res8.json()['success'], False)
+        self.assertEqual(res8.json()['reason'], 'no-such-user')
 
     def test_delete_invite(self):
         """ Delete recipient1's invitation. """
