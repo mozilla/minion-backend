@@ -21,6 +21,31 @@ def _find_sites_for_user(email):
             sitez.add(s)
     return list(sitez)
 
+def update_group_association(old_email, new_email):
+    """ Update all associations with the old email
+    to the new email. """
+
+    groups.update({'users': old_email},
+        {'$set': {'users.$': new_email}},
+        upsert=False,
+        multi=True)
+
+def remove_group_association(email):
+    """ Remove all associations with the recipient.
+    This is required for a declined invitation
+    or when a user is banned or deleted.
+
+    In case we have found a user in the same
+    membership list multiple time (should not
+    happen), we better to pull all the
+    occurences out. Hence why we use
+    $pull over $pop."""
+
+    groups.update({'users': email},
+        {'$pull': {'users': email}},
+        upsert=False,
+        multi=True)
+
 def sanitize_user(user):
     if '_id' in user:
         del user['_id']
@@ -222,8 +247,7 @@ def delete_user(user_email):
     # Remove the user
     users.remove({'email': user_email})
     # Remove user group membership
-    for group_name in _find_groups_for_user(user_email):
-        groups.update({'name':group_name},{'$pull': {'users': user_email}})
+    remove_group_association(user_email)
     return jsonify(success=True)
 
 
