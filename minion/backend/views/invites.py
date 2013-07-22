@@ -86,7 +86,7 @@ def create_invites():
               'sender_name': sender_user['name'] or sender,
               'sent_on': None,
               'accepted_on': None,
-              'status': None,
+              'status': 'pending',
               'expire_on': None,
               'max_time_allowed': request.json.get('max_time_allowed') \
                       or backend_config.get('invitation').get('max_time_allowed')}
@@ -247,7 +247,7 @@ def update_invite(id):
                 return jsonify(success=True, invite=sanitize_invite(invitation))
         elif action == 'decline':
             invitation['status'] = 'declined'
-            invites.update({'id': id}, {'$set': {'status': 'decline'}})
+            invites.update({'id': id}, {'$set': {'status': 'declined'}})
             return jsonify(success=True, invite=sanitize_invite(invitation))
     else:
         return jsonify(success=False, reason='invitation-does-not-exist')
