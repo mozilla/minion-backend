@@ -247,7 +247,7 @@ def update_invite(id):
                 return jsonify(success=True, invite=sanitize_invite(invitation))
         elif action == 'decline':
             invitation['status'] = 'declined'
-            invites.update({'id': id}, {'$set': {'status': 'decline'}})
+            invites.update({'id': id}, {'$set': {'status': 'declined'}})
             return jsonify(success=True, invite=sanitize_invite(invitation))
     else:
         return jsonify(success=False, reason='invitation-does-not-exist')
