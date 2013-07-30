@@ -77,8 +77,6 @@ Enter the option number: ")
     elif group_option == "2":
         del groups['security']
 
-    import pprint
-    pprint.pprint(groups)
     for group, detail in groups.iteritems():
         resp = requests.post('http://localhost:8383/groups',
             headers={'content-type': 'application/json'},
@@ -91,7 +89,6 @@ Enter the option number: ")
     # Import sites
     for group, detail in groups.iteritems():
         for site in detail['sites']:
-            print site
             resp = requests.post('http://localhost:8383/sites',
                 headers={'content-type': 'application/json'},
                 data=json.dumps({
