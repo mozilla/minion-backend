@@ -37,7 +37,6 @@ if __name__ == "__main__":
             "sites": [
                 "http://zero.webappsecurity.com",
                 "http://crackme.cenzic.com",
-                "http://demo.testfire.net",
                 "http://testasp.vulnweb.com",
                 "http://testaspnet.vulnweb.com",
                 "http://testfire.net"
