@@ -56,7 +56,8 @@ Minion comes with some basic plugins that are all executed from the `basic` plan
 
 #### Method 1: ``minion-db-init``
 
-This script will load fixtures into the database in addition to prompting for user email address and user's name.
+This script will load fixtures into the database in addition to prompting for user email address and user's name, and an option
+for you to choose which set of sites to import into the database.
 
 ```
 scripts/minion-db-init

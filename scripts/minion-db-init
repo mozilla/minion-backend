@@ -32,6 +32,18 @@ if __name__ == "__main__":
 
     # Create groups
     groups = {
+        "security": {
+            "description": "These applications suffer common vulnerabilities and are used for testing and training purpose.",
+            "sites": [
+                "http://zero.webappsecurity.com",
+                "http://crackme.cenzic.com",
+                "http://demo.testfire.net",
+                "http://testasp.vulnweb.com",
+                "http://testaspnet.vulnweb.com",
+                "http://testfire.net"
+            ],
+            "plans": ["basic", "zap", "skipfish"]
+        },
         "moco": {
             "description":"Mozilla Corporation",
              "sites": [
@@ -53,6 +65,20 @@ if __name__ == "__main__":
          }
     }
 
+    group_option = raw_input("You have the options to import sites and groups:\n\
+[1] import security testing sites (default)\n\
+[2] import Mozilla sites\n\
+[3] import all\n\
+Enter the option number: ")
+
+    if not group_option or group_option == "1":
+        del groups['moco']
+        del groups['labs']
+    elif group_option == "2":
+        del groups['security']
+
+    import pprint
+    pprint.pprint(groups)
     for group, detail in groups.iteritems():
         resp = requests.post('http://localhost:8383/groups',
             headers={'content-type': 'application/json'},
@@ -65,6 +91,7 @@ if __name__ == "__main__":
     # Import sites
     for group, detail in groups.iteritems():
         for site in detail['sites']:
+            print site
             resp = requests.post('http://localhost:8383/sites',
                 headers={'content-type': 'application/json'},
                 data=json.dumps({
@@ -73,10 +100,3 @@ if __name__ == "__main__":
                     'groups': [group]
             }))
 
-    for group, detail in groups.iteritems():
-        resp = requests.patch('http://localhost:8383/groups/%s'%group,
-            headers={'content-type': 'application/json'},
-            data=json.dumps({ 
-                'addSites': detail['sites'],
-            }))
-    
