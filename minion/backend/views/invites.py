@@ -11,6 +11,17 @@ from minion.backend.app import app
 from minion.backend.views.base import api_guard, backend_config, invites, users, groups, sites
 from minion.backend.views.users import _find_groups_for_user, _find_sites_for_user, update_group_association, remove_group_association
 
+def send_invite(invite_data, base_url, invite_id):
+    # if it doesn't have '/' url will be inaccessible
+    invite_url = base_url.strip('/') + '/' + invite_id
+    email_data = {
+        'from_name': invite_data['sender_name'],
+        'from_email': invite_data['sender'],
+        'to_name': invite_data['recipient_name'],
+        'to_email': invite_data['recipient'],
+        'invite_url': invite_url}
+    return email_data
+
 def search(model, filters=None):
     if filters:
         filters = {field: value for field, value in filters.iteritems() if value is not None}
@@ -89,15 +100,11 @@ def create_invites():
               'status': 'pending',
               'expire_on': None,
               'max_time_allowed': request.json.get('max_time_allowed') \
-                      or backend_config.get('invitation').get('max_time_allowed')}
-
-    backend_utils.send_invite(
-        invite['recipient'], 
-        invite['recipient_name'], 
-        invite['sender'],
-        invite['sender_name'],
-        request.json['base_url'],
-        invite_id)
+                      or backend_config.get('email').get('max_time_allowed')}
+    
+    backend_utils.email('invite', 
+        send_invite(invite, request.json['base_url'], invite_id))
+    
     invite['sent_on'] = datetime.datetime.utcnow()
     invite['expire_on'] = invite['sent_on'] + \
         datetime.timedelta(seconds=invite['max_time_allowed'])
