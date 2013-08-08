@@ -61,6 +61,9 @@ This indicates the site is reachable.",
             r.raise_for_status()
             issue = self._format_report('good', description_formats={'status_code': str(r.status)})
             self.report_issue(issue)
+        except minion.curly.CurlyError as error:
+            self.report_issue(error.issue)
+            return AbstractPlugin.EXIT_STATE_ABORTED
         except minion.curly.BadResponseError as error:
             issue = self._format_report('bad', description=str(error))
             self.report_issue(issue)

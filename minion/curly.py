@@ -8,6 +8,36 @@ import urlparse
 
 import pycurl
 
+CURL_ERRORS = {
+    'default': 
+        {
+            'Summary': 'cURL error encountered',
+            'Description': 'Minion scan has encountered a cURL error that \
+is not documented in Minion scan. The cURL error id is %s.',
+            'Solution': 'Please visit \
+http://curl.haxx.se/libcurl/c/libcurl-errors.html and find the corresponding \
+error on that page using the id given.'
+        },
+    '60': 
+        {
+            'Summary': 'SSL certificate problem',
+            'Description': "Unable to verify the HTTPS destination. This often means \
+the SSL certificate sent by the HTTPS server is misconfigured:\n\
+(1) the server's SSL certificate is misconfigured (check your certificate \
+with openssl), or\n(2) certificate might be expired, or\n(3) name might \
+not match the domain.\ncURL error id: %s",
+            'Solution': 'Check your certificate is bundled correctly.'
+        }
+}
+
+class CurlyError(Exception):
+    """ Exception class for reporting CURL errors. """
+    def __init__(self, id):
+        self.id = id
+        self.issue = CURL_ERRORS.get(str(id), CURL_ERRORS['default'])
+        self.issue['Description'] = self.issue['Description'] % self.id
+        self.issue['Severity'] = 'Error'
+        self.message = self.issue['Summary']
 
 class BadResponseError(Exception):
     def __init__(self, message=None, status_code=None):
@@ -36,7 +66,6 @@ class HTTPResponse:
             m = re.match(r"^(.+?): (.+)$", header)
             if m:
                 self.headers[m.group(1).lower()] = m.group(2)
-
 
 class Response:
     def __init__(self, responses):
@@ -77,8 +106,7 @@ def _get(c, url, headers={}, connect_timeout=None, timeout=None):
         c.perform()
         return http_response
     except pycurl.error as e:
-        raise BadResponseError(message=e[1])    # e(error_code, reason)
-
+        raise CurlyError(e[0])
 
 def get(url, headers={}, connect_timeout=None, timeout=None):
     c = pycurl.Curl()
