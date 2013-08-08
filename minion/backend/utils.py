@@ -4,6 +4,8 @@
 
 
 import copy
+import email
+import re
 import json
 import jinja2
 import os
@@ -61,13 +63,44 @@ def get_template(template_file):
 #TODO: build a sanitizer          
 def email(name, data):
     """ Send an email using a specific template. This uses
-    Jinja2 template to render the text. """
+    Jinja2 template to render the text. 
+
+    We use the ``email`` module from the Python stdlib because
+    it does prevent basic embedded header injections. """
+
+    def _sanitize(self, data):
+        """ Remove C0 and C1 control characters using regex. """
+        ctrl_free_data = re.sub(r"[\x00-\x1F\x7F|\x80-\x9F]", "", data)
+        return ctrl_free_data.strip(' \t\n\r')
+
+    def _valid_email_address(self, email):
+        """ Validate whether email address is valid or not. """
+        return re.compile(r"[^@]+@[^@]+\.[^@]+").match(email)
+        
     template_name = name + '.html'
     template = get_template(template_name)
     config = backend_config()
+
+    # data should be free of control characters
+    data = {key: _sanitize(value) for key, value in data.iteritems()}
+    # if we happen to sanitize email to invalid email, abort
+    if not data['from_email'] or not _valid_email_address(data['from_email']):
+        raise ValueError("Invalid sender email address.")
+    if not data['to_email'] or not _valid_email_address(data['to_email']):
+        raise ValueError("Invalid receipient email address.")
+    
+    # setup email message
     body = template.render(data)
+    msg = MIMEText(body)
+    msg['To'] = email.utils.formataddr(data['to_name'], data['to_email'])
+    msg['From'] = email.utils.formataddr(data['from_name'], data['from_email'])
+    msg['Subject'] = data['subject']
 
     # setup SMTP
     s = smtplib.SMTP(config['email']['host'], config['email']['port'])
-    s.sendmail(data['from_email'], data['to_email'], body)
-    s.quit()
+    try:
+        s.sendmail(data['from_email'], data['to_email'], msg.as_string())
+    finally:
+        # caller should catch the smtplib exception
+        # http://docs.python.org/2/library/smtplib.html
+        s.quit()

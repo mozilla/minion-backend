@@ -19,16 +19,18 @@ def send_invite(invite_data, base_url, invite_id):
         'from_email': invite_data['sender'],
         'to_name': invite_data['recipient_name'],
         'to_email': invite_data['recipient'],
-        'invite_url': invite_url}
+        'invite_url': invite_url,
+        'subject': '%s invited you to try Minion' % invite_data['sender_name']}
     return email_data
 
-def notify_on_action(invitation_data):
+def notify_on_action(invitation_data, subject):
     email_data = {
         "from_email": backend_config['email'].get('admin_email') \
             or invitation_data['sender'],
         "to_name": invitation_data['sender_name'],
         "to_email": invitation_data['sender'],
-        "new_user_name": invitation_data['recipient_name']}
+        "new_user_name": invitation_data['recipient_name'],
+        "subject": subject}
     return email_data
 
 def search(model, filters=None):
@@ -263,7 +265,8 @@ def update_invite(id):
                 invitation['recipient'] = request.json['login']
                 # notify inviter if he chooses to receive such notification
                 if "accept" in invitation['notify_when']:
-                    backend_utils.email('accept', notify_on_action(invitation))
+                    subject = invitation['recipient_name'] + ' just joined Minion'
+                    backend_utils.email('accept', notify_on_action(invitation, subject))
                 return jsonify(success=True, invite=sanitize_invite(invitation))
         elif action == 'decline':
             invitation['status'] = 'declined'
@@ -272,7 +275,8 @@ def update_invite(id):
             remove_group_association(invitation['recipient'])
             # notify inviter if he chooses to
             if "decline" in invitation['notify_when']:
-                backend_utils.email('decline', notify_on_action(invitation))
+                subject = invitation['recipient_name'] + ' just declined your invitation'
+                backend_utils.email('decline', notify_on_action(invitation, subject))
             return jsonify(success=True, invite=sanitize_invite(invitation))
     else:
         return jsonify(success=False, reason='invitation-does-not-exist')
