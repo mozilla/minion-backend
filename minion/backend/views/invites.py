@@ -133,8 +133,7 @@ def create_invites():
               'expire_on': None,
               'max_time_allowed': request.json.get('max_time_allowed') \
                       or backend_config.get('email').get('max_time_allowed'),
-              'notify_when': request.json['notify_when']}
-   
+              'notify_when': request.json.get('notify_when', [])}
     send_email('invite', invite, extra_data={'base_url': request.json['base_url']})
      
     invite['sent_on'] = datetime.datetime.utcnow()
