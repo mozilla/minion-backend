@@ -11,6 +11,26 @@ from minion.backend.app import app
 from minion.backend.views.base import api_guard, backend_config, invites, users, groups, sites
 from minion.backend.views.users import _find_groups_for_user, _find_sites_for_user, update_group_association, remove_group_association
 
+def send_invite(invite_data, base_url, invite_id):
+    # if it doesn't have '/' url will be inaccessible
+    invite_url = base_url.strip('/') + '/' + invite_id
+    email_data = {
+        'from_name': invite_data['sender_name'],
+        'from_email': invite_data['sender'],
+        'to_name': invite_data['recipient_name'],
+        'to_email': invite_data['recipient'],
+        'invite_url': invite_url}
+    return email_data
+
+def notify_on_action(invitation_data):
+    email_data = {
+        "from_email": backend_config['email'].get('admin_email') \
+            or invitation_data['sender'],
+        "to_name": invitation_data['sender_name'],
+        "to_email": invitation_data['sender'],
+        "new_user_name": invitation_data['recipient_name']}
+    return email_data
+
 def search(model, filters=None):
     if filters:
         filters = {field: value for field, value in filters.iteritems() if value is not None}
@@ -89,15 +109,12 @@ def create_invites():
               'status': 'pending',
               'expire_on': None,
               'max_time_allowed': request.json.get('max_time_allowed') \
-                      or backend_config.get('invitation').get('max_time_allowed')}
-
-    backend_utils.send_invite(
-        invite['recipient'], 
-        invite['recipient_name'], 
-        invite['sender'],
-        invite['sender_name'],
-        request.json['base_url'],
-        invite_id)
+                      or backend_config.get('email').get('max_time_allowed'),
+              'notify_when': request.json['notify_when']}
+    
+    backend_utils.email('invite', 
+        send_invite(invite, request.json['base_url'], invite_id))
+    
     invite['sent_on'] = datetime.datetime.utcnow()
     invite['expire_on'] = invite['sent_on'] + \
         datetime.timedelta(seconds=invite['max_time_allowed'])
@@ -214,7 +231,7 @@ def update_invite(id):
         if action == 'resend':
             new_id = str(uuid.uuid4())
             base_url = request.json['base_url']
-            backend_utils.send_invite(recipient, recipient_name, sender, sender_name, base_url, new_id)
+            backend_utils.email('invite', send_invite(invitation, base_url, new_id))
             # generate new record
             sent_on = datetime.datetime.utcnow()
             expire_on = sent_on + datetime.timedelta(seconds=max_time_allowed)
@@ -244,12 +261,18 @@ def update_invite(id):
                     update_group_association(invitation['recipient'], request.json['login'])
                 # if user's persona email is different
                 invitation['recipient'] = request.json['login']
+                # notify inviter if he chooses to receive such notification
+                if "accept" in invitation['notify_when']:
+                    backend_utils.email('accept', notify_on_action(invitation))
                 return jsonify(success=True, invite=sanitize_invite(invitation))
         elif action == 'decline':
             invitation['status'] = 'declined'
             invites.update({'id': id}, {'$set': {'status': 'declined'}})
             users.remove(user)
             remove_group_association(invitation['recipient'])
+            # notify inviter if he chooses to
+            if "decline" in invitation['notify_when']:
+                backend_utils.email('decline', notify_on_action(invitation))
             return jsonify(success=True, invite=sanitize_invite(invitation))
     else:
         return jsonify(success=False, reason='invitation-does-not-exist')

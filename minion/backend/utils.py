@@ -5,6 +5,7 @@
 
 import copy
 import json
+import jinja2
 import os
 import smtplib
 
@@ -20,7 +21,7 @@ DEFAULT_BACKEND_CONFIG = {
         'host': '127.0.0.1',
         'port': 27017
     },
-    'invitation': {
+    'email': {
         'host': '127.0.0.1',
         'port': 25,
         'max_time_allowed': 3600 * 24 * 7 # seconds in 7 days
@@ -49,43 +50,24 @@ def backend_config():
 def frontend_config():
     return _load_config("frontend.json") or copy.deepcopy(DEFAULT_FRONTEND_CONFIG)
 
-def send_invite(recipient, recipient_name, sender, sender_name, base_url, id):
-    """ Send an invitation to a recipient. """
+def get_template(template_file):
+    template_dir = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        'templates')
+    env = jinja2.Environment(loader=jinja2.FileSystemLoader(template_dir))
+    template = env.get_template(template_file)
+    return template
 
-    url = base_url.strip('/') + '/' + id
-    invite_msg = """
-Dear {recp_name}:
-
-{sender_name} is inviting you to use Minion ({url}). Minion is a security testing framework \
-built by Mozilla to bridge the gap between developers and security testers. Once you signup,
-you can scan your projects and receive friendly web security assessment.
-
-Thank you.
-
-Sincerely,
-Security Assurance Team at Mozilla
-
-""".format(recp_name=recipient_name, sender_name=sender_name, url=url)
-
+#TODO: build a sanitizer          
+def email(name, data):
+    """ Send an email using a specific template. This uses
+    Jinja2 template to render the text. """
+    template_name = name + '.html'
+    template = get_template(template_name)
     config = backend_config()
-    smtp = config['invitation']
-    subject = "{sender_name} is inviting you to use Minion!".format(sender_name=sender_name)
+    body = template.render(data)
 
-    # we have the option to send this invitation 
-    # via user's email (admin's own account) or
-    # the email account specified by the config.
-    # This option allows us to send invite by any
-    # user in the future (if we wish to enabled that).
-    # For now, we can assume admin's persona account
-    # is passed.
-    if sender is None:
-        fromaddr = smtp['sender']
-    else:
-        fromaddr = sender
-    toaddrs = ', '.join((recipient,))
-    invite_msg = invite_msg.format(recp=recipient, url=url)
-    body = ("From: %s\r\nTo: %s\r\nSubject: %s\r\n%s"
-            %(fromaddr, toaddrs, subject, invite_msg))
-    server = smtplib.SMTP(smtp['host'], smtp['port'])
-    server.sendmail(fromaddr, toaddrs, body)
-    server.quit()
+    # setup SMTP
+    s = smtplib.SMTP(config['email']['host'], config['email']['port'])
+    s.sendmail(data['from_email'], data['to_email'], body)
+    s.quit()
