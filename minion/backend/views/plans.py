@@ -2,6 +2,7 @@
 
 import calendar
 import datetime
+import functools
 import importlib
 import uuid
 
@@ -10,8 +11,53 @@ from flask import jsonify, request
 import minion.backend.utils as backend_utils
 import minion.backend.tasks as tasks
 from minion.backend.app import app
-from minion.backend.views.base import api_guard, plans, plugins
+from minion.backend.views.base import api_guard, plans, plugins, users, sites, groups
 
+def _plan_description(plan):
+    return {
+        'description': plan['description'],
+        'name': plan['name'],
+        'workflow': plan['workflow'],
+        'created' : plan['created'] }
+
+def get_plan_by_plan_name(plan_name):
+    return plans.find_one({'name': plan_name})
+
+def get_sanitized_plans():
+    return [sanitize_plan(_plan_description(plan)) for plan in plans.find()]
+
+def _check_plan_by_email(email, plan_name):
+    plan = plans.find_one({'name': plan_name})
+    if not plan:
+        return False
+    sitez = sites.find({'plans': plan_name})
+    if sitez.count():
+        matches = 0
+        for site in sitez:
+            groupz = groups.find({'users': email, 'sites': site['url']})
+            if groupz.count():
+                matches += 1
+        return matches
+
+def get_plans_by_email(email):
+    plans = get_sanitized_plans()
+    matched_plans = [plan for plan in plans if _check_plan_by_email(email)]
+    return matched_plans
+
+def permission(view):
+    @functools.wraps(view)
+    def has_permission(*args, **kwargs):
+        email = request.args.get('email')
+        if email:
+            user = users.find_one({'email': email})
+            if not user:
+                return jsonify(success=False, reason='User does not exist.')
+            if user['role'] == 'user':
+                plan_name = request.view_args['plan_name']
+                if not _check_plan_by_email(email, plan_name):
+                    return jsonify(success=False, reason="Plan does not exist.")
+        return view(*args, **kwargs) # if groupz.count is not zero, or user is admin
+    return has_permission
 
 def sanitize_plan(plan):
     if plan.get('_id'):
@@ -72,15 +118,12 @@ def _check_plan_exists(plan_name):
 @app.route("/plans", methods=['GET'])
 @api_guard
 def get_plans():
-    def _plan_description(plan):
-        return { 
-            'description': plan['description'], 
-            'name': plan['name'], 
-            'workflow': plan['workflow'],
-            'created' : plan['created'] }
-    
-    return jsonify(success=True, 
-    plans=[sanitize_plan(_plan_description(plan)) for plan in plans.find()])
+    email = request.args.get('email')
+    if email:
+        plans = get_plans_by_email(email)
+    else:
+        plans = get_sanitized_plans()
+    return jsonify(success=True, plans=plans)
 
 #
 # Delete an existing plan
@@ -91,9 +134,8 @@ def get_plans():
 @app.route('/plans/<plan_name>', methods=['DELETE'])
 @api_guard
 def delete_plan(plan_name):
-    plan = plans.find_one({'name': plan_name})
-    if not plan:
-        return jsonify(success=False, reason='no-such-plan')
+    if not get_plan_by_plan_name(plan_name):
+        return jsonify(success=False, reason="Plan does not exist.")
     # Remove the plan
     plans.remove({'name': plan_name})
     return jsonify(success=True)
@@ -133,13 +175,11 @@ def create_plan():
 
 @app.route('/plans/<plan_name>', methods=['POST'])
 @api_guard
+@permission
 def update_plan(plan_name):
+    if not get_plan_by_plan_name(plan_name):
+        return jsonify(success=True)
     new_plan = request.json
-    # Find the existing plan
-    old_plan = plans.find_one({'name': plan_name})
-    if old_plan is None:
-        return jsonify(success=False, reason='unknown-plan')
-
     if not _check_plan_workflow(new_plan['workflow']):
         return jsonify(success=False, reason='invalid-plan')
 
@@ -175,10 +215,9 @@ def update_plan(plan_name):
 
 @app.route("/plans/<plan_name>", methods=['GET'])
 @api_guard
+@permission
 def get_plan(plan_name):
-    plan = plans.find_one({"name": plan_name})
-    if not plan:
-        return jsonify(success=False, reason='no-such-plan')
+    plan = get_plan_by_plan_name(plan_name)
     # Fill in the details of the plugin
     for step in plan['workflow']:
         plugin = plugins.get(step['plugin_name'])

@@ -306,8 +306,8 @@ class TestAPIBaseClass(unittest.TestCase):
     def get_site(self, site_id):
         return _call('site', 'GET', url_args={'site_id': site_id}, jsonify=False)
 
-    def get_plans(self):
-        return _call('plans', 'GET', jsonify=False)
+    def get_plans(self, email=None):
+        return _call('plans', 'GET', jsonify=False, data=email)
 
     def create_plan(self, plan):
         return _call('plans', 'POST', data=plan)
@@ -318,8 +318,9 @@ class TestAPIBaseClass(unittest.TestCase):
     def delete_plan(self, plan_name):
         return _call('plan', 'DELETE', url_args={'plan_name': plan_name}, jsonify=False)
 
-    def get_plan(self, plan_name):
-        return _call('plan', 'GET', url_args={'plan_name': plan_name}, jsonify=False)
+    def get_plan(self, plan_name, email=None):
+        return _call('plan', 'GET', url_args={'plan_name': plan_name}, \
+            jsonify=False, data={'email': email})
 
     def get_plugins(self):
         return _call('get_plugins', 'GET', jsonify=False)
