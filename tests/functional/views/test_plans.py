@@ -152,21 +152,3 @@ class TestPlanAPIs(TestAPIBaseClass):
     def test_delete_unknown_plan(self):
         r = self.delete_plan('testfoodoesnotexist')
         self.assertEqual('Plan does not exist.', r.json()['reason'])
-
-class TestPluginAPIs(TestAPIBaseClass):
-
-    def test_get_built_in_plugins(self):
-        resp = self.get_plugins()
-
-        self.assertEqual(200, resp.status_code)
-        # check top-leve keys agreement
-        expected_top_keys = ('success', 'plugins',)
-        self._test_keys(resp.json().keys(), expected_top_keys)
-
-        # num of total built-in plugins should match
-        plugins_count = len(BUILTIN_PLUGINS)
-        self.assertEqual(plugins_count, len(resp.json()['plugins']))
-        # check following keys are returned for each plugin
-        expected_inner_keys = ('class', 'name', 'version', 'weight')
-        for plugin in resp.json()['plugins']:
-            self._test_keys(plugin.keys(), expected_inner_keys)
