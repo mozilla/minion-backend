@@ -3,6 +3,7 @@
 import calendar
 import datetime
 import uuid
+import smtplib
 from flask import jsonify, request
 
 import minion.backend.utils as backend_utils
@@ -11,9 +12,23 @@ from minion.backend.app import app
 from minion.backend.views.base import api_guard, backend_config, invites, users, groups, sites
 from minion.backend.views.users import _find_groups_for_user, _find_sites_for_user, update_group_association, remove_group_association
 
-def send_invite(invite_data, base_url, invite_id):
+def send_email(action_type, data, extra_data=None):
+    if action_type == 'invite':
+        data = send_invite(data, extra_data['base_url'])
+    elif action_type in ('accept', 'decline'):
+        data = notify_on_action(action_type, data)
+    try:
+        backend_utils.email(action_type, data)
+    except smtplib.SMTPSenderRefused:
+        return jsonify(success=False, reason="Sender email requires authentication.")
+    except smtplib.SMTPRecipientsRefused:
+        return jsonify(success=False, reason="Recipient refused to receive email.")
+    except smtplib.SMTPException:
+        return jsonify(success=False, reason="Unable to send email.")
+
+def send_invite(invite_data, base_url):
     # if it doesn't have '/' url will be inaccessible
-    invite_url = base_url.strip('/') + '/' + invite_id
+    invite_url = base_url.strip('/') + '/' + invite_data['id']
     email_data = {
         'from_name': invite_data['sender_name'],
         'from_email': invite_data['sender'],
@@ -23,13 +38,19 @@ def send_invite(invite_data, base_url, invite_id):
         'subject': '%s invited you to try Minion' % invite_data['sender_name']}
     return email_data
 
-def notify_on_action(invitation_data, subject):
+def notify_on_action(action_type, invite_data):
+    if action_type == 'accept':
+        subject = invite_data['recipient_name'] + ' just joined Minion'
+    elif action_type == 'decline':
+        subject = invite_data['recipient_name'] + ' has declined your invitation'
     email_data = {
         "from_email": backend_config['email'].get('admin_email') \
-            or invitation_data['sender'],
-        "to_name": invitation_data['sender_name'],
-        "to_email": invitation_data['sender'],
-        "new_user_name": invitation_data['recipient_name'],
+            or invite_data['sender'],
+        "from_name": backend_config['email'].get('admin_email_name') \
+            or invite_data['sender_name'],
+        "to_name": invite_data['sender_name'],
+        "to_email": invite_data['sender'],
+        "new_user_name": invite_data['recipient_name'],
         "subject": subject}
     return email_data
 
@@ -113,10 +134,9 @@ def create_invites():
               'max_time_allowed': request.json.get('max_time_allowed') \
                       or backend_config.get('email').get('max_time_allowed'),
               'notify_when': request.json['notify_when']}
-    
-    backend_utils.email('invite', 
-        send_invite(invite, request.json['base_url'], invite_id))
-    
+   
+    send_email('invite', invite, extra_data={'base_url': request.json['base_url']})
+     
     invite['sent_on'] = datetime.datetime.utcnow()
     invite['expire_on'] = invite['sent_on'] + \
         datetime.timedelta(seconds=invite['max_time_allowed'])
@@ -265,8 +285,7 @@ def update_invite(id):
                 invitation['recipient'] = request.json['login']
                 # notify inviter if he chooses to receive such notification
                 if "accept" in invitation['notify_when']:
-                    subject = invitation['recipient_name'] + ' just joined Minion'
-                    backend_utils.email('accept', notify_on_action(invitation, subject))
+                    send_email('accept', invitation)
                 return jsonify(success=True, invite=sanitize_invite(invitation))
         elif action == 'decline':
             invitation['status'] = 'declined'
@@ -275,8 +294,7 @@ def update_invite(id):
             remove_group_association(invitation['recipient'])
             # notify inviter if he chooses to
             if "decline" in invitation['notify_when']:
-                subject = invitation['recipient_name'] + ' just declined your invitation'
-                backend_utils.email('decline', notify_on_action(invitation, subject))
+                send_email('decline', invitation)
             return jsonify(success=True, invite=sanitize_invite(invitation))
     else:
         return jsonify(success=False, reason='invitation-does-not-exist')

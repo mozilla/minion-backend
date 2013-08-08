@@ -4,12 +4,13 @@
 
 
 import copy
-import email
+import email as pyemail
 import re
 import json
 import jinja2
 import os
 import smtplib
+from email.mime.text import MIMEText
 
 DEFAULT_BACKEND_CONFIG = {
     'api': {
@@ -60,7 +61,6 @@ def get_template(template_file):
     template = env.get_template(template_file)
     return template
 
-#TODO: build a sanitizer          
 def email(name, data):
     """ Send an email using a specific template. This uses
     Jinja2 template to render the text. 
@@ -68,12 +68,12 @@ def email(name, data):
     We use the ``email`` module from the Python stdlib because
     it does prevent basic embedded header injections. """
 
-    def _sanitize(self, data):
+    def _sanitize(data):
         """ Remove C0 and C1 control characters using regex. """
         ctrl_free_data = re.sub(r"[\x00-\x1F\x7F|\x80-\x9F]", "", data)
         return ctrl_free_data.strip(' \t\n\r')
 
-    def _valid_email_address(self, email):
+    def _valid_email_address(email):
         """ Validate whether email address is valid or not. """
         return re.compile(r"[^@]+@[^@]+\.[^@]+").match(email)
         
@@ -92,8 +92,8 @@ def email(name, data):
     # setup email message
     body = template.render(data)
     msg = MIMEText(body)
-    msg['To'] = email.utils.formataddr(data['to_name'], data['to_email'])
-    msg['From'] = email.utils.formataddr(data['from_name'], data['from_email'])
+    msg['To'] = pyemail.utils.formataddr((data['to_name'], data['to_email']))
+    msg['From'] = pyemail.utils.formataddr((data['from_name'], data['from_email']))
     msg['Subject'] = data['subject']
 
     # setup SMTP
