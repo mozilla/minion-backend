@@ -252,7 +252,7 @@ def update_invite(id):
         if action == 'resend':
             new_id = str(uuid.uuid4())
             base_url = request.json['base_url']
-            backend_utils.email('invite', send_invite(invitation, base_url, new_id))
+            send_email('invite', invitation, extra_data={'base_url': base_url})
             # generate new record
             sent_on = datetime.datetime.utcnow()
             expire_on = sent_on + datetime.timedelta(seconds=max_time_allowed)

@@ -18,9 +18,16 @@ class TestPluginAPIs(TestAPIBaseClass):
         expected_top_keys = ('success', 'plugins',)
         self._test_keys(resp.json().keys(), expected_top_keys)
 
-        # num of total built-in plugins should match
-        plugins_count = len(BUILTIN_PLUGINS)
-        self.assertEqual(plugins_count, len(resp.json()['plugins']))
+        expected_plugin_names = ["Alive", "XFrameOptions", 
+            "HSTS",  "XContentTypeOptions", "XXSSProtection",
+            "ServerDetails",  "Robots", "CSP"]
+        plugin_names = [plugin['name'] for plugin in resp.json()['plugins']]
+        matches = 0
+        for name in expected_plugin_names:
+            if name in plugin_names:
+                matches += 1
+        self.assertEqual(8, matches)
+
         # check following keys are returned for each plugin
         expected_inner_keys = ('class', 'name', 'version', 'weight')
         for plugin in resp.json()['plugins']:
