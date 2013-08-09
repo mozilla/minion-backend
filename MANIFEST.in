@@ -1,0 +1,1 @@
+recursive-include minion *.html *.txt *.yaml *.yml *.json *.j2
