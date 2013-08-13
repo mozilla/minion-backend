@@ -18,7 +18,10 @@ plugins_requires = [
     'robots_scanner==0.1.2',
 ]
 
-tests_requires = ['nose',]
+tests_requires = [
+    'nose',
+    'mock'
+]
 
 setup(name="minion-backend",
       version="0.1",
