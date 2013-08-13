@@ -12,6 +12,7 @@ from celery.execute import send_task
 from celery.task.control import revoke
 from pymongo import MongoClient
 
+from minion.backend import ownership
 from minion.backend.utils import backend_config
 
 import datetime
@@ -296,6 +297,17 @@ def get_scan(api_url, scan_id):
     j = r.json()
     return j['scan']
 
+def get_site_info(api_url, url):
+    r = requests.get(api_url + '/sites', params={'url': url})
+    r.raise_for_status()
+    j = r.json()
+    return j['site']
+
+def set_finished(scan_id, state):
+    send_task("minion.backend.tasks.scan_finish",
+        [scan_id, state, time.time()],
+            queue='state').get()
+
 #
 # run_plugin
 #
@@ -557,12 +569,25 @@ def scan(scan_id):
     #
     # Move the scan to the STARTED state
     #
-
     scan['state'] = 'STARTED'
-    #scans.update({"id": scan_id}, {"$set": {"state": "STARTED", "started": datetime.datetime.utcnow()}})
     send_task("minion.backend.tasks.scan_start",
               [scan_id, time.time()],
               queue='state').get()
+
+    # Verify ownership prior to running scan
+    try:
+        target = scan['configuration']['target']
+        site = get_site_info(cfg['api']['url'], target)
+        if not site:
+            return set_finished(scan_id, 'ABORTED')
+        if site.get('verification'):
+            verified = ownership.verify(site['verification']['method'],
+                        target,
+                        site['verification']['value'])
+            if not verified:
+                return set_finished(scan_id, 'ABORTED')
+    except ownership.OwnerVerifyError:
+            return set_finished(scan_id, 'ABORTED')
 
     #
     # Run each plugin session

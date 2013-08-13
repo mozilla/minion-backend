@@ -180,11 +180,10 @@ def update_site(site_id):
     return jsonify(success=True, site=sanitize_site(site))
 
 #
-# Retrieve all sites in minion
-#
 #  GET /sites
 #
-# Returns a list of sites
+# Returns a list of sites or return the site
+# matches the query
 #
 #  [{ 'id': 'b263bdc6-8692-4ace-aa8b-922b9ec0fc37',
 #     'url': 'https://www.mozilla.com',
@@ -194,9 +193,17 @@ def update_site(site_id):
 
 @app.route('/sites', methods=['GET'])
 @api_guard
-def list_sites():
-    sitez = [sanitize_site(site) for site in sites.find()]
-    for site in sitez:
-        site['groups'] = _find_groups_for_site(site['url'])
-    return jsonify(success=True, sites=sitez)
+def get_sites():
+    query_url = request.args.get('url')
+    if query_url:
+        site = sites.find_one({'url': query_url})
+        if site:
+            return jsonify(success=True, site=sanitize_site(site))
+        else:
+            jsonify(success=True, site=[])
+    else:
+        sitez = [sanitize_site(site) for site in sites.find()]
+        for site in sitez:
+            site['groups'] = _find_groups_for_site(site['url'])
+        return jsonify(success=True, sites=sitez)
 

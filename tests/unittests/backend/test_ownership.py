@@ -50,7 +50,7 @@ class TestOwnership(unittest.TestCase):
             mock.stop()
 
     def _setup_exception(self, exception):
-        self.mk_curly.return_value.raise_status.side_effect = exception("dummy")
+        self.mk_curly.return_value.raise_for_status.side_effect = exception("dummy")
 
     def test_verify_by_file_return_true(self):
         self.mk_curly.return_value.body = "cheese"

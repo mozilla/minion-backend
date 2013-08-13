@@ -11,6 +11,19 @@ class OwnerVerifyError(Exception):
     def __init__(self, message):
         self.message = message
 
+def verify(method, target, match):
+    """ Wrapper to verify by a method. """
+
+    method = method.lower()
+    if method not in ('file', 'header', 'dns'):
+        raise OwnerVerifyError('Minion only support ownership verification via file, header, and TXT record')
+    if method == 'file':
+        return verify_by_file(target, match, 'minion_verified.txt')
+    elif method == 'header':
+        return verify_by_header(target, match)
+    else:
+        return verify_by_dns(target, match)
+
 def verify_by_file(target, match, filename):
     """ Verify site ownership by matching the content
     of a target file. """
@@ -18,7 +31,7 @@ def verify_by_file(target, match, filename):
     target_file = urlparse.urljoin(target, filename)
     try:
         r = minion.curly.get(target_file)
-        r.raise_status()
+        r.raise_for_status()
     except (minion.curly.CurlyError, minion.curly.BadResponseError) as error:
         raise OwnerVerifyError(error.message)
     
@@ -33,7 +46,7 @@ def verify_by_header(target, match):
 
     try:
         r = minion.curly.get(target)
-        r.raise_status()
+        r.raise_for_status()
     except (minion.curly.CurlyError, minion.curly.BadResponseError) as error:
         raise OwnerVerifyError(error.message)
 
