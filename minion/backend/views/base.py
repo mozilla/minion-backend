@@ -2,15 +2,20 @@
 
 import calendar
 import functools
+import logging
 import importlib
+import inspect
 import json
+import pkgutil
 import operator
 
 from flask import abort, Flask, jsonify, request, session
 from pymongo import MongoClient
 
+import minion.plugins
 import minion.backend.utils as backend_utils
 import minion.backend.tasks as tasks
+from minion.plugins.base import AbstractPlugin
 
 backend_config = backend_utils.backend_config()
 
@@ -57,37 +62,34 @@ def api_guard(*decor_args):
     else:
         return decorator
 
-BUILTIN_PLUGINS = [
-    'minion.plugins.basic.AlivePlugin',
-    'minion.plugins.basic.HSTSPlugin',
-    'minion.plugins.basic.XFrameOptionsPlugin',
-    'minion.plugins.basic.XContentTypeOptionsPlugin',
-    'minion.plugins.basic.XXSSProtectionPlugin',
-    'minion.plugins.basic.ServerDetailsPlugin',
-    'minion.plugins.basic.RobotsPlugin',
-    'minion.plugins.basic.CSPPlugin',
-]
-
-TEST_PLUGINS = [
-    'minion.plugins.test.DelayedPlugin',
-    'minion.plugins.test.ExceptionPlugin',
-    'minion.plugins.test.ErrorPlugin',
-]
-
-# This should move to a configuration file
-OPTIONAL_PLUGINS = [
-    'minion.plugins.garmr.GarmrPlugin',
-    'minion.plugins.nmap.NMAPPlugin',
-    'minion.plugins.skipfish.SkipfishPlugin',
-    'minion.plugins.zap_plugin.ZAPPlugin',
-    'minion.plugins.ssl.SSLPlugin'
-]
-
 #
 # Build the plugin registry
 #
 
 plugins = {}
+
+def load_plugin():
+    """ Load plugins if they are subclass of AbstractPlugin and 
+    are not known base subclasses such as BlockingPlugin. """
+
+    DEFAULT_BASE_CLASSES = ('AbstractPlugin', 'BlockingPlugin', 'ExternalProcessPlugin')
+    candidates = []
+    base_package = minion.plugins
+    prefix = base_package.__name__ + "."
+    for importer, package, ispkg in pkgutil.iter_modules(base_package.__path__, prefix):
+        module = __import__(package, fromlist=['plugins'])
+        for name in dir(module):
+            obj = getattr(module, name)
+            if inspect.isclass(obj) and issubclass(obj, AbstractPlugin) and name not in DEFAULT_BASE_CLASSES:
+                logging.info("Found %s" % str(obj))
+                candidates.append(str(obj))
+
+    for candidate in candidates:
+        try:
+            _register_plugin(candidate)
+        except ImportError as e:
+            logging.error("Unable to import %s" % candidate)
+            pass
 
 def _plugin_descriptor(plugin):
     return {'class': plugin.__module__ + "." + plugin.__name__,
@@ -109,18 +111,6 @@ def _register_plugin(plugin_class_name):
     plugins[plugin_class_name] = {'clazz': plugin_class,
                                   'descriptor': _plugin_descriptor(plugin_class)}
 
-for plugin_class_name in BUILTIN_PLUGINS:
-    try:
-        _register_plugin(plugin_class_name)
-    except ImportError as e:
-        pass
-
-for plugin_class_name in OPTIONAL_PLUGINS:
-    try:
-        _register_plugin(plugin_class_name)
-    except ImportError as e:
-        pass
-
 def _check_required_fields(expected, fields):
     if isinstance(fields, dict):
         fields = fields.keys()
@@ -129,15 +119,6 @@ def _check_required_fields(expected, fields):
             return False
     return True
 
-"""
-if app.debug:
-    for plugin_class_name in TEST_PLUGINS:
-        try:
-            _register_plugin(plugin_class_name)
-        except ImportError as e:
-            pass
-"""
-
 def sanitize_session(session):
     for field in ('created', 'queued', 'started', 'finished'):
         if session.get(field) is not None:
@@ -145,3 +126,4 @@ def sanitize_session(session):
     return session
 
 
+load_plugin()

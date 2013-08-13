@@ -4,7 +4,6 @@
 
 import pprint
 
-from minion.backend.views.base import BUILTIN_PLUGINS, TEST_PLUGINS
 from base import BACKEND_KEY, TestAPIBaseClass
 
 class TestAPIGuardDecorator(TestAPIBaseClass):
