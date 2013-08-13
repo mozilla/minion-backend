@@ -22,7 +22,7 @@ sudo apt-get install git build-essential python-virtualenv python-dev mongodb-se
 Then checkout the project and set it up:
 
 ```
-git clone https://github.com/st3fan/minion-backend.git
+git clone https://github.com/mozilla/minion-backend.git
 cd minion-backend
 virtualenv --no-site-packages env
 source env/bin/activate
