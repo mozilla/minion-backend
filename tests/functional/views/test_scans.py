@@ -50,7 +50,7 @@ class TestScanAPIs(TestAPIBaseClass):
     def test_create_scan_with_credential(self):
         res1 = self.create_user(email=self.email)
         res2 = self.create_group(group_name='test', users=[self.email,])
-        res3 = self.create_site(plans=['basic'], groups=['test'])
+        res3 = self.create_site(plans=['basic'], groups=['test'], verify=False)
 
         # we have to manually update group to contain a site
         res4 = self.modify_group('test', data={'addSites': [self.target_url,]})
@@ -130,7 +130,7 @@ class TestScanAPIs(TestAPIBaseClass):
 
         res1 = self.create_user(email=self.email)
         res2 = self.create_group(users=[self.email,], group_name='test_group')
-        res3 = self.create_site(plans=['basic'], groups=['test_group'])
+        res3 = self.create_site(plans=['basic'], groups=['test_group'], verify=False)
         res3 = self.modify_group('test_group', data={'addSites': [self.target_url,]})
 
         # POST /scans

@@ -288,23 +288,27 @@ class TestAPIBaseClass(unittest.TestCase):
         return _call('group', 'PATCH', url_args={'group_name': group_name},
             data=data)
 
-    def create_site(self, groups=None, plans=None, site=None):
+    def create_site(self, groups=None, plans=None, site=None, verify=True):
         data = {'url': site or self.target_url}
         if plans:
             data.update({'plans': plans})
         if groups:
             data.update({'groups':groups})
-        
+        data.update({'verification': {'enabled': verify, 'value': None}})
         return _call('sites', 'POST', data=data)
 
-    def update_site(self, site_id, site):
+    def update_site(self, site_id, site, verify=True):
+        site.update({'verification': {'enabled': verify, 'value': None}})
         return _call('site', 'POST', url_args={'site_id': site_id}, data=site)
 
     def get_sites(self):
         return _call('sites', 'GET', jsonify=False)
 
-    def get_site(self, site_id):
+    def get_site_by_id(self, site_id):
         return _call('site', 'GET', url_args={'site_id': site_id}, jsonify=False)
+
+    def get_site_by_url(self, url):
+        return _call('sites', 'GET', data={'url': url}, jsonify=False)
 
     def get_plans(self, email=None):
         return _call('plans', 'GET', jsonify=False, data=email)

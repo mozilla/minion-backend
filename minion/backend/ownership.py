@@ -11,18 +11,16 @@ class OwnerVerifyError(Exception):
     def __init__(self, message):
         self.message = message
 
-def verify(method, target, match):
-    """ Wrapper to verify by a method. """
+def verify(target, match):
+    """ Wrapper to run down all verification methods. """
 
-    method = method.lower()
-    if method not in ('file', 'header', 'dns'):
-        raise OwnerVerifyError('Minion only support ownership verification via file, header, and TXT record')
-    if method == 'file':
-        return verify_by_file(target, match, 'minion_verified.txt')
-    elif method == 'header':
-        return verify_by_header(target, match)
-    else:
-        return verify_by_dns(target, match)
+    if verify_by_file(target, match, 'minion_verified.txt'):
+        return True
+    if verify_by_header(target, match):
+        return True
+    if verify_by_dns_record(target, match):
+        return True
+    return False
 
 def verify_by_file(target, match, filename):
     """ Verify site ownership by matching the content
@@ -33,8 +31,8 @@ def verify_by_file(target, match, filename):
         r = minion.curly.get(target_file)
         r.raise_for_status()
     except (minion.curly.CurlyError, minion.curly.BadResponseError) as error:
-        raise OwnerVerifyError(error.message)
-    
+        return None
+
     if r.body != match:
         return False
     else:
@@ -48,7 +46,7 @@ def verify_by_header(target, match):
         r = minion.curly.get(target)
         r.raise_for_status()
     except (minion.curly.CurlyError, minion.curly.BadResponseError) as error:
-        raise OwnerVerifyError(error.message)
+        return None
 
     if 'x-minion-site-ownership' not in r.headers:
         return False
@@ -65,9 +63,9 @@ def verify_by_dns_record(target, match):
     p = Popen(['dig', 'TXT', url.netloc, '+short'], stdout=PIPE, stderr=PIPE)
     out, err = p.communicate()
     if err:
-        raise OwnerVerifyError("Unable to retrieve DNS error.")
+        return None
     if not out:
-        raise OwnerVerifyError("No TXT record found.")
+        return None
     if match not in out:
         return False
     else:

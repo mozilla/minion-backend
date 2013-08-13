@@ -107,7 +107,13 @@ def create_site():
     new_site = { 'id': str(uuid.uuid4()),
                  'url':  site['url'],
                  'plans': site.get('plans', []),
-                 'created': datetime.datetime.utcnow() }
+                 'created': datetime.datetime.utcnow()}
+    
+    if site['verification']['enabled']:
+        new_site['verification'] = {'enabled': True, 'value': str(uuid.uuid4())}
+    else:
+        new_site['verification'] = {'enabled': False, 'value': None}
+
     sites.insert(new_site)
     # Add the site to the groups - group membership is stored in the group object, not in the site
     for group_name in site.get('groups', []):
@@ -169,9 +175,23 @@ def update_site(site_id):
         for group_name in site['groups']:
             if group_name not in new_site.get('groups', []):
                 groups.update({'name':group_name},{'$pull': {'sites': site['url']}})
+
     if 'plans' in new_site:
         # Update the site. At this point we can only update plans.
         sites.update({'id': site_id}, {'$set': {'plans': new_site.get('plans')}})
+
+    new_verification = new_site['verification']
+    old_verification = site.get('verification')
+    # if site doesn't have 'verification', do us a favor, update the document as it is outdated!
+    if not old_verification or old_verification['enabled'] != new_verification['enabled']:
+        # to make logic simpler, even if the new request wants to 
+        # disable verification, generate a new value anyway.
+        sites.update({'id': site_id}, 
+            {'$set': {
+                 'verification': {
+                    'enabled': new_verification['enabled'], 
+                    'value': str(uuid.uuid4())}}})
+        
     # Return the updated site
     site = sites.find_one({'id': site_id})
     if not site:

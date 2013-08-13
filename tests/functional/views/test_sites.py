@@ -14,18 +14,26 @@ class TestSitesAPIs(TestAPIBaseClass):
         #self.import_plan(plan_name='nmap')
         #self.import_plan(plan_name='zap')
 
-    def test_create_site(self):
+    def test_create_site_without_verifying(self):
         res = self.create_user()
         res1 = self.create_group()
-        res2 = self.create_site()
+        res2 = self.create_site(verify=False)
         expected_top_keys = ('success', 'site',)
         #pprint.pprint(res2.json(), indent=2)
         self._test_keys(res2.json().keys(), expected_top_keys)
-        expected_inner_keys = ('id', 'url', 'plans', 'created',)
+        expected_inner_keys = ('id', 'url', 'plans', 'created', 'verification')
         self._test_keys(res2.json()['site'].keys(), expected_inner_keys)
         self.assertEqual(res2.json()['site']['url'], self.target_url)
-        #self.assertEqual(res2.json()['site']['groups'], [self.group_name])
         self.assertEqual(res2.json()['site']['plans'], [])
+        self.assertEqual(res2.json()['site']['verification']['enabled'], False)
+        self.assertFalse(res2.json()['site']['verification']['value'])
+
+    def test_create_site_with_verifying(self):
+        res = self.create_user()
+        res1 = self.create_group()
+        res2 = self.create_site(verify=True)
+        self.assertEqual(res2.json()['site']['verification']['enabled'], True)
+        self.assertTrue(res2.json()['site']['verification']['value'])
 
     def test_create_duplicate_site(self):
         res = self.create_user()
@@ -44,7 +52,7 @@ class TestSitesAPIs(TestAPIBaseClass):
         res3 = self.get_sites()
         expected_top_keys = ('success', 'sites', )
         self._test_keys(res3.json().keys(), expected_top_keys)
-        expected_inner_keys = ('id', 'url','groups', 'created', 'plans')
+        expected_inner_keys = ('id', 'url','groups', 'created', 'plans', 'verification')
         self._test_keys(res3.json()['sites'][0].keys(), expected_inner_keys)
         self.assertEqual(res3.json()['sites'][0]['url'], self.target_url)
         self.assertEqual(res3.json()['sites'][0]['groups'], [])
@@ -55,11 +63,18 @@ class TestSitesAPIs(TestAPIBaseClass):
         res1 = self.create_group()
         res2 = self.create_site()
         site_id = res2.json()['site']['id']
-        res3 = self.get_site(site_id)
+        res3 = self.get_site_by_id(site_id)
         expected_top_keys = ('success', 'site', )
         self._test_keys(res3.json().keys(), expected_top_keys)
         # until #49, #50, #51 are resolved, this is commented
         self.assertEqual(res3.json()['site'], res2.json()['site'])
+
+    def test_get_specific_site_by_url(self):
+        res = self.create_user()
+        res1 = self.create_group()
+        res2 = self.create_site()
+        res3 = self.get_site_by_url(res2.json()['site']['url'])
+        #self.assertEqual(res3.json(), res2.json())
 
     def test_update_site(self):
         res = self.create_user()
@@ -74,7 +89,7 @@ class TestSitesAPIs(TestAPIBaseClass):
         # Update the site, add a plan and group
         self.update_site(original_site['id'], {'plans':['basic'], 'groups': ['foo']})
         # Verify that the site has these new settings
-        r = self.get_site(original_site['id'])
+        r = self.get_site_by_id(original_site['id'])
         site = r.json()['site']
         self.assertEqual(sorted(site['plans']), sorted(['basic']))
         self.assertEqual(sorted(site['groups']), sorted(['foo']))
@@ -83,7 +98,7 @@ class TestSitesAPIs(TestAPIBaseClass):
         self.update_site(site['id'], {'groups': ['bar','baz']})  #bug #144
         #self.update_site(site['id'], {'plans':['nmap','zap'], 'groups': ['bar','baz']})  #bug #144
         # Verify that the site has these new settings
-        r = self.get_site(original_site['id'])
+        r = self.get_site_by_id(original_site['id'])
         site = r.json()['site']
         #self.assertEqual(sorted(site['plans']), sorted(['nmap', 'zap']))  #bug #144
         self.assertEqual(sorted(site['plans']), ['basic'])
@@ -128,7 +143,7 @@ class TestSitesAPIs(TestAPIBaseClass):
         r = self.update_site(original_site['id'], {'plans':['nmap']})
         r.raise_for_status()
         # Make sure the groups have not been changed
-        r = self.get_site(original_site['id'])
+        r = self.get_site_by_id(original_site['id'])
         site = r.json()['site']
         #self.assertEqual(sorted(['nmap']), sorted(site['plans'])) #bug 144
         self.assertEqual(['basic'], site['plans'])
@@ -148,7 +163,7 @@ class TestSitesAPIs(TestAPIBaseClass):
         r = self.update_site(original_site['id'], {'groups':['bar']})
         r.raise_for_status()
         # Make sure the plans have not been changed
-        r = self.get_site(original_site['id'])
+        r = self.get_site_by_id(original_site['id'])
         site = r.json()['site']
         self.assertEqual(sorted(['basic']), sorted(site['plans']))
         self.assertEqual(sorted(['bar']), sorted(site['groups']))

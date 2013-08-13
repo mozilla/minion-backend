@@ -93,6 +93,10 @@ Enter the option number: ")
                 data=json.dumps({
                     'url': site,
                     'plans': detail['plans'],
-                    'groups': [group]
+                    'groups': [group],
+                    'verification': {
+                        'enabled': False,
+                        'value': None
+                    }
             }))
 

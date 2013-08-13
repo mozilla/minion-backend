@@ -62,16 +62,6 @@ class TestOwnership(unittest.TestCase):
         resp = ownership.verify_by_file(self.target, "cheese", "burger.txt")
         self.assertEqual(False, resp)
 
-    def test_verify_by_file_trigger_CurlyError(self):
-        self._setup_exception(minion.curly.CurlyError)
-        self.assertRaises(ownership.OwnerVerifyError, ownership.verify_by_file,
-            self.target, "cheese", "burger.txt")
-
-    def test_verify_by_file_trigger_BadResponseError(self):
-        self._setup_exception(minion.curly.BadResponseError)
-        self.assertRaises(ownership.OwnerVerifyError, ownership.verify_by_file,
-            self.target, "cheese", "burger.txt")
-
     # Now test verify_by_header
 
     def test_verify_by_header_return_true(self):
@@ -84,16 +74,6 @@ class TestOwnership(unittest.TestCase):
         resp = ownership.verify_by_header(self.target, "foo")
         self.assertEqual(False, resp) 
 
-    def test_verify_by_header_trigger_CurlyError(self):
-        self._setup_exception(minion.curly.CurlyError)
-        self.assertRaises(ownership.OwnerVerifyError, ownership.verify_by_header,
-            self.target, "foo")
-
-    def test_verify_by_header_trigger_BadResponseError(self):
-        self._setup_exception(minion.curly.BadResponseError)
-        self.assertRaises(ownership.OwnerVerifyError, ownership.verify_by_header,
-            self.target, "foo")
-
     # verify by dns record
 
     def test_verify_by_dns_record_return_True(self):
@@ -105,13 +85,3 @@ class TestOwnership(unittest.TestCase):
         self.mk_popen.return_value.communicate.return_value = ("ham", "")
         resp = ownership.verify_by_dns_record(self.target, "cheese")
         self.assertEqual(False, resp)
-
-    def test_verify_by_dns_record_fail_on_no_record(self):
-        self.mk_popen.return_value.communicate.return_value = ("", "")
-        self.assertRaises(ownership.OwnerVerifyError, ownership.verify_by_dns_record,
-            self.target, "cheese")
-
-    def test_verify_by_dns_record_fail_on_stderr(self):
-        self.mk_popen.return_value.communicate.return_value = ("", "bad")
-        self.assertRaises(ownership.OwnerVerifyError, ownership.verify_by_dns_record,
-            self.target, "cheese")

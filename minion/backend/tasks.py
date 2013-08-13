@@ -580,10 +580,8 @@ def scan(scan_id):
         site = get_site_info(cfg['api']['url'], target)
         if not site:
             return set_finished(scan_id, 'ABORTED')
-        if site.get('verification'):
-            verified = ownership.verify(site['verification']['method'],
-                        target,
-                        site['verification']['value'])
+        if site.get('verification') and site['verification']['enabled']:
+            verified = ownership.verify(target, site['verification']['value'])
             if not verified:
                 return set_finished(scan_id, 'ABORTED')
     except ownership.OwnerVerifyError:
