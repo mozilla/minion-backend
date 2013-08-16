@@ -218,6 +218,7 @@ def get_sites():
     if query_url:
         site = sites.find_one({'url': query_url})
         if site:
+            site['groups'] = _find_groups_for_site(site['url'])
             return jsonify(success=True, site=sanitize_site(site))
         else:
             jsonify(success=True, site=[])

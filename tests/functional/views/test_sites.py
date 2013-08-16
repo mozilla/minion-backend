@@ -66,7 +66,6 @@ class TestSitesAPIs(TestAPIBaseClass):
         res3 = self.get_site_by_id(site_id)
         expected_top_keys = ('success', 'site', )
         self._test_keys(res3.json().keys(), expected_top_keys)
-        # until #49, #50, #51 are resolved, this is commented
         self.assertEqual(res3.json()['site'], res2.json()['site'])
 
     def test_get_specific_site_by_url(self):
@@ -74,7 +73,7 @@ class TestSitesAPIs(TestAPIBaseClass):
         res1 = self.create_group()
         res2 = self.create_site()
         res3 = self.get_site_by_url(res2.json()['site']['url'])
-        #self.assertEqual(res3.json(), res2.json())
+        self.assertEqual(res3.json(), res2.json())
 
     def test_update_site(self):
         res = self.create_user()
