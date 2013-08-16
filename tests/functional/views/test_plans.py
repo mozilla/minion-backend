@@ -9,12 +9,11 @@ from base import BACKEND_KEY, BASE, _call, TestAPIBaseClass
 class TestPlanAPIs(TestAPIBaseClass):
 
     PLAN = { "name": "test",
-              "description": "Test",
-              "workflow": [ { "plugin_name": "minion.plugins.basic.AlivePlugin",
-                              "description": "Test if the site is alive",
-                              "configuration": { "foo": "bar" }
-                              } ] }
-
+                      "description": "Test",
+                      "workflow": [ { "plugin_name": "minion.plugins.basic.AlivePlugin",
+                                      "description": "Test if the site is alive",
+                                      "configuration": { "foo": "bar" }
+                                      } ] }
     def _create_plan(self, plan):
         res1 = self.create_user(email=self.email)
         res2 = self.create_group(users=[self.email,], group_name='test_group')

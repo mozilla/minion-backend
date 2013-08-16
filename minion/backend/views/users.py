@@ -10,8 +10,16 @@ from minion.backend.views.base import api_guard, groups, sites, users
 from minion.backend.views.groups import _check_group_exists
 
 def _find_groups_for_user(email):
-    """Find all the groups the user is in"""
+    """Find all the groups the user is in. """
     return [g['name'] for g in groups.find({"users":email})]
+
+def _find_sites_for_user_by_group_name(email, group_name):
+    """ Find all sites that user has access to in a
+    given group. """
+    group = groups.find_one({'name': group_name, 'users': email})
+    if not group:
+        return jsonify(success=False, reason="Group not found.")
+    return group['sites']
 
 def _find_sites_for_user(email):
     """Find all sites that the user has access to"""

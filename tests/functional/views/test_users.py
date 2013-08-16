@@ -257,4 +257,3 @@ class TestGroupAPIs(TestAPIBaseClass):
         self._test_keys(res2.json().keys(), set(res1.json().keys()))
         self._test_keys(res2.json()['group'].keys(), set(res1.json()['group'].keys()))
         self.assertEqual(res2.json()['group']['users'], [])
-
