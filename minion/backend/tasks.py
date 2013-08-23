@@ -34,7 +34,7 @@ from celery.signals import celeryd_after_setup
 from celery.utils.log import get_task_logger
 from celery.execute import send_task
 
-from minion.backend.utils import backend_config
+from minion.backend.utils import backend_config, scan_config, scannable
 
 import time
 
@@ -564,6 +564,13 @@ def scan(scan_id):
               [scan_id, time.time()],
               queue='state').get()
 
+    if not scannable(
+        scan['configuration']['target'],
+        scan_config().get('whitelist', []),
+        scan_config().get('blacklist', [])):
+        return send_task("minion.backend.tasks.scan_finish", 
+            [scan_id, 'ABORTED', time.time()], 
+            queue='state').get()
     #
     # Run each plugin session
     #

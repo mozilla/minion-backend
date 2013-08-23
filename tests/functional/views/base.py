@@ -17,6 +17,7 @@ from pymongo import MongoClient
 
 import minion.backend.utils as backend_utils
 
+TEST_VIEW_ROOT = os.path.abspath(os.path.dirname(os.path.abspath(__file__)))
 test_app = Flask(__name__)
 @test_app.route('/')
 def basic_app():

@@ -5,12 +5,27 @@
 
 import copy
 import email as pyemail
+import ipaddress
 import re
 import json
 import jinja2
 import os
 import smtplib
+import urlparse
 from email.mime.text import MIMEText
+
+DEFAULT_WHITELIST = []
+
+DEFAULT_BLACKLIST = [
+    'localhost',
+    '127.0.0.1',
+    ['192.0.0.0', '192.255.255.255']
+]
+
+DEFAULT_SCAN_CONFIG = {
+    'whitelist': DEFAULT_WHITELIST,
+    'blacklist': DEFAULT_BLACKLIST
+}
 
 DEFAULT_BACKEND_CONFIG = {
     'api': {
@@ -38,7 +53,6 @@ DEFAULT_FRONTEND_CONFIG = {
     }
 }
 
-
 def _load_config(name):
     if os.path.exists("/etc/minion/%s" % name):
         with open("/etc/minion/%s" % name) as fp:
@@ -52,6 +66,63 @@ def backend_config():
 
 def frontend_config():
     return _load_config("frontend.json") or copy.deepcopy(DEFAULT_FRONTEND_CONFIG)
+
+def scan_config():
+    return _load_config("scan.json") or copy.deepcopy(DEFAULT_SCAN_CONFIG)
+
+def resolve_url(target_url):
+    """ Resolve the URL to a list of socket addresses. """
+    url = urlparse.urlparse(target_url)
+    info = socket.getaddrinfo(url.netloc, None, socket.AF_INET, \
+        socket.SOCK_STREAM, socket.IPPROTO_IP, socket.AI_CANONNAME)
+    socket_addrs = []
+    for i in info:
+        # each item in the info list returns a 5-tuple structure
+        # (family, socktype, proto, canonname, sockaddr)
+        # and sockaddr is a 2-tuple structure: socket_ip and socket_port
+        socket_addrs.append(i[-1][0])
+    return socket_addrs
+
+def ip4_to_binary(ip):
+    return ''.join([bin(int(component)+256)[3:] for component in ip.split('.')])
+
+def is_localhost(candidate):
+    if ":" in candidate and candidate.split(":")[0] == "localhost":
+        return True
+    elif candidate == "localhost":
+        return True
+    return False
+
+def scannable(target_url, whitelist, blacklist):
+    """ Check to see if url is scannable by checking 
+    (1) if url is whitelisted or blacklisted, and
+    (2) if the ip4 address resolved from target url is whitelistd
+    or blacklisted. Caller should validate target_url before
+    passing to scannable!
+    """
+    
+    url = urlparse.urlparse(target_url)
+    if is_localhost(url.netloc):
+        target_url = "127.0.0.1"
+    else:
+        target_url = url.netloc
+
+    target_ipaddr = ipaddress.ip_address(unicode(target_url))
+    if whitelist:
+        for x in whitelist:
+            if x == 'localhost':
+                x = "127.0.0.1"
+            if target_ipaddr in ipaddress.ip_network(unicode(x), strict=False):
+                return True
+            # else we wait for a match (whitelist or blacklist)
+    if blacklist:
+        for x in blacklist:
+            if x == 'localhost':
+                x = "127.0.0.1"
+            if target_ipaddr in ipaddress.ip_network(unicode(x), strict=False):
+                return False
+    # no match found we assume it is match!
+    return True
 
 def get_template(template_file):
     template_dir = os.path.join(

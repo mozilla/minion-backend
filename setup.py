@@ -11,7 +11,8 @@ install_requires = [
     'requests==1.2.2',
     'twisted==13.0.0',
     'pycurl==7.19.0',
-    'gunicorn==0.17.4'
+    'gunicorn==0.17.4',
+    'ipaddress==1.0.4'
 ]
 
 plugins_requires = [

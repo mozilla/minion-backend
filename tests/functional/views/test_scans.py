@@ -2,14 +2,17 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+import json
+import os
 import pprint
 import requests
+import shutil
 import time
 from flask import Flask, make_response
 from multiprocessing import Process
 from subprocess import Popen, PIPE
 
-from base import BACKEND_KEY, BASE, _call, TestAPIBaseClass
+from base import BACKEND_KEY, BASE, _call, TestAPIBaseClass, TEST_VIEW_ROOT
 
 test_app = Flask(__name__)
 
@@ -26,6 +29,16 @@ class TestScanAPIs(TestAPIBaseClass):
     def setUp(self):
         super(TestScanAPIs, self).setUp()
         self.import_plan()
+
+    def copy_config(self, local_config_fname, config_name):
+        if not os.path.exists(os.path.expanduser("~/.minion/")):
+            os.mkdir(os.path.expanduser('~/.minion'))
+        if os.path.exists(os.path.expanduser("~/.minion/" + config_name)):
+            shutil.copyfile(
+                os.path.expanduser("~/.minion/" + config_name), 
+                os.path.expanduser("~/.minion/" + config_name + ".backup"))
+        shutil.copyfile(os.path.join(TEST_VIEW_ROOT, "configurations/" + local_config_fname), 
+            os.path.expanduser("~/.minion/" + config_name))
 
     def _kill_ports(self, ports):
         for port in ports:
@@ -113,7 +126,7 @@ class TestScanAPIs(TestAPIBaseClass):
         self.assertEqual(res6.json()['success'], False)
         self.assertEqual(res6.json()['reason'], 'not-found')
     
-    def test_start_basic_scan(self):
+    def start_basic_scan(self, local_config, config_name):
         """
         This test is very comprehensive. It tests
         1. POST /scans
@@ -125,9 +138,17 @@ class TestScanAPIs(TestAPIBaseClass):
         7. GET /reports/issues
 
         ** some apis are checked with and without email.
+        local_config is the name of the local configuration
+        file from configurations directory.
+        config_name will match the actual configuration
+        name we are going to put in ~/.minion/ (either
+        scan, backend or frontend.json)
         """
         self.start_server()
 
+        # modify config
+        self.copy_config(local_config, config_name)
+ 
         res1 = self.create_user(email=self.email)
         res2 = self.create_group(users=[self.email,], group_name='test_group')
         res3 = self.create_site(plans=['basic'], groups=['test_group'])
@@ -153,10 +174,20 @@ class TestScanAPIs(TestAPIBaseClass):
         
         # give scanner a few seconds
         time.sleep(10)
+        return scan_id
+
+    def test_basic_scan_aborted_due_to_blacklist_blockage(self):
+        scan_id = self.start_basic_scan('scan_block_local.json', 'scan.json')
+        # GET /scans/<scan_id>
+        res7 = self.get_scan(scan_id, email=self.email)
+        self.assertEqual(res7.json()['scan']['state'], 'ABORTED')
+        self.stop_server()
+
+    def test_basic_scan_finished(self):
+        scan_id = self.start_basic_scan('scan_free_all.json', 'scan.json')
         # GET /scans/<scan_id>
         # now check if the scan has completed or not
         res7 = self.get_scan(scan_id, email=self.email)
-        #pprint.pprint(res7.json(), indent=3)
         self.assertEqual(res7.json()['scan']['state'], 'FINISHED')
         
         # GET /scans/<scan_id>/summary
@@ -232,6 +263,4 @@ class TestScanAPIs(TestAPIBaseClass):
 
         self.assertEqual(res11.json()['report'][0]['target'], self.target_url)
         self.stop_server()
-        #pprint.pprint(res11.json(), indent=3)
-
-        
+        #pprint.pprint(res11.json(), indent=3)        
