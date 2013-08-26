@@ -65,7 +65,8 @@ class TestInviteAPIs(TestAPIBaseClass):
         # check user belongs to them
         res8 = self.get_group('test')
         self.assertEqual(res8.json()['group']['users'], [recipient,])
-        res9 = self.get_site(site_id)
+        res9 = self.get_site_by_id(site_id)
+
         # remove invitation
         res10 = self.delete_invite(invite_id)
         self.assertEqual(res10.json()['success'], True)

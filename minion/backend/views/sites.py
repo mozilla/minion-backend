@@ -107,7 +107,13 @@ def create_site():
     new_site = { 'id': str(uuid.uuid4()),
                  'url':  site['url'],
                  'plans': site.get('plans', []),
-                 'created': datetime.datetime.utcnow() }
+                 'created': datetime.datetime.utcnow()}
+    
+    if site['verification']['enabled']:
+        new_site['verification'] = {'enabled': True, 'value': str(uuid.uuid4())}
+    else:
+        new_site['verification'] = {'enabled': False, 'value': None}
+
     sites.insert(new_site)
     # Add the site to the groups - group membership is stored in the group object, not in the site
     for group_name in site.get('groups', []):
@@ -169,9 +175,23 @@ def update_site(site_id):
         for group_name in site['groups']:
             if group_name not in new_site.get('groups', []):
                 groups.update({'name':group_name},{'$pull': {'sites': site['url']}})
+
     if 'plans' in new_site:
         # Update the site. At this point we can only update plans.
         sites.update({'id': site_id}, {'$set': {'plans': new_site.get('plans')}})
+
+    new_verification = new_site['verification']
+    old_verification = site.get('verification')
+    # if site doesn't have 'verification', do us a favor, update the document as it is outdated!
+    if not old_verification or old_verification['enabled'] != new_verification['enabled']:
+        # to make logic simpler, even if the new request wants to 
+        # disable verification, generate a new value anyway.
+        sites.update({'id': site_id}, 
+            {'$set': {
+                 'verification': {
+                    'enabled': new_verification['enabled'], 
+                    'value': str(uuid.uuid4())}}})
+        
     # Return the updated site
     site = sites.find_one({'id': site_id})
     if not site:
@@ -180,11 +200,10 @@ def update_site(site_id):
     return jsonify(success=True, site=sanitize_site(site))
 
 #
-# Retrieve all sites in minion
-#
 #  GET /sites
 #
-# Returns a list of sites
+# Returns a list of sites or return the site
+# matches the query
 #
 #  [{ 'id': 'b263bdc6-8692-4ace-aa8b-922b9ec0fc37',
 #     'url': 'https://www.mozilla.com',
@@ -194,9 +213,18 @@ def update_site(site_id):
 
 @app.route('/sites', methods=['GET'])
 @api_guard
-def list_sites():
-    sitez = [sanitize_site(site) for site in sites.find()]
-    for site in sitez:
-        site['groups'] = _find_groups_for_site(site['url'])
-    return jsonify(success=True, sites=sitez)
+def get_sites():
+    query_url = request.args.get('url')
+    if query_url:
+        site = sites.find_one({'url': query_url})
+        if site:
+            site['groups'] = _find_groups_for_site(site['url'])
+            return jsonify(success=True, site=sanitize_site(site))
+        else:
+            jsonify(success=True, site=[])
+    else:
+        sitez = [sanitize_site(site) for site in sites.find()]
+        for site in sitez:
+            site['groups'] = _find_groups_for_site(site['url'])
+        return jsonify(success=True, sites=sitez)
 
