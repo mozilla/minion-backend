@@ -12,7 +12,7 @@ from minion.backend.views.groups import _check_group_exists
 from minion.backend.views.plans import _check_plan_exists
 
 def _check_site_url(url):
-    regex = re.compile(r"^(http|https)://(localhost|([a-z0-9][-a-z0-9]+)(\.[a-z0-9][-a-z0-9]+)+)(:\d+)?$")
+    regex = re.compile(r"^(http|https)://(localhost|([a-z0-9][-a-z0-9]*)(\.[a-z0-9][-a-z0-9]*)+)(:\d+)?$")
     return regex.match(url) is not None
 
 #def _check_required_fields(expected, fields):
