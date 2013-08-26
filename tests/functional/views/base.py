@@ -363,16 +363,20 @@ class TestAPIBaseClass(unittest.TestCase):
             data = {'user': user}
         return _call('history', 'GET', data=data, jsonify=False)
 
-    def get_reports_status(self, user=None):
+    def get_reports_status(self, user=None, group_name=None):
         data = None
         if user is not None:
             data = {'user': user}
+            if group_name is not None:
+                data.update({'group_name': group_name})
         return _call('status', 'GET', data=data, jsonify=False)
 
-    def get_reports_issues(self, user=None):
+    def get_reports_issues(self, user=None, group_name=None):
         data = None
         if user is not None:
             data = {'user': user}
+            if group_name is not None:
+                data.update({'group_name': group_name})
         return _call('issues', 'GET', data=data, jsonify=False)
 
     def _test_keys(self, target, expected):

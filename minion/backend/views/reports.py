@@ -11,7 +11,7 @@ import minion.backend.utils as backend_utils
 import minion.backend.tasks as tasks
 from minion.backend.app import app
 from minion.backend.views.base import api_guard, scans, sites, users
-from minion.backend.views.users import _find_sites_for_user
+from minion.backend.views.users import _find_sites_for_user, _find_sites_for_user_by_group_name
 from minion.backend.views.scans import sanitize_scan, summarize_scan
 
 # API Methods to return reports
@@ -45,6 +45,7 @@ def get_reports_history():
 #
 # If the user is specified then the report will only include data
 # that the user can see.
+# Accept a filter query: groups?=<group_name>&user?=<email_address>
 #
 #  { 'report':
 #       [{ 'plan': 'basic',
@@ -57,13 +58,18 @@ def get_reports_history():
 @api_guard
 def get_reports_sites():
     result = []
+    group_name = request.args.get('group_name')
     user_email = request.args.get('user')
     if user_email is not None:
         # User specified, so return recent scans for each site/plan that the user can see
         user = users.find_one({'email': user_email})
         if user is None:
             return jsonify(success=False, reason='no-such-user')
-        for site_url in sorted(_find_sites_for_user(user_email)):
+        if group_name:
+            site_list = _find_sites_for_user_by_group_name(user_email, group_name)
+        else:
+            site_list = _find_sites_for_user(user_email)
+        for site_url in sorted(site_list):
             site = sites.find_one({'url': site_url})
             if site is not None:
                 for plan_name in site['plans']:
@@ -80,6 +86,7 @@ def get_reports_sites():
 # Returns a status report that lists each site and attached plans
 # together with the results from the last scan done.
 #
+# Accept a filter query: groups?=<group_name>&user?=<email_address>
 # If the user is specified then the report will only include data
 # that the user can see.
 #  { 'report':
@@ -92,13 +99,19 @@ def get_reports_sites():
 @api_guard
 def get_reports_issues():
     result = []
+    group_name = request.args.get('group_name')
     user_email = request.args.get('user')
     if user_email is not None:
         # User specified, so return recent scans for each site/plan that the user can see
         user = users.find_one({'email': user_email})
         if user is None:
             return jsonify(success=False, reason='no-such-user')
-        for site_url in sorted(_find_sites_for_user(user_email)):
+        if group_name:
+            site_list = _find_sites_for_user_by_group_name(user_email, group_name)
+        else:
+            site_list = _find_sites_for_user(user_email)
+
+        for site_url in sorted(site_list):
             r = {'target': site_url, 'issues': []}
             site = sites.find_one({'url': site_url})
             if site is not None:
@@ -112,4 +125,3 @@ def get_reports_issues():
                                                     'id': issue['Id']})
             result.append(r)
     return jsonify(success=True, report=result)
-
