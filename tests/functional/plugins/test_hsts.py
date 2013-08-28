@@ -16,30 +16,30 @@ from base import TestPluginBaseClass, test_app
 
 from nose import SkipTest
 
-@test_app.route('/has-hsps')
-def has_hsps():
+@test_app.route('/has-hsts')
+def has_hsts():
     res = make_response("<h1>HELLO HTTPS</h1>")
     res.headers['strict-transport-security'] = 'max-age=3153600'
     return res
 
-@test_app.route('/no-hsps')
-def no_hsps():
+@test_app.route('/no-hsts')
+def no_hsts():
     res = make_response("")
     return res
 
-@test_app.route("/negative-hsps")
-def has_negative_hsps():
+@test_app.route("/negative-hsts")
+def has_negative_hsts():
     res = make_response("")
     res.headers['strict-transport-security'] = 'max-age=-1'
     return res
 
-@test_app.route("/invalid-hsps")
-def invalid_hsps():
+@test_app.route("/invalid-hsts")
+def invalid_hsts():
     res = make_response("")
     res.headers['strict-transport-security'] = 'max-agee=3153600'
     return res
 
-@test_app.route('/hsps-include-subdomain')
+@test_app.route('/hsts-include-subdomain')
 def include_subdomain():
     res = make_response("")
     res.headers['strict-transport-security'] = 'max-age=3153600; includeSubdomain'
@@ -76,7 +76,7 @@ class TestHSTSPlugin(TestPluginBaseClass):
         if cls.stunnel_process:
             cls.stunnel_process.terminate()
 
-    def validate_hsps(self, runner_resp, request_resp, expected=None, expectation=True):
+    def validate_hsts(self, runner_resp, request_resp, expected=None, expectation=True):
         if expectation is True:
             self.assertEqual('Strict-Transport-Security header is set properly', \
                 runner_resp[1]['data']['Summary'])
@@ -103,13 +103,13 @@ class TestHSTSPlugin(TestPluginBaseClass):
         if not self.stunnel_path:
             raise SkipTest
         api_name = '/has-hsts'
-        self.validate_plugin(api_name, self.validate_hsps, expectation='BAD-CERT',\
+        self.validate_plugin(api_name, self.validate_hsts, expectation='BAD-CERT',\
             base='https://localhost:1443')
 
     def test_hsts_good_on_signed_cert(self):
-        self.validate_plugin(None, self.validate_hsps, expectation=True, base=None,\
+        self.validate_plugin(None, self.validate_hsts, expectation=True, base=None,\
            target='https://www.mozillalabs.com')
 
-    def test_hsps_no_hsps_header_over_https(self):
-        self.validate_plugin(None, self.validate_hsps, expectation=False,\
+    def test_hsts_no_hsts_header_over_https(self):
+        self.validate_plugin(None, self.validate_hsts, expectation=False,\
             target='https://google.com')
