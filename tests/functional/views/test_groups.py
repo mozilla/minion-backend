@@ -38,13 +38,13 @@ class TestGroupAPIs(TestAPIBaseClass):
         res = self.create_group(users=['user1', 'user2'])
         self.assertEqual(res.json()['success'], False)
         self.assertEqual(res.json()['reason'], 'user user1 does not exist')
-    
+
     #issue#132
     def test_create_group_with_non_existing_user(self):
         res = self.create_group(sites=['https://example1.com',])
         self.assertEqual(res.json()['success'], False)
         self.assertEqual(res.json()['reason'], 'site https://example1.com does not exist')
-    
+
     #issue#132
     def test_create_group_with_existing_user(self):
         res1 = self.create_user(email='user1@example.org')
@@ -84,13 +84,12 @@ class TestGroupAPIs(TestAPIBaseClass):
         res2 = self.create_group(group_name="test2", users=[self.email])
         res3 = self.create_site(groups=["test1"], site="http://foo.com")
         res4 = self.create_site(groups=["test2"], site="http://bar.com")
-        raw_input("----")
         # if we query just test1, should get back only foo.com
         res5 = self.get_reports_status(user=self.email, group="test1")
         r = res5.json()['report']
         self.assertEqual(len(r), 1) # there should just be one dict returned in the list
         self.assertEqual(r[0]['target'], "http://foo.com")
-    
+
         # if we try it on get_report_issues we should see similar result
         res6 = self.get_report_issues(user=self.email, group="test1")
         r = res6.json()['report']
@@ -148,4 +147,3 @@ class TestGroupAPIs(TestAPIBaseClass):
         self._test_keys(res2.json().keys(), set(res1.json().keys()))
         self._test_keys(res2.json()['group'].keys(), set(res1.json()['group'].keys()))
         self.assertEqual(res2.json()['group']['users'], [])
-
