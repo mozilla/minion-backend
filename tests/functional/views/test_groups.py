@@ -84,7 +84,6 @@ class TestGroupAPIs(TestAPIBaseClass):
         res2 = self.create_group(group_name="test2", users=[self.email])
         res3 = self.create_site(groups=["test1"], site="http://foo.com")
         res4 = self.create_site(groups=["test2"], site="http://bar.com")
-        raw_input("----")
         # if we query just test1, should get back only foo.com
         res5 = self.get_reports_status(user=self.email, group="test1")
         r = res5.json()['report']
