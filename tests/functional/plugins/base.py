@@ -19,7 +19,7 @@ def _kill_ports(ports):
                 stdout=PIPE, stderr=PIPE, shell=True)
 
 class TestPluginBaseClass(unittest.TestCase):
-    __test__ = False 
+    __test__ = False
     PORTS = (1234, 1235, 1443)
 
     @classmethod
@@ -36,11 +36,11 @@ class TestPluginBaseClass(unittest.TestCase):
         cls.server.daemon = True
         cls.server.start()
 
-        @classmethod
-        def tearDownClass(cls):
-            cls.server.terminate()
-            time.sleep(2)
-            _kill_ports(cls.PORTS)  # just in case
+    @classmethod
+    def tearDownClass(cls):
+        cls.server.terminate()
+        time.sleep(2)
+        _kill_ports(cls.PORTS)  # just in case
 
     def run_plugin(self, pname, api):
         pname = "minion.plugins.basic." + pname
@@ -75,6 +75,3 @@ class TestPluginBaseClass(unittest.TestCase):
             request_resp = requests.exceptions.ConnectionError
 
         return validator(runner_resp, request_resp, expected=expected, expectation=expectation)
-
-    
-
