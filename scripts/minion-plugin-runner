@@ -30,7 +30,7 @@ class JSONCallbacks:
         j = json.dumps(m)
         sys.stdout.write(j)
         sys.stdout.write("\n")
-        sys.stdout.flush()        
+        sys.stdout.flush()
 
     def report_start(self):
         self._write({"msg": "start"})
@@ -84,6 +84,7 @@ class PluginRunner:
         except Exception as e:
             logging.exception("Failed to configure plugin %s" % str(self.plugin))
             self.callbacks.report_finish(state = AbstractPlugin.EXIT_STATE_FAILED)
+            return False
 
         try:
             self.callbacks.report_start()
@@ -91,6 +92,9 @@ class PluginRunner:
         except Exception as e:
             logging.exception("Failed to start plugin %s" % str(self.plugin))
             self.callbacks.report_finish(state = AbstractPlugin.EXIT_STATE_FAILED)
+            return False
+
+        return True
 
     def stop(self):
 
@@ -135,7 +139,7 @@ if __name__ == "__main__":
     else:
         logging.error("No plugin configuration given")
         sys.exit(1)
-    
+
     callbacks = JSONCallbacks()
 
     #
@@ -171,7 +175,8 @@ if __name__ == "__main__":
 
     runner = PluginRunner(reactor, callbacks, configuration, plugin_session_id, plugin_module_name,
                           plugin_class_name, work_directory)
-    runner.run()
+    if not runner.run():
+        sys.exit(0)
 
     # Install signal handlers for USR1 and USR2 which we will receive
     # when the plugin service wants to stop or kill us.
