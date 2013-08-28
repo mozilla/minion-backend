@@ -2,7 +2,6 @@
 
 import calendar
 import functools
-import logging
 import importlib
 import inspect
 import json
@@ -12,6 +11,7 @@ import operator
 from flask import abort, Flask, jsonify, request, session
 from pymongo import MongoClient
 
+from minion.backend.app import app
 import minion.plugins
 import minion.backend.utils as backend_utils
 import minion.backend.tasks as tasks
@@ -69,7 +69,7 @@ def api_guard(*decor_args):
 plugins = {}
 
 def load_plugin():
-    """ Load plugins if they are subclass of AbstractPlugin and 
+    """ Load plugins if they are subclass of AbstractPlugin and
     are not known base subclasses such as BlockingPlugin. """
 
     DEFAULT_BASE_CLASSES = ('AbstractPlugin', 'BlockingPlugin', 'ExternalProcessPlugin')
@@ -81,14 +81,14 @@ def load_plugin():
         for name in dir(module):
             obj = getattr(module, name)
             if inspect.isclass(obj) and issubclass(obj, AbstractPlugin) and name not in DEFAULT_BASE_CLASSES:
-                logging.info("Found %s" % str(obj))
+                app.logger.info("Found %s" % str(obj))
                 candidates.append(str(obj))
 
     for candidate in candidates:
         try:
             _register_plugin(candidate)
         except ImportError as e:
-            logging.error("Unable to import %s" % candidate)
+            app.logger.error("Unable to import %s" % candidate)
             pass
 
 def _plugin_descriptor(plugin):
