@@ -12,7 +12,7 @@ from subprocess import Popen, PIPE
 
 from flask import make_response
 
-from base import TestPluginBaseClass, test_app, _kill_ports
+from base import TestPluginBaseClass, test_app
 
 @test_app.route('/has-hsps')
 def has_hsps():
@@ -56,11 +56,10 @@ class TestHSTSPlugin(TestPluginBaseClass):
                 stderr=PIPE)
             p.communicate()
 
-        _kill_ports(cls.PORTS)
         cls.stunnel = Process(target=run_stunnel)
         cls.stunnel.daemon = True
         cls.stunnel.start()
-        
+
         # server1 will be HTTP and one can access https through 1443
         cls.server1 = Process(target=run_app, args=(1235,))
         cls.server1.daemon = True
@@ -71,8 +70,7 @@ class TestHSTSPlugin(TestPluginBaseClass):
     def tearDownClass(cls):
         cls.server1.terminate()
         cls.stunnel.terminate() # only kills multiprocess instance
-        # actually kills stunnel process
-        _kill_ports(cls.PORTS)
+        # TODO actually kills stunnel process
 
     def validate_hsps(self, runner_resp, request_resp, expected=None, expectation=True):
         if expectation is True:
@@ -101,11 +99,11 @@ class TestHSTSPlugin(TestPluginBaseClass):
         api_name = '/has-hsts'
         self.validate_plugin(api_name, self.validate_hsps, expectation='BAD-CERT',\
             base='https://localhost:1443')
-     
+
     def test_hsts_good_on_signed_cert(self):
         self.validate_plugin(None, self.validate_hsps, expectation=True, base=None,\
            target='https://www.mozillalabs.com')
-    
+
     def test_hsps_no_hsps_header_over_https(self):
         self.validate_plugin(None, self.validate_hsps, expectation=False,\
             target='https://google.com')

@@ -5,7 +5,7 @@
 from flask import Flask, make_response, redirect, url_for
 from multiprocessing import Process
 
-from base import TestPluginBaseClass, test_app, _kill_ports
+from base import TestPluginBaseClass, test_app
 
 @test_app.route('/robots.txt')
 def robot():
@@ -22,7 +22,7 @@ test2_app = Flask(__name__)
 def bad_robots():
     return redirect(url_for('static', filename='bad-robots.txt'))
 
-APPS = {'test_app': test_app, 
+APPS = {'test_app': test_app,
     'test2_app': test2_app,
     'test3_app': test3_app}
 
@@ -36,7 +36,6 @@ class TestRobotsPlugin(TestPluginBaseClass):
             test_app = APPS[app]
             test_app.run(host='localhost', port=port)
 
-        _kill_ports(cls.PORTS)
         cls.server1 = Process(target=run_app, args=(1234, 'test_app',))
         cls.server2 = Process(target=run_app, args=(1235, 'test2_app',))
         cls.server3 = Process(target=run_app, args=(1443, 'test3_app',))
@@ -103,7 +102,7 @@ class TestRobotsPlugin(TestPluginBaseClass):
         self.validate_plugin(api_name, self.validate_robots_plugin, expectation='INVALID', \
                 base='http://localhost:1235')
 
-    # now tests missing robots        
+    # now tests missing robots
     def test_robots_missing_given_direct_url_(self):
         api_name = '/robots.txt'
         self.validate_plugin(api_name, self.validate_robots_plugin, expectation=False, \

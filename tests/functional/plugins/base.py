@@ -13,11 +13,6 @@ from subprocess import Popen, PIPE
 from flask import Flask
 test_app = Flask(__name__)
 
-def _kill_ports(ports):
-    for port in ports:
-        p = Popen(['sudo', '/bin/kill `sudo lsof -t -i:%s`' %str(port)],\
-                stdout=PIPE, stderr=PIPE, shell=True)
-
 class TestPluginBaseClass(unittest.TestCase):
     __test__ = False
     PORTS = (1234, 1235, 1443)
@@ -30,7 +25,6 @@ class TestPluginBaseClass(unittest.TestCase):
         def run_app():
             test_app.run(host='localhost', port=1234)
 
-        _kill_ports(cls.PORTS)
         # use multiprocess to launch server and kill server
         cls.server = Process(target=run_app)
         cls.server.daemon = True
@@ -40,7 +34,6 @@ class TestPluginBaseClass(unittest.TestCase):
     def tearDownClass(cls):
         cls.server.terminate()
         time.sleep(2)
-        _kill_ports(cls.PORTS)  # just in case
 
     def run_plugin(self, pname, api):
         pname = "minion.plugins.basic." + pname
