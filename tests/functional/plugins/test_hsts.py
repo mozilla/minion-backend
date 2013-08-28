@@ -14,6 +14,8 @@ from flask import make_response
 
 from base import TestPluginBaseClass, test_app
 
+from nose import SkipTest
+
 @test_app.route('/has-hsps')
 def has_hsps():
     res = make_response("<h1>HELLO HTTPS</h1>")
@@ -51,14 +53,16 @@ class TestHSTSPlugin(TestPluginBaseClass):
         def run_app(port):
             test_app.run(port=port)
 
-        def run_stunnel():
-            p = Popen(['stunnel4', 'stunnel-data/minion-test.ini'], stdout=PIPE,\
-                stderr=PIPE)
-            p.communicate()
+        def find_stunnel():
+            for path in os.environ['PATH'].split(os.pathsep):
+                stunnel_path = os.path.join(path, 'stunnel4')
+                if os.path.exists(stunnel_path):
+                    return stunnel_path
 
-        cls.stunnel = Process(target=run_stunnel)
-        cls.stunnel.daemon = True
-        cls.stunnel.start()
+        cls.stunnel_process = None
+        cls.stunnel_path = find_stunnel()
+        if cls.stunnel_path:
+            cls.stunnel_process = Popen([cls.stunnel_path, 'stunnel-data/minion-test.ini'], stdout=PIPE, stderr=PIPE)
 
         # server1 will be HTTP and one can access https through 1443
         cls.server1 = Process(target=run_app, args=(1235,))
@@ -69,8 +73,8 @@ class TestHSTSPlugin(TestPluginBaseClass):
     @classmethod
     def tearDownClass(cls):
         cls.server1.terminate()
-        cls.stunnel.terminate() # only kills multiprocess instance
-        # TODO actually kills stunnel process
+        if cls.stunnel_process:
+            cls.stunnel_process.terminate()
 
     def validate_hsps(self, runner_resp, request_resp, expected=None, expectation=True):
         if expectation is True:
@@ -96,6 +100,8 @@ class TestHSTSPlugin(TestPluginBaseClass):
                     runner_resp[1]['data']['Summary'])
 
     def test_hsts_fail_on_cert_without_ca(self):
+        if not self.stunnel_path:
+            raise SkipTest
         api_name = '/has-hsts'
         self.validate_plugin(api_name, self.validate_hsps, expectation='BAD-CERT',\
             base='https://localhost:1443')
