@@ -2,56 +2,31 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-
-import datetime
-
-from celery import Celery
-from celery.app.control import Control
-from celery.utils.log import get_task_logger
-from celery.execute import send_task
-from celery.task.control import revoke
-from pymongo import MongoClient
-
-from minion.backend import ownership
-from minion.backend.utils import backend_config
-
 import datetime
 import json
 import os
-import uuid
-import requests
 import signal
 import socket
 import subprocess
 import time
 import traceback
+import uuid
 
+from celery import Celery
+from celery.app.control import Control
+from celery.exceptions import TaskRevokedError
+from celery.execute import send_task
+from celery.signals import celeryd_after_setup
+from celery.task.control import revoke
+from celery.utils.log import get_task_logger
+from pymongo import MongoClient
+import requests
 from twisted.internet import reactor
 from twisted.internet.error import ProcessDone, ProcessTerminated, ProcessExitedAlready
 from twisted.internet.protocol import ProcessProtocol
 
-from celery import Celery
-from celery.signals import celeryd_after_setup
-from celery.utils.log import get_task_logger
-from celery.execute import send_task
-
+from minion.backend import ownership
 from minion.backend.utils import backend_config, scan_config, scannable
-
-import time
-
-from celery import Celery
-from celery.app.control import Control
-from celery.utils.log import get_task_logger
-from celery.execute import send_task
-from celery.task.control import revoke
-from celery.exceptions import TaskRevokedError
-from pymongo import MongoClient
-import requests
-
-from minion.backend.utils import backend_config
-
-
-
 
 
 cfg = backend_config()
