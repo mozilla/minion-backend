@@ -17,9 +17,11 @@ from email.mime.text import MIMEText
 DEFAULT_WHITELIST = []
 
 DEFAULT_BLACKLIST = [
-    'localhost',
-    '127.0.0.1',
-    ['192.0.0.0', '192.255.255.255']
+    '10.0.0.0/8',
+    '127.0.0.0/8',
+    '172.16.0.0/12',
+    '192.168.0.0/16',
+    '169.254.0.0/16'
 ]
 
 DEFAULT_SCAN_CONFIG = {
@@ -94,13 +96,13 @@ def is_localhost(candidate):
     return False
 
 def scannable(target_url, whitelist, blacklist):
-    """ Check to see if url is scannable by checking 
+    """ Check to see if url is scannable by checking
     (1) if url is whitelisted or blacklisted, and
     (2) if the ip4 address resolved from target url is whitelistd
     or blacklisted. Caller should validate target_url before
     passing to scannable!
     """
-    
+
     url = urlparse.urlparse(target_url)
     if is_localhost(url.netloc):
         target_url = "127.0.0.1"
@@ -134,7 +136,7 @@ def get_template(template_file):
 
 def email(name, data):
     """ Send an email using a specific template. This uses
-    Jinja2 template to render the text. 
+    Jinja2 template to render the text.
 
     We use the ``email`` module from the Python stdlib because
     it does prevent basic embedded header injections. """
@@ -147,7 +149,7 @@ def email(name, data):
     def _valid_email_address(email):
         """ Validate whether email address is valid or not. """
         return re.compile(r"[^@]+@[^@]+\.[^@]+").match(email)
-        
+
     template_name = name + '.html'
     template = get_template(template_name)
     config = backend_config()
@@ -159,7 +161,7 @@ def email(name, data):
         raise ValueError("Invalid sender email address.")
     if not data['to_email'] or not _valid_email_address(data['to_email']):
         raise ValueError("Invalid receipient email address.")
-    
+
     # setup email message
     body = template.render(data)
     msg = MIMEText(body)
