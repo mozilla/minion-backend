@@ -10,6 +10,7 @@ import re
 import json
 import jinja2
 import os
+import socket
 import smtplib
 import urlparse
 from email.mime.text import MIMEText
@@ -72,58 +73,47 @@ def frontend_config():
 def scan_config():
     return _load_config("scan.json") or copy.deepcopy(DEFAULT_SCAN_CONFIG)
 
-def resolve_url(target_url):
-    """ Resolve the URL to a list of socket addresses. """
-    url = urlparse.urlparse(target_url)
-    info = socket.getaddrinfo(url.netloc, None, socket.AF_INET, \
-        socket.SOCK_STREAM, socket.IPPROTO_IP, socket.AI_CANONNAME)
-    socket_addrs = []
-    for i in info:
-        # each item in the info list returns a 5-tuple structure
-        # (family, socktype, proto, canonname, sockaddr)
-        # and sockaddr is a 2-tuple structure: socket_ip and socket_port
-        socket_addrs.append(i[-1][0])
-    return socket_addrs
+def scannable(target, whitelist=[], blacklist=[]):
 
-def ip4_to_binary(ip):
-    return ''.join([bin(int(component)+256)[3:] for component in ip.split('.')])
-
-def is_localhost(candidate):
-    if ":" in candidate and candidate.split(":")[0] == "localhost":
-        return True
-    elif candidate == "localhost":
-        return True
-    return False
-
-def scannable(target_url, whitelist, blacklist):
-    """ Check to see if url is scannable by checking
-    (1) if url is whitelisted or blacklisted, and
-    (2) if the ip4 address resolved from target url is whitelistd
-    or blacklisted. Caller should validate target_url before
-    passing to scannable!
+    """
+    Check the target url against a whitelist and blacklist. Returns
+    whether the target is allowed to be scanned. Can throw exceptions
+    if the hostname lookup fails.
     """
 
-    url = urlparse.urlparse(target_url)
-    if is_localhost(url.netloc):
-        target_url = "127.0.0.1"
-    else:
-        target_url = url.netloc
-
-    target_ipaddr = ipaddress.ip_address(unicode(target_url))
-    if whitelist:
-        for x in whitelist:
-            if x == 'localhost':
-                x = "127.0.0.1"
-            if target_ipaddr in ipaddress.ip_network(unicode(x), strict=False):
+    def match(address, networks):
+        for network in networks:
+            network = ipaddress.IPv4Network(unicode(network))
+            if ipaddress.IPv4Address(unicode(address)) in network:
                 return True
-            # else we wait for a match (whitelist or blacklist)
-    if blacklist:
-        for x in blacklist:
-            if x == 'localhost':
-                x = "127.0.0.1"
-            if target_ipaddr in ipaddress.ip_network(unicode(x), strict=False):
-                return False
-    # no match found we assume it is match!
+
+    url = urlparse.urlparse(target)
+
+    #
+    # Resolve the url's hostname to a list of IPv4 addresses. The getaddrinfo()
+    # call is not ideal and should be replaced with a real dns module.
+    #
+
+    addresses = []
+
+    infos = socket.getaddrinfo(url.netloc, None, socket.AF_INET, socket.SOCK_STREAM,
+                               socket.IPPROTO_IP, socket.AI_CANONNAME)
+    for info in infos:
+        if info[0] == socket.AF_INET:
+            addresses.append(info[4][0])
+
+    #
+    # For each IP address, see if it matches the whitelist and blacklist. if it
+    # matches the whitelist then we are good and check the next address. If it
+    # matches the blacklist then we fail immediately.
+    #
+
+    for address in addresses:
+        if match(address, whitelist):
+            continue
+        if match(address, blacklist):
+            return False
+
     return True
 
 def get_template(template_file):
