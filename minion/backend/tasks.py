@@ -82,9 +82,48 @@ def scan_start(scan_id, t):
 
 @celery.task
 def scan_finish(scan_id, state, t):
-    scans.update({"id": scan_id},
-                 {"$set": {"state": state,
-                           "finished": datetime.datetime.utcfromtimestamp(t)}})
+
+    try:
+
+        #
+        # Find the scan we are asked to finish
+        #
+
+        scan = scans.find_one({'id': scan_id})
+        if not scan:
+            logger.error("Cannot find scan %s" % scan_id)
+            return
+
+        #
+        # Mark the scan as finished with the provided state
+        #
+
+        scans.update({"id": scan_id},
+                     {"$set": {"state": state,
+                               "finished": datetime.datetime.utcfromtimestamp(t)}})
+
+        #
+        # If there are remaining plugin sessions that are still in the CREATED state
+        # then change those to CANCELLED because we wont be executing them anymore.
+        #
+
+        for s in scan['sessions']:
+            if s['state'] == 'CREATED':
+                s['state'] = 'CANCELLED'
+                scans.update({"id": scan_id, "sessions.id": s['id']},
+                             {"$set": {"sessions.$.state": "CANCELLED",
+                                       "sessions.$.finished": datetime.datetime.utcfromtimestamp(t)}})
+
+    except Exception as e:
+
+        logger.exception("Error while finishing scan. Trying to mark scan as FAILED.")
+
+        try:
+            scans.update({"id": scan_id},
+                         {"$set": {"state": "FAILED",
+                                   "finished": datetime.datetime.utcnow()}})
+        except Exception as e:
+            logger.exception("Error when marking scan as FAILED")
 
 @celery.task
 def scan_stop(scan_id):
