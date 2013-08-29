@@ -35,7 +35,7 @@ from celery.signals import celeryd_after_setup
 from celery.utils.log import get_task_logger
 from celery.execute import send_task
 
-from minion.backend.utils import backend_config
+from minion.backend.utils import backend_config, scan_config, scannable
 
 import time
 
@@ -305,8 +305,8 @@ def get_site_info(api_url, url):
 
 def set_finished(scan_id, state):
     send_task("minion.backend.tasks.scan_finish",
-        [scan_id, state, time.time()],
-            queue='state').get()
+              [scan_id, state, time.time()],
+              queue='state').get()
 
 #
 # run_plugin
@@ -569,12 +569,25 @@ def scan(scan_id):
     #
     # Move the scan to the STARTED state
     #
+
     scan['state'] = 'STARTED'
     send_task("minion.backend.tasks.scan_start",
               [scan_id, time.time()],
               queue='state').get()
 
+    #
+    # Check this site against the access control lists
+    #
+
+    if not scannable(scan['configuration']['target'],
+                     scan_config().get('whitelist', []),
+                     scan_config().get('blacklist', [])):
+        return set_finished(scan_id, 'ABORTED')
+
+    #
     # Verify ownership prior to running scan
+    #
+
     try:
         target = scan['configuration']['target']
         site = get_site_info(cfg['api']['url'], target)
@@ -585,7 +598,7 @@ def scan(scan_id):
             if not verified:
                 return set_finished(scan_id, 'ABORTED')
     except ownership.OwnerVerifyError:
-            return set_finished(scan_id, 'ABORTED')
+        return set_finished(scan_id, 'ABORTED')
 
     #
     # Run each plugin session
