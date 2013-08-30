@@ -96,7 +96,7 @@ def scannable(target, whitelist=[], blacklist=[]):
 
     addresses = []
 
-    infos = socket.getaddrinfo(url.netloc, None, socket.AF_INET, socket.SOCK_STREAM,
+    infos = socket.getaddrinfo(url.hostname, None, socket.AF_INET, socket.SOCK_STREAM,
                                socket.IPPROTO_IP, socket.AI_CANONNAME)
     for info in infos:
         if info[0] == socket.AF_INET:

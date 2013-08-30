@@ -24,7 +24,11 @@ class TestBlacklist(unittest.TestCase):
                             "http://10.0.10.123",
                             "http://172.16.1.2",
                             "http://169.254.34.218",
-                            "http://www.mozilla.com",                 # CNAME to A in MOZNET-1
+                            "http://localhost",
+                            "https://localhost",
+                            "http://localhost:8080",
+                            "https://localhost:8443",
+                            "http://www.mozilla.com",           # CNAME to A in MOZNET-1
                             "http://bl1.miniontest.arentz.ca",  # A 192.168.0.2
                             "http://bl2.miniontest.arentz.ca",  # CNAME blacklisted1
                             "http://bl3.miniontest.arentz.ca",  # CNAME to www.mozilla.com
@@ -33,9 +37,16 @@ class TestBlacklist(unittest.TestCase):
 
     whitelisted_targets = [ "http://192.168.0.42",
                             "http://www.mozillalabs.com",
-                            "http://mozillalabs.com" ]
+                            "http://mozillalabs.com",
+                            "https://mozillalabs.com",
+                            "http://mozillalabs.com:8080",
+                            "https://mozillalabs.com:8443" ]
 
-    regular_targets = [ "http://www.apple.com",  # CNAME chain
+    regular_targets = [ "http://www.disney.com",
+                        "https://www.disney.com",
+                        "http://www.disney.com:8080",
+                        "https://www.disney.com:8443",
+                        "http://www.apple.com",  # CNAME chain
                         "http://www.google.com", # multiple A
                         "http://46.23.88.82",    # direct ip
                         "http://www.soze.com" ]  # single CNAME
