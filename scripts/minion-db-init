@@ -22,7 +22,7 @@ if __name__ == "__main__":
             headers={'content-type': 'application/json'},
             data=json.dumps(plan_json),
         )
-                
+
     # Create an admin
     email = raw_input("Enter the administrator's Persona email: ")
     name = raw_input("Enter the administrator's name: ")
@@ -42,61 +42,27 @@ if __name__ == "__main__":
                 "http://testfire.net"
             ],
             "plans": ["basic", "zap", "skipfish"]
-        },
-        "moco": {
-            "description":"Mozilla Corporation",
-             "sites": [
-                "http://www.mozilla.org",
-                "http://blog.mozilla.org",
-                "http://support.mozilla.org",
-                "http://developer.mozilla.org",
-                "http://wiki.mozilla.org",
-                "http://quality.mozilla.org",
-                "http://localize.mozilla.org",
-                "http://marketplace.mozilla.org"
-            ],
-            "plans": ["basic"],
-         },
-         "labs": {
-             "description": "Mozilla Labs",
-             "sites": ["http://www.mozilla.com"],
-             "plans": ["basic"],
-         }
+        }
     }
 
-    group_option = raw_input("You have the options to import sites and groups:\n\
-[1] import security testing sites (default)\n\
-[2] import Mozilla sites\n\
-[3] import all\n\
-Enter the option number: ")
+    answer = raw_input("Do you want to import some test sites into minion? [y/n]")
 
-    if not group_option or group_option == "1":
-        del groups['moco']
-        del groups['labs']
-    elif group_option == "2":
-        del groups['security']
+    if answer in ('y', 'Y'):
+        for group, detail in groups.iteritems():
+            g = { 'name': group,
+                  'description': detail['description'],
+                  'users': [email]}
+            resp = requests.post('http://localhost:8383/groups',
+                                 headers={'content-type': 'application/json'},
+                                 data=json.dumps(g))
 
-    for group, detail in groups.iteritems():
-        resp = requests.post('http://localhost:8383/groups',
-            headers={'content-type': 'application/json'},
-            data=json.dumps({
-                'name': group, 
-                'description': detail['description'],
-                'users': [email],
-            }))
-
-    # Import sites
-    for group, detail in groups.iteritems():
-        for site in detail['sites']:
-            resp = requests.post('http://localhost:8383/sites',
-                headers={'content-type': 'application/json'},
-                data=json.dumps({
-                    'url': site,
-                    'plans': detail['plans'],
-                    'groups': [group],
-                    'verification': {
-                        'enabled': False,
-                        'value': None
-                    }
-            }))
-
+        # Import sites
+        for group, detail in groups.iteritems():
+            for site in detail['sites']:
+                s = {'url': site,
+                     'plans': detail['plans'],
+                     'groups': [group],
+                     'verification': {'enabled': False, 'value': None}}
+                resp = requests.post('http://localhost:8383/sites',
+                                     headers={'content-type': 'application/json'},
+                                     data=json.dumps(s))
