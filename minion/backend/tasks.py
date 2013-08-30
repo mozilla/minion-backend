@@ -2,12 +2,14 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+import Queue
 import datetime
 import json
 import os
 import signal
 import socket
 import subprocess
+import threading
 import time
 import traceback
 import uuid
@@ -379,29 +381,63 @@ def run_plugin(scan_id, session_id):
 
         finished = None
 
-        if False:
+        #
+        # This is an experiment to see if removing Twisted makes the celery workers more stable.
+        #
 
-            #
-            # Start a subprocess with the plugin runner. The plugin runner manages running a plugin and ensures that
-            # it will go through all start/issue/finish messages.
-            #
+        def enqueue_output(fd, queue):
+            try:
+                for line in iter(fd.readline, b''):
+                    queue.put(line)
+            except Exception as e:
+                logger.exception("Error while reading a line from the plugin-runner")
+            finally:
+                fd.close()
+                queue.put(None)
 
-            global finished
+        def make_signal_handler(p):
+            def signal_handler(signum, frame):
+                p.send_signal(signal.SIGUSR1)
+            return signal_handler
 
-            def message_callback(msg):
-                # Ignore messages that we get after a finish message
-                global finished
+        arguments = [ "minion-plugin-runner",
+                      "-c", json.dumps(session['configuration']),
+                      "-p", session['plugin']['class'],
+                      "-s", session_id ]
+
+        p = subprocess.Popen(arguments, bufsize=1, stdout=subprocess.PIPE, close_fds=True)
+
+        signal.signal(signal.SIGUSR1, make_signal_handler(p))
+
+        q = Queue.Queue()
+        t = threading.Thread(target=enqueue_output, args=(p.stdout, q))
+        t.daemon = True
+        t.start()
+
+        while True:
+            try:
+                line = q.get(timeout=0.25)
+                if line is None:
+                    break
+
+                line = line.strip()
+
                 if finished is not None:
                     logger.error("Plugin emitted (ignored) message after finishing: " + line)
                     return
+
+                msg = json.loads(line)
+
                 # Issue: persist it
                 if msg['msg'] == 'issue':
                     send_task("minion.backend.tasks.session_report_issue",
                               args=[scan_id, session_id, msg['data']],
                               queue='state').get()
+
                 # Progress: update the progress
                 if msg['msg'] == 'progress':
                     pass # TODO
+
                 # Finish: update the session state, wait for the plugin runner to finish, return the state
                 if msg['msg'] == 'finish':
                     finished = msg['data']['state']
@@ -410,106 +446,20 @@ def run_plugin(scan_id, session_id):
                                   [scan['id'], session['id'], msg['data']['state'], time.time()],
                                   queue='state').get()
 
+            except Queue.Empty:
+                pass
 
-            runner = Runner(session['plugin']['class'], session['configuration'], session_id, message_callback)
+        return_code = p.wait()
 
-            # Install a signal handler that will stop the runner when this task is revoked
-            signal.signal(signal.SIGUSR1, lambda signum, frame: reactor.callFromThread(runner.schedule_stop))
+        signal.signal(signal.SIGUSR1, signal.SIG_DFL)
 
-            # Run the runner. It will start a reactor and run the plugin.
-            return_code = runner.run()
-
-            return finished
-
-        #
-        # This is an experiment to see if removing Twisted makes the celery workers more stable.
-        #
-
-        if True:
-
-            import json
-            import os
-            import signal
-            import subprocess
-            import threading
-            import uuid
-            import Queue
-
-            def enqueue_output(fd, queue):
-                try:
-                    for line in iter(fd.readline, b''):
-                        queue.put(line)
-                except Exception as e:
-                    logger.exception("Error while reading a line from the plugin-runner")
-                finally:
-                    fd.close()
-                    queue.put(None)
-
-            def make_signal_handler(p):
-                def signal_handler(signum, frame):
-                    p.send_signal(signal.SIGUSR1)
-                return signal_handler
-
-            arguments = [ "minion-plugin-runner",
-                          "-c", json.dumps(session['configuration']),
-                          "-p", session['plugin']['class'],
-                          "-s", session_id ]
-
-            p = subprocess.Popen(arguments, bufsize=1, stdout=subprocess.PIPE, close_fds=True)
-
-            signal.signal(signal.SIGUSR1, make_signal_handler(p))
-
-            q = Queue.Queue()
-            t = threading.Thread(target=enqueue_output, args=(p.stdout, q))
-            t.daemon = True
-            t.start()
-
-            while True:
-                try:
-                    line = q.get(timeout=0.25)
-                    if line is None:
-                        break
-
-                    line = line.strip()
-
-                    if finished is not None:
-                        logger.error("Plugin emitted (ignored) message after finishing: " + line)
-                        return
-
-                    msg = json.loads(line)
-
-                    # Issue: persist it
-                    if msg['msg'] == 'issue':
-                        send_task("minion.backend.tasks.session_report_issue",
-                                  args=[scan_id, session_id, msg['data']],
-                                  queue='state').get()
-
-                    # Progress: update the progress
-                    if msg['msg'] == 'progress':
-                        pass # TODO
-
-                    # Finish: update the session state, wait for the plugin runner to finish, return the state
-                    if msg['msg'] == 'finish':
-                        finished = msg['data']['state']
-                        if msg['data']['state'] in ('FINISHED', 'FAILED', 'STOPPED', 'TERMINATED', 'TIMEOUT', 'ABORTED'):
-                            send_task("minion.backend.tasks.session_finish",
-                                      [scan['id'], session['id'], msg['data']['state'], time.time()],
-                                      queue='state').get()
-
-                except Queue.Empty:
-                    pass
-
-            return_code = p.wait()
-
-            signal.signal(signal.SIGUSR1, signal.SIG_DFL)
-
-            if not finished:
-                failure = { "hostname": socket.gethostname(),
-                            "message": "The plugin did not finish correctly",
-                            "exception": None }
-                send_task("minion.backend.tasks.session_finish",
-                          [scan['id'], session['id'], 'FAILED', time.time(), failure],
-                          queue='state').get()
+        if not finished:
+            failure = { "hostname": socket.gethostname(),
+                        "message": "The plugin did not finish correctly",
+                        "exception": None }
+            send_task("minion.backend.tasks.session_finish",
+                      [scan['id'], session['id'], 'FAILED', time.time(), failure],
+                      queue='state').get()
 
         return finished
 
