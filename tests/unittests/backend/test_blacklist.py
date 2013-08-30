@@ -4,6 +4,7 @@
 
 
 import unittest
+import ipaddress
 from minion.backend.utils import scannable
 
 
@@ -18,6 +19,8 @@ class TestBlacklist(unittest.TestCase):
 
     whitelist = [ "192.168.0.42",   # In private space
                   "63.245.217.86" ] # mozillalabs.com/www.mozillalabs.com
+
+    invalid_blacklist = [ "10.0.0.0/8", "localhost" ]
 
     blacklisted_targets = [ "http://192.168.0.1",
                             "http://127.0.0.1",
@@ -65,3 +68,9 @@ class TestBlacklist(unittest.TestCase):
         for target in self.regular_targets:
             self.assertTrue(scannable(target, self.whitelist, self.blacklist),
                             "Target is " + target)
+
+    def test_invalid_blacklist(self):
+        self.assertRaises(ipaddress.AddressValueError, scannable, "http://127.0.0.1", [], self.invalid_blacklist)
+
+    def test_invalid_whitelist(self):
+        self.assertRaises(ipaddress.AddressValueError, scannable, "http://127.0.0.1", self.invalid_blacklist, [])
