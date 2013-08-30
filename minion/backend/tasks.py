@@ -88,8 +88,7 @@ def scan_finish(scan_id, state, t):
             if s['state'] == 'CREATED':
                 s['state'] = 'CANCELLED'
                 scans.update({"id": scan_id, "sessions.id": s['id']},
-                             {"$set": {"sessions.$.state": "CANCELLED",
-                                       "sessions.$.finished": datetime.datetime.utcfromtimestamp(t)}})
+                             {"$set": {"sessions.$.state": "CANCELLED"}})
 
     except Exception as e:
 
