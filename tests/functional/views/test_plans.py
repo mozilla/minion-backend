@@ -51,7 +51,7 @@ class TestPlanAPIs(TestAPIBaseClass):
         res2 = self.get_plan('test')
         self.assertSuccessfulResponse(res2)
         self.assertEqual("test", res2.json()['plan']['name'])
-        
+
     def test_all_plans_with_email(self):
         # import a plan named 'basic' into the database directly
         self.import_plan()
@@ -75,8 +75,8 @@ class TestPlanAPIs(TestAPIBaseClass):
         self.assertTestPlanIsReturned(res2.json()['plans'][1])
 
     def test_create_invalid_plugin_plan(self):
-        """ Check /plans return invalid-plan-exists when plugin is not importable. """
-        # Create a plan
+        # Check /plans return invalid-plan-exists when plugin is not
+        # importable.  Create a plan
         c = { "name": "test",
               "description": "Test",
               "workflow": [ { "plugin_name": "minion.plugins.basic.Cheeseburger",
@@ -88,9 +88,8 @@ class TestPlanAPIs(TestAPIBaseClass):
         self.assertEqual(resp.json()['reason'], 'invalid-plan-exists')
 
     def test_create_plan_without_required_field(self):
-        """ Check /plans return invalid-plan-exists when plan submitted does
-        not contain plugin_name. """
-        # Create a plan
+        # Check /plans return invalid-plan-exists when plan submitted
+        #does not contain plugin_name.  Create a plan
         c = { "name": "test",
               "description": "Test",
               "workflow": [ {"description": "Test if the site is cheeseburger",
@@ -101,9 +100,8 @@ class TestPlanAPIs(TestAPIBaseClass):
         self.assertEqual(resp.json()['reason'], 'invalid-plan-exists')
 
     def test_create_plan_without_proper_structure(self):
-        """ Check /plans return invalid-plan-exists when plan submitted does
-        not contain proper structure. """
-        # Create a plan
+        # Check /plans return invalid-plan-exists when plan submitted
+        # does not contain proper structure.  Create a plan
         c = { "name": "test",
               "description": "Test",
               "workflow": []}

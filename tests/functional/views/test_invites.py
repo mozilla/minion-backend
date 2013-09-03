@@ -75,7 +75,7 @@ class TestInviteAPIs(TestAPIBaseClass):
         self.assertEqual(res11.json()['group']['users'], [])
 
     def test_invite_existing_recipient(self):
-        # I know. Create yourself again? 
+        # I know. Create yourself again?
         recipient = self.random_email()
         res1 = self.create_user(email=recipient)
         res2 = self.create_invites(recipient=recipient, sender=recipient)
@@ -123,7 +123,7 @@ class TestInviteAPIs(TestAPIBaseClass):
         recipient2 = self.random_email()
         recipient3 = self.random_email()
         sender2 = self.random_email()
-        
+
         # create senders
         res1 = self.create_user()
         res2 = self.create_user(email=sender2)
@@ -132,7 +132,7 @@ class TestInviteAPIs(TestAPIBaseClass):
         res2 = self.create_user(email=recipient1, name='Alice', invitation=True)
         res2 = self.create_user(email=recipient2, name='Betty', invitation=True)
         res2 = self.create_user(email=recipient3, name='Cathy', invitation=True)
-        
+
         # create recipients
         res3 = self.create_invites(recipient=recipient1, sender=self.email)
         res4 = self.create_invites(recipient=recipient2, sender=sender2)
@@ -188,7 +188,7 @@ class TestInviteAPIs(TestAPIBaseClass):
         recipient = self.random_email()
         # create senders
         res1 = self.create_user()
-        
+
         # create recipients in the user table
         res1 = self.create_user(email=recipient, name='Alice', invitation=True)
 
@@ -227,7 +227,7 @@ class TestInviteAPIs(TestAPIBaseClass):
         self.assertEqual(res8.json()['reason'], 'no-such-user')
 
     def test_delete_invite(self):
-        """ Delete recipient1's invitation. """
+        # Delete recipient1's invitation.
         recipient1 = self.random_email()
         recipient2 = self.random_email()
 
@@ -246,7 +246,7 @@ class TestInviteAPIs(TestAPIBaseClass):
         self.assertEqual(len(res4.json()['invites']), 2)
         self.assertEqual(res4.json()['invites'][0]['recipient'], recipient1)
         self.assertEqual(res4.json()['invites'][1]['recipient'], recipient2)
-        
+
         # we need to ensure users are created and are marked as 'invited' (bug #123)
         res4 = self.get_user(recipient1)
         self.assertEqual(res4.json()['user']['email'], recipient1)
@@ -254,7 +254,7 @@ class TestInviteAPIs(TestAPIBaseClass):
         res4 = self.get_user(recipient2)
         self.assertEqual(res4.json()['user']['email'], recipient2)
         self.assertEqual(res4.json()['user']['status'], 'invited')
-        
+
         # now delete recipient1
         res5 = self.delete_invite(id=recipient1_id)
         self.assertEqual(res5.json()['success'], True)
@@ -263,7 +263,7 @@ class TestInviteAPIs(TestAPIBaseClass):
         res6 = self.delete_invite(id=recipient1_id)
         self.assertEqual(res6.json()['success'], False)
         self.assertEqual(res6.json()['reason'], 'no-such-invitation')
-        
+
         # recipient1 should not even be in users table anymore
         res7 = self.get_user(recipient1)
         self.assertEqual(res7.json()['success'], False)
@@ -276,14 +276,14 @@ class TestInviteAPIs(TestAPIBaseClass):
 
     # bug #123
     def test_delete_invite_does_not_delete_accepted_user(self):
-        """ Delete recipient1's invite does not delete the user if recipient1 
-        has already accepted the invitation. """
+        #Delete recipient1's invite does not delete the user if
+        #recipient1 has already accepted the invitation.
 
         recipient1 = self.random_email()
-        
+
         res1 = self.create_user() # create sender
         res2 = self.create_user(email=recipient1, invitation=True)
-        
+
         # send invitation
         res3 = self.create_invites(recipient=recipient1, sender=self.email)
         invite_id = res3.json()['invite']['id']
@@ -293,7 +293,7 @@ class TestInviteAPIs(TestAPIBaseClass):
         res5 = self.get_user(recipient1)
         self.assertEqual(res5.json()['user']['email'], recipient1)
         self.assertEqual(res5.json()['user']['status'], 'active')
-        
+
         # now delete invitation
         res6 = self.delete_invite(invite_id)
         # check invitation is gone
@@ -309,15 +309,15 @@ class TestInviteAPIs(TestAPIBaseClass):
 
     # bug #155
     def test_update_user_login_if_persona_is_different(self):
-        """ If persona email address is different, update the 
-        primary email account. """
+        #If persona email address is different, update the primary email
+        #account.
 
         recipient = self.random_email()
         persona = self.random_email()
         res1 = self.create_user() # create sender
         res2 = self.create_user(email=recipient, invitation=True)
         userid = res2.json()['user']['id']
-        
+
         # create a group (bug #170)
         res3 = self.create_group(group_name='test_group')
         self.assertEqual(res3.json()['success'], True)
@@ -334,7 +334,7 @@ class TestInviteAPIs(TestAPIBaseClass):
         # accept invite and login with a different email
         res6 = self.update_invite(invite_id, accept=True, login=persona)
         self.assertEqual(res6.json()['success'], True)
-        
+
         # this should raise not found
         res7 = self.get_user(recipient)
         self.assertEqual(res7.json()['success'], False)
@@ -351,4 +351,3 @@ class TestInviteAPIs(TestAPIBaseClass):
         # check original email recipient is not in group anymore
         res9 = self.get_group('test_group')
         self.assertEqual(res9.json()['group']['users'], [persona])
-

@@ -17,9 +17,8 @@ class TestReportsAPIs(TestAPIBaseClass):
                                           } ] }
     # issue #215
     def test_retrieve_issue_status_and_issues_by_group(self):
-        """ Don't be shock. This test fits here; by querying
-        user and group, we should only be given the lastest
-        issue status. """
+        # Don't be shock. This test fits here; by querying user and
+        # group, we should only be given the lastest issue status.
 
         res = self.create_user()
         res1 = self.create_plan(self.PLAN)
