@@ -324,9 +324,9 @@ def get_site_info(api_url, url):
     j = r.json()
     return j['site']
 
-def set_finished(scan_id, state):
+def set_finished(scan_id, state, failure=None):
     send_task("minion.backend.tasks.scan_finish",
-              [scan_id, state, time.time()],
+              [scan_id, state, time.time(), failure],
               queue='state').get()
 
 #
@@ -553,7 +553,9 @@ def scan(scan_id):
         if not scannable(scan['configuration']['target'],
                          scan_config().get('whitelist', []),
                          scan_config().get('blacklist', [])):
-            return set_finished(scan_id, 'ABORTED')
+            failure = {"hostname": socket.gethostname(),
+                       "message": "The target cannot be scanned by Minion because its (IPv4) address has been blacklisted."}
+            return set_finished(scan_id, 'ABORTED', failure=failure)
 
         #
         # Verify ownership prior to running scan
