@@ -554,6 +554,7 @@ def scan(scan_id):
                          scan_config().get('whitelist', []),
                          scan_config().get('blacklist', [])):
             failure = {"hostname": socket.gethostname(),
+                       "reason": "target-blacklisted",
                        "message": "The target cannot be scanned by Minion because its (IPv4) address has been blacklisted."}
             return set_finished(scan_id, 'ABORTED', failure=failure)
 
@@ -569,7 +570,10 @@ def scan(scan_id):
             if site.get('verification') and site['verification']['enabled']:
                 verified = ownership.verify(target, site['verification']['value'])
                 if not verified:
-                    return set_finished(scan_id, 'ABORTED')
+                    failure = {"hostname": socket.gethostname(),
+                               "reason": "target-ownership-verification-failed",
+                               "message": "The target cannot be scanned because the ownership verification failed."}
+                    return set_finished(scan_id, 'ABORTED', failure=failure)
         except ownership.OwnerVerifyError:
             return set_finished(scan_id, 'ABORTED')
 
@@ -655,6 +659,7 @@ def scan(scan_id):
 
         try:
             failure = { "hostname": socket.gethostname(),
+                        "reason": "backend-exception",
                         "message": str(e),
                         "exception": traceback.format_exc() }
             send_task("minion.backend.tasks.scan_finish",
