@@ -1,4 +1,4 @@
 #!/bin/sh
 
-celery -A minion.backend.tasks worker --loglevel=INFO --concurrency 16 -Q scan -n scan
+exec celery -A minion.backend.tasks worker --loglevel=INFO --concurrency 16 -Q scan -n scan
 

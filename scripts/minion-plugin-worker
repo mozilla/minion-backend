@@ -17,7 +17,7 @@ case $1 in
     ;;
 esac
 
-celery worker -A minion.backend.tasks \
+exec celery worker -A minion.backend.tasks \
   --loglevel=INFO \
   --concurrency="${CONCURRENCY}" \
   --maxtasksperchild=1 \
