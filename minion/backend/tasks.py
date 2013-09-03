@@ -562,20 +562,18 @@ def scan(scan_id):
         # Verify ownership prior to running scan
         #
 
-        try:
-            target = scan['configuration']['target']
-            site = get_site_info(cfg['api']['url'], target)
-            if not site:
-                return set_finished(scan_id, 'ABORTED')
-            if site.get('verification') and site['verification']['enabled']:
-                verified = ownership.verify(target, site['verification']['value'])
-                if not verified:
-                    failure = {"hostname": socket.gethostname(),
-                               "reason": "target-ownership-verification-failed",
-                               "message": "The target cannot be scanned because the ownership verification failed."}
-                    return set_finished(scan_id, 'ABORTED', failure=failure)
-        except ownership.OwnerVerifyError:
+        target = scan['configuration']['target']
+        site = get_site_info(cfg['api']['url'], target)
+        if not site:
             return set_finished(scan_id, 'ABORTED')
+
+        if site.get('verification') and site['verification']['enabled']:
+            verified = ownership.verify(target, site['verification']['value'])
+            if not verified:
+                failure = {"hostname": socket.gethostname(),
+                           "reason": "target-ownership-verification-failed",
+                           "message": "The target cannot be scanned because the ownership verification failed."}
+                return set_finished(scan_id, 'ABORTED', failure=failure)
 
         #
         # Run each plugin session

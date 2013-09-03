@@ -7,10 +7,6 @@ from subprocess import Popen, PIPE
 
 import minion.curly
 
-class OwnerVerifyError(Exception):
-    def __init__(self, message):
-        self.message = message
-
 def verify(target, match):
     """ Wrapper to run down all verification methods. """
 
@@ -25,7 +21,7 @@ def verify(target, match):
 def verify_by_file(target, match, filename):
     """ Verify site ownership by matching the content
     of a target file. """
-    
+
     target_file = urlparse.urljoin(target, filename)
     try:
         r = minion.curly.get(target_file)
@@ -39,7 +35,7 @@ def verify_by_file(target, match, filename):
         return True
 
 def verify_by_header(target, match):
-    """ Verify site ownership by matching 
+    """ Verify site ownership by matching
     the X-Minion-Site-Ownership header. """
 
     try:
