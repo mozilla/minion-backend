@@ -12,7 +12,6 @@ from flask import abort, Flask, jsonify, request, session
 from pymongo import MongoClient
 
 from minion.backend.app import app
-import minion.plugins
 import minion.backend.utils as backend_utils
 import minion.backend.tasks as tasks
 from minion.plugins.base import AbstractPlugin
@@ -73,8 +72,8 @@ def load_plugin():
     are not known base subclasses such as BlockingPlugin. """
 
     DEFAULT_BASE_CLASSES = ('AbstractPlugin', 'BlockingPlugin', 'ExternalProcessPlugin')
-    candidates = []
-    base_package = minion.plugins
+    candidates = {}
+    base_package = importlib.import_module('minion.plugins')
     prefix = base_package.__name__ + "."
     for importer, package, ispkg in pkgutil.iter_modules(base_package.__path__, prefix):
         module = __import__(package, fromlist=['plugins'])
@@ -82,34 +81,26 @@ def load_plugin():
             obj = getattr(module, name)
             if inspect.isclass(obj) and issubclass(obj, AbstractPlugin) and name not in DEFAULT_BASE_CLASSES:
                 app.logger.info("Found %s" % str(obj))
-                candidates.append(str(obj))
-
-    for candidate in candidates:
+                plugin_name = module.__name__ + '.' + obj.__name__
+                candidates[plugin_name] = obj
+    
+    for plugin_name, plugin_obj in candidates.iteritems():
         try:
-            _register_plugin(candidate)
+            _register_plugin(plugin_name, plugin_obj)
         except ImportError as e:
-            app.logger.error("Unable to import %s" % candidate)
+            app.logger.error("Unable to import %s" % plugin_name)
             pass
 
-def _plugin_descriptor(plugin):
-    return {'class': plugin.__module__ + "." + plugin.__name__,
-            'name': plugin.name(),
-            'version': plugin.version(),
-            'weight': plugin.weight()}
-
-def _split_plugin_class_name(plugin_class_name):
-    e = plugin_class_name.split(".")
-    return '.'.join(e[:-1]), e[-1]
-
-def _import_plugin(plugin_class_name):
-    package_name, class_name = _split_plugin_class_name(plugin_class_name)
-    plugin_module = importlib.import_module(package_name, class_name)
-    return getattr(plugin_module, class_name)
-
-def _register_plugin(plugin_class_name):
-    plugin_class = _import_plugin(plugin_class_name)
-    plugins[plugin_class_name] = {'clazz': plugin_class,
-                                  'descriptor': _plugin_descriptor(plugin_class)}
+def _register_plugin(plugin_name, plugin_class):
+    plugins[plugin_name] = {
+        'clazz': plugin_class,
+        'descriptor': {
+            'class': plugin_name,
+            'name': plugin_class.name(),
+            'version': plugin_class.version(),
+            'weight': plugin_class.weight()
+        }
+    }
 
 def _check_required_fields(expected, fields):
     if isinstance(fields, dict):
