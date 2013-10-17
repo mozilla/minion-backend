@@ -3,7 +3,7 @@
     "description": "Run the ZAP Spider and Scanner",
     "workflow": [
         {
-            "plugin_name": "minion.plugins.zap_plugin.ZAPPlugin",
+            "plugin_name": "minion.plugins.zap.ZAPPlugin",
             "description": "Run the ZAP Spider and Scanner",
             "configuration": {
                 "scan": true
