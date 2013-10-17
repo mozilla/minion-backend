@@ -140,7 +140,8 @@ def create_user():
                  'name': user.get('name'),
                  'role': user['role'],
                  'created': datetime.datetime.utcnow(),
-                 'last_login': None }
+                 'last_login': None,
+                 'api_key': str(uuid.uuid4()) }
     users.insert(new_user)
 
     # Add the user to the groups - group membership is stored in the group objet, not in the user
@@ -176,7 +177,7 @@ def update_user(user_email):
         return jsonify(success=False, reason='unknown-user')
     old_user['groups'] = _find_groups_for_user(user_email)
     old_user['sites'] = _find_sites_for_user(user_email)
-    
+
     if 'groups' in new_user:
         for group_name in new_user.get('groups', []):
             if not _check_group_exists(group_name):
@@ -257,5 +258,3 @@ def delete_user(user_email):
     # Remove user group membership
     remove_group_association(user_email)
     return jsonify(success=True)
-
-
