@@ -9,7 +9,7 @@ from flask import jsonify, request
 import minion.backend.utils as backend_utils
 import minion.backend.tasks as tasks
 from minion.backend.app import app
-from minion.backend.views.base import api_guard, groups, plans, plugins, scans, sanitize_session, users
+from minion.backend.views.base import api_guard, groups, plans, plugins, scans, sanitize_session, users, sites
 from minion.backend.views.plans import sanitize_plan
 
 def permission(view):
@@ -150,6 +150,15 @@ def post_scan_create():
         scan['sessions'].append(session)
     scans.insert(scan)
     return jsonify(success=True, scan=sanitize_scan(scan))
+
+@app.route("/scans", methods=["GET"])
+@permission
+def get_scans():
+    site = sites.find_one({'id': request.args.get('site_id')})
+    if not site:
+        return jsonify(success=False, reason='no-such-site')
+    scanz = scans.find({"plan.name": request.args.get("plan_name"), "configuration.target": site['url']})
+    return jsonify(success=True, scans=[summarize_scan(sanitize_scan(s)) for s in scanz])
 
 @app.route("/scans/<scan_id>/control", methods=["PUT"])
 @api_guard
