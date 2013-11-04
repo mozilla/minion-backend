@@ -118,12 +118,23 @@ def _check_plan_exists(plan_name):
 @app.route("/plans", methods=['GET'])
 @api_guard
 def get_plans():
-    email = request.args.get('email')
-    if email:
-        plans = get_plans_by_email(email)
+    name = request.args.get('name')
+    if name:
+        plan = get_plan_by_plan_name(name)
+        if not plan:
+            return jsonify(success=True, plans=[])
+        else:
+            # Fill in the details of the plugin
+            for step in plan['workflow']:
+                plugin = plugins.get(step['plugin_name'])
+            return jsonify(success=True, plans=[sanitize_plan(plan)])
     else:
-        plans = get_sanitized_plans()
-    return jsonify(success=True, plans=plans)
+        email = request.args.get('email')
+        if email:
+            plans = get_plans_by_email(email)
+        else:
+            plans = get_sanitized_plans()
+            return jsonify(success=True, plans=plans)
 
 #
 # Delete an existing plan
@@ -222,4 +233,3 @@ def get_plan(plan_name):
     for step in plan['workflow']:
         plugin = plugins.get(step['plugin_name'])
     return jsonify(success=True, plan=sanitize_plan(plan))
-
