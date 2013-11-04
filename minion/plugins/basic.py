@@ -31,13 +31,14 @@ class AlivePlugin(BlockingPlugin):
 
     PLUGIN_NAME = "Alive"
     PLUGIN_WEIGHT = "light"
-    FURTHER_INFO = [ { 
+    FURTHER_INFO = [ {
         "URL": "http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html",
         "Title": "W3C - Status Code Definitions" } ],
 
     REPORTS = {
-        "good": 
+        "good":
             {
+                "Code": "ALIVE-0",
                 "Summary": "Site is reachable",
                 "Description": "The server has responded with {status_code} status_code. \
 This indicates the site is reachable.",
@@ -45,15 +46,16 @@ This indicates the site is reachable.",
                 "URLs": [ {"URL": None, "Extra": None} ],
                 "FurtherInfo": FURTHER_INFO,
              },
-        "bad": 
+        "bad":
             {
+                "Code": "ALIVE-1",
                 "Summary": "Site could not be reached",
                 "Description": None,
                 "Severity": "Fatal",
                 "URLs": [ { "URL": None, "Extra": None} ],
                 "FurtherInfo": FURTHER_INFO,
             }
-    }            
+    }
 
     def do_run(self):
         try:
@@ -68,7 +70,8 @@ This indicates the site is reachable.",
             issue = self._format_report('bad', description=str(error))
             self.report_issue(issue)
             return AbstractPlugin.EXIT_STATE_ABORTED
-#       
+
+#
 # XFrameOptionsPlugin
 #
 
@@ -88,21 +91,23 @@ class XFrameOptionsPlugin(BlockingPlugin):
     PLUGIN_NAME = "XFrameOptions"
     PLUGIN_WEIGHT = "light"
 
-    FURTHER_INFO = [ { 
+    FURTHER_INFO = [ {
         "URL": "https://developer.mozilla.org/en-US/docs/HTTP/X-Frame-Options",
         "Title": "Mozilla Developer Network - The X-Frame-Options response header" }]
 
     REPORTS = {
-        "set": 
+        "set":
             {
+                "Code": "XFO-0",
                 "Summary": "X-Frame-Options header is set properly",
                 "Description": "Site has the following X-Frame-Options set: {header}",
                 "Severity": "Info",
                 "URLs": [ {"URL": None, "Extra": None} ],
                 "FurtherInfo": FURTHER_INFO
              },
-        "invalid": 
+        "invalid":
             {
+                "Code": "XFO-1",
                 "Summary": "Invalid X-Frame-Options header detected",
                 "Description": "The following X-Frame-Options header value is detected and is invalid: {header}",
                 "Severity": "High",
@@ -111,6 +116,7 @@ class XFrameOptionsPlugin(BlockingPlugin):
             },
         "not-set":
             {
+                "Code": "XFO-2",
                 "Summary": "X-Frame-Options header is not set",
                 "Description": "X-Frame-Options header is not found. Sites can use this to avoid clickjacking attacks, \
 by ensuring that their content is not embedded into other sites.",
@@ -118,13 +124,13 @@ by ensuring that their content is not embedded into other sites.",
                 "URLs": [ { "URL": None, "Title": None} ],
                 "FurtherInfo": FURTHER_INFO
             },
-            
-    }            
+
+    }
     def _allow_from_validator(self, value):
         """ Only accept the following basic forms::
         ACCEPT-FROM http://example.org[:port]/[path]
         ACCEPT-FORM https://example.org[:port]/[path]
-        
+
         Reject those with colon, or uri containing query and/or
         fragement.
 
@@ -168,7 +174,7 @@ by ensuring that their content is not embedded into other sites.",
                 else:
                     issue = self._format_report('invalid', description_formats={'header': xfo_value})
                     self.report_issues([issue])
-           # found invalid/unknown option value         
+           # found invalid/unknown option value
             else:
                 issue = self._format_report('invalid', description_formats={'header': xfo_value})
                 self.report_issues([issue])
@@ -186,21 +192,23 @@ class HSTSPlugin(BlockingPlugin):
     PLUGIN_NAME = "HSTS"
     PLUGIN_WEIGHT = "light"
 
-    FURTHER_INFO = [ { 
+    FURTHER_INFO = [ {
         "URL": "https://developer.mozilla.org/en-US/docs/Security/HTTP_Strict_Transport_Security",
         "Title": "Mozilla Developer Network - HTTP Strict Transport Security" }]
 
     REPORTS = {
-        "set": 
+        "set":
             {
+                "Code": "HSTS-0",
                 "Summary": "Strict-Transport-Security header is set properly",
                 "Description": "Site has the following Strict-Transport-Security header set: {header}",
                 "Severity": "Info",
                 "URLs": [ {"URL": None, "Extra": None} ],
                 "FurtherInfo": FURTHER_INFO
              },
-        "invalid": 
+        "invalid":
             {
+                "Code": "HSTS-1",
                 "Summary": "Invalid Strict-Transport-Security header detected",
                 "Description": "The following Strict-Transport-Security header value is detected and is invalid: {header}",
                 "Severity": "High",
@@ -209,6 +217,7 @@ class HSTSPlugin(BlockingPlugin):
             },
         "not-set":
             {
+                "Code": "HSTS-2",
                 "Summary": "Strict-Transport-Security header is not set",
                 "Description": "Strict-Transport-Security header is not found. This header is a security feature that \
 lets a web site tell browsers that it should only be communicated with using HTTPS, instead of using HTTP.",
@@ -218,6 +227,7 @@ lets a web site tell browsers that it should only be communicated with using HTT
             },
         "non-https":
             {
+                "Code": "HSTS-3",
                 "Summary": "Target is a non-HTTPS site",
                 "Description": "Strict-Transport-Security header is only applicable on HTTPS-based site.",
                 "Severity": "Info",
@@ -226,14 +236,15 @@ lets a web site tell browsers that it should only be communicated with using HTT
             },
         "negative":
             {
+                "Code": "HSTS-3",
                 "Summary": "max-age is negative",
                 "Description": "Strict-Transport-Security header max-age must be a positive number.",
                 "Severity": "High",
                 "URLs": [ { "URL": None, "Title": None} ],
                 "FurtherInfo": FURTHER_INFO
             },
-    }    
-    
+    }
+
     def do_run(self):
         r = minion.curly.get(self.configuration['target'], connect_timeout=5, timeout=15)
         r.raise_for_status()
@@ -267,21 +278,23 @@ class XContentTypeOptionsPlugin(BlockingPlugin):
     PLUGIN_NAME = "XContentTypeOptions"
     PLUGIN_WEIGHT = "light"
 
-    FURTHER_INFO = [ { 
+    FURTHER_INFO = [ {
         "URL": "http://msdn.microsoft.com/en-us/library/ie/gg622941%28v=vs.85%29.aspx",
         "Title": "MIME-Handling Change: X-Content-Type-Options: nosniff" }]
 
     REPORTS = {
-        "set": 
+        "set":
             {
+                "Code": "XCTO-0",
                 "Summary": "X-Content-Type-Options is set properly",
                 "Description": "Site has the following X-Content-Type-Options header set: {header}",
                 "Severity": "Info",
                 "URLs": [ {"URL": None, "Extra": None} ],
                 "FurtherInfo": FURTHER_INFO
              },
-        "invalid": 
+        "invalid":
             {
+                "Code": "XCTO-1",
                 "Summary": "Invalid X-Content-Type-Options header detected",
                 "Description": "The following X-Content-Type-Options header value is detected and is invalid: {header}",
                 "Severity": "High",
@@ -290,6 +303,7 @@ class XContentTypeOptionsPlugin(BlockingPlugin):
             },
         "not-set":
             {
+                "Code": "XCTO-2",
                 "Summary": "X-Content-Type-Options header is not set",
                 "Description": "X-Content-Type-Options header is not found. This header is a security feature that helps \
 prevent attacks based on MIME-type confusion.",
@@ -297,8 +311,8 @@ prevent attacks based on MIME-type confusion.",
                 "URLs": [ { "URL": None, "Title": None} ],
                 "FurtherInfo": FURTHER_INFO
             },
-            
-    }            
+
+    }
 
     def do_run(self):
         r = minion.curly.get(self.configuration['target'], connect_timeout=5, timeout=15)
@@ -323,21 +337,23 @@ class XXSSProtectionPlugin(BlockingPlugin):
     PLUGIN_NAME = "XXSSProtection"
     PLUGIN_WEIGHT = "light"
 
-    FURTHER_INFO = [ { 
+    FURTHER_INFO = [ {
         "URL": "http://blogs.msdn.com/b/ie/archive/2008/07/02/ie8-security-part-iv-the-xss-filter.aspx",
         "Title": "IE8 Security Part IV: The XSS Filter" }]
 
     REPORTS = {
-        "set": 
+        "set":
             {
+                "Code": "XXSSP-0",
                 "Summary": "X-XSS-Protection is set properly",
                 "Description": "Site has the following X-XSS-Protection header set: {header}",
                 "Severity": "Info",
                 "URLs": [ {"URL": None, "Extra": None} ],
                 "FurtherInfo": FURTHER_INFO
              },
-        "invalid": 
+        "invalid":
             {
+                "Code": "XXSSP-1",
                 "Summary": "Invalid X-XSS-Protection header detected",
                 "Description": "The following X-XSS-Protection header value is detected and is invalid: {header}",
                 "Severity": "High",
@@ -346,22 +362,24 @@ class XXSSProtectionPlugin(BlockingPlugin):
             },
         "not-set":
             {
+                "Code": "XXSSP-2",
                 "Summary": "X-XSS-Protection header is not set",
                 "Description": "X-XSS-Protection header is not found. \
 This header enables Cross-site scripting (XSS) filter built into most recent web browsers.",
                 "Severity": "High",
                 "URLs": [ { "URL": None, "Title": None} ],
                 "FurtherInfo": FURTHER_INFO
-            },    
+            },
         "disabled":
             {
+                "Code": "XXSSP-3",
                 "Summary": "X-XSS-Protection header is set to disable",
                 "Description": "X-XSS-Protection header is set to 0 and consequent disabled Cross-site-scripting (XSS) filter.",
                 "Severity": "High",
                 "URLs": [ { "URL": None, "Title": None} ],
                 "FurtherInfo": FURTHER_INFO
             },
-    }            
+    }
 
     def do_run(self):
         r = minion.curly.get(self.configuration['target'], connect_timeout=5, timeout=15)
@@ -383,12 +401,12 @@ class ServerDetailsPlugin(BlockingPlugin):
     """
     This plugin checks if the site sends out a Server or X-Powered-By header that exposes details about the server software.
     """
-    
+
     PLUGIN_NAME = "ServerDetails"
     PLUGIN_WEIGHT = "light"
 
-    FURTHER_INFO = [ 
-        { 
+    FURTHER_INFO = [
+        {
             "URL": "http://tools.ietf.org/html/rfc2616#section-14.38",
             "Title": 'RFC 2616 - "Server" header'
         },
@@ -403,8 +421,9 @@ class ServerDetailsPlugin(BlockingPlugin):
 ]
 
     REPORTS = {
-        "set": 
+        "set":
             {
+                "Code": "SD-0",
                 "Summary": "",
                 "Description": "Site has set {header} header",
                 "Severity": "Medium",
@@ -413,13 +432,14 @@ class ServerDetailsPlugin(BlockingPlugin):
              },
          "none":
          {
+             "Code": "SD-1",
              "Summary": "No server-detail-type headers set",
              "Description": "None of the following headers is present: {headers}",
              "Severity": "Info",
              "URLs": [ {"URL": None, "Extra": None} ],
              "FurtherInfo": FURTHER_INFO
          }
-    }            
+    }
 
     def do_run(self):
         r = minion.curly.get(self.configuration['target'], connect_timeout=5, timeout=15)
@@ -436,7 +456,7 @@ class ServerDetailsPlugin(BlockingPlugin):
             self.report_issues([self._format_report('none', description_formats={'headers': headers})])
 
 class RobotsPlugin(BlockingPlugin):
-    
+
     """
     This plugin checks if the site has a robots.txt.
     """
@@ -444,8 +464,8 @@ class RobotsPlugin(BlockingPlugin):
     PLUGIN_NAME = "Robots"
     PLUGIN_WEIGHT = "light"
 
-    FURTHER_INFO = [ 
-        { 
+    FURTHER_INFO = [
+        {
             "URL": "http://www.robotstxt.org/robotstxt.html",
             "Title": 'The Web Robots Pages - About /robots.txt',
         },
@@ -456,8 +476,9 @@ class RobotsPlugin(BlockingPlugin):
 ]
 
     REPORTS = {
-        "found": 
+        "found":
         {
+            "Code": "ROBOTS-0",
             "Summary": "robots.txt found",
             "Description": "Site has a valid robots.txt",
             "Severity": "Info",
@@ -466,6 +487,7 @@ class RobotsPlugin(BlockingPlugin):
          },
          "not-found":
          {
+             "Code": "ROBOTS-1",
              "Summary": "robots.txt not found",
              "Description": "Site has no robots.txt",
              "Severity": "Medium",
@@ -474,13 +496,14 @@ class RobotsPlugin(BlockingPlugin):
          },
          "invalid":
          {
+            "Code": "ROBOTS-2",
             "Summary": "Invalid entry found in robots.txt",
             "Description": "robots.txt may contain an invalid or unsupport entry.",
             "Severity": "Medium",
             "URLs": [ {"URL": None, "Extra": None}],
             "FurtherInfo": FURTHER_INFO
          }
-    }            
+    }
 
     def validator(self, url):
         """ This validator performs the following checkes:
@@ -493,7 +516,7 @@ class RobotsPlugin(BlockingPlugin):
         the beginning of the document.
 
         Known enhancement to be made:
-        1. should limit the size of robots.txt acceptable by our 
+        1. should limit the size of robots.txt acceptable by our
         scanner
         2. use more optimized regex
         """
@@ -520,11 +543,11 @@ class RobotsPlugin(BlockingPlugin):
             self.report_issues([self._format_report('not-found')])
         elif not result:
             self.report_issues([self._format_report('invalid')])
-        
+
 
 #
 # CSPPlugin
-#        
+#
 class CSPPlugin(BlockingPlugin):
 
     """
@@ -534,12 +557,12 @@ class CSPPlugin(BlockingPlugin):
     PLUGIN_NAME = "CSP"
     PLUGIN_WEIGHT = "light"
 
-    FURTHER_INFO = [ 
+    FURTHER_INFO = [
         {
             "URL": "http://www.w3.org/TR/CSP/",
             "Title": "W3C - Content-Security Policy 1.0"
         },
-        { 
+        {
             "URL": "https://developer.mozilla.org/en-US/docs/Security/CSP",
             "Title": 'Mozilla Developer Network - CSP (Content-Security Policy)',
         },
@@ -556,6 +579,7 @@ class CSPPlugin(BlockingPlugin):
     REPORTS = {
         "set":
         {
+            "Code": "CSP-0",
             "Summary": "Content-Security-Policy header set properly",
             "Description": "The Content-Security-Policy header is set properly. Neither 'unsafe-inline' or \
 'unsafe-eval' is enabled.",
@@ -565,6 +589,7 @@ class CSPPlugin(BlockingPlugin):
          },
          "not-set":
          {
+             "Code": "CSP-1",
              "Summary": "No Content-Security-Policy header set",
              "Description": "Site has no Content-Security Policy header set. CSP defines the Content-Security-Policy \
 HTTP header that allows you to create a whitelist of sources of trusted content, and instructs the browser to only \
@@ -575,6 +600,7 @@ execute or render resources from those sources.",
          },
          "report-mode":
          {
+             "Code": "CSP-2",
             "Summary": "Content-Security-Policy-Report-Only header set",
             "Description": "Content-Security-Policy-Report-Only does not enforce any CSP policy. Use \
 Content-Security-Policy to secure your site.",
@@ -584,24 +610,27 @@ Content-Security-Policy to secure your site.",
          },
          "dual-policy":
          {
+             "Code": "CSP-3",
             "Summary": "Content-Security-Policy-Report-Only and Content-Security-Policy are set",
             "Description": "While browsers will honored both headers (polices specify in Content-Security-Policy \
-are enforced), it is recommended to remove report-only header from production site",                    
+are enforced), it is recommended to remove report-only header from production site",
             "Severity": "High",
             "URLs": [ {"URL": None, "Extra": None}],
             "FurtherInfo": FURTHER_INFO
          },
          "unprefixed":
          {
+             "Code": "CSP-4",
             "Summary": "X-Content-Security-Policy header is set",
             "Description": "While browsers still support prefixed CSP, it is recommended to use the unprefixed version \
-by setting Content-Security-Policy in the header only.",                    
+by setting Content-Security-Policy in the header only.",
             "Severity": "High",
             "URLs": [ {"URL": None, "Extra": None}],
             "FurtherInfo": FURTHER_INFO
          },
          "malformed":
          {
+             "Code": "CSP-5",
             "Summary": "Malformed Content-Security-Policy header is set",
             "Description": "",
             "Severity": "High",
@@ -610,15 +639,16 @@ by setting Content-Security-Policy in the header only.",
          },
          "unsafe":
          {
+             "Code": "CSP-6",
             "Summary": "{directive} is set in Content-Security-Policy header",
             "Description": "By enabling either 'unsafe-inline' or 'unsafe-eval' can open ways for inline script injection \
-(both style and javascript) and malicious script execution, respectively.",                    
+(both style and javascript) and malicious script execution, respectively.",
             "Severity": "High",
             "URLs": [ {"URL": None, "Extra": None}],
             "FurtherInfo": FURTHER_INFO
          },
-         
-    }            
+
+    }
 
     def _extract_csp_header(self, headers, keys_tuple):
         keys = set(headers)
@@ -696,4 +726,3 @@ by setting Content-Security-Policy in the header only.",
                 self.report_issues([self._format_report('set')])
         except ValueError as e:
             self.report_issues([self._format_report('malformed', description='Malformed CSP header set: ' + str(e))])
-                
