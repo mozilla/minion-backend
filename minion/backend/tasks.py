@@ -86,6 +86,19 @@ def scan_finish(scan_id, state, t, failure=None):
                                    "finished": datetime.datetime.utcfromtimestamp(t)}})
 
         #
+        # Fire the callback
+        #
+
+        try:
+            callback = scan['configuration'].get('callback')
+            if callback:
+                r = requests.post(callback['url'], headers={"Content-Type": "application/json"},
+                                  data=json.dumps({'event': 'scan-state', 'id': scan['id'], 'state': state}))
+                r.raise_for_status()
+        except Exception as e:
+            logger.exception("(Ignored) failure while calling scan state callback for scan %s" % scan['id'])
+
+        #
         # If there are remaining plugin sessions that are still in the CREATED state
         # then change those to CANCELLED because we wont be executing them anymore.
         #
@@ -322,7 +335,7 @@ def get_site_info(api_url, url):
     r = requests.get(api_url + '/sites', params={'url': url})
     r.raise_for_status()
     j = r.json()
-    return j['site']
+    return j['sites'][0]
 
 def set_finished(scan_id, state, failure=None):
     send_task("minion.backend.tasks.scan_finish",
