@@ -154,10 +154,13 @@ def post_scan_create():
 @app.route("/scans", methods=["GET"])
 @permission
 def get_scans():
+    limit = request.args.get('limit', 3)
+    if limit: limit = int(limit)
     site = sites.find_one({'id': request.args.get('site_id')})
     if not site:
         return jsonify(success=False, reason='no-such-site')
-    scanz = scans.find({"plan.name": request.args.get("plan_name"), "configuration.target": site['url']})
+    scanz = scans.find({"plan.name": request.args.get("plan_name"),
+                        "configuration.target": site['url']}).sort("created", -1).limit(limit)
     return jsonify(success=True, scans=[summarize_scan(sanitize_scan(s)) for s in scanz])
 
 @app.route("/scans/<scan_id>/control", methods=["PUT"])
