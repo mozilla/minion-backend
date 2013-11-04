@@ -108,8 +108,8 @@ def create_site():
                  'url':  site['url'],
                  'plans': site.get('plans', []),
                  'created': datetime.datetime.utcnow()}
-    
-    if site['verification']['enabled']:
+
+    if site.get('verification',{}).get('enabled',False):
         new_site['verification'] = {'enabled': True, 'value': str(uuid.uuid4())}
     else:
         new_site['verification'] = {'enabled': False, 'value': None}
@@ -184,14 +184,14 @@ def update_site(site_id):
     old_verification = site.get('verification')
     # if site doesn't have 'verification', do us a favor, update the document as it is outdated!
     if not old_verification or old_verification['enabled'] != new_verification['enabled']:
-        # to make logic simpler, even if the new request wants to 
+        # to make logic simpler, even if the new request wants to
         # disable verification, generate a new value anyway.
-        sites.update({'id': site_id}, 
+        sites.update({'id': site_id},
             {'$set': {
                  'verification': {
-                    'enabled': new_verification['enabled'], 
+                    'enabled': new_verification['enabled'],
                     'value': str(uuid.uuid4())}}})
-        
+
     # Return the updated site
     site = sites.find_one({'id': site_id})
     if not site:
@@ -200,10 +200,13 @@ def update_site(site_id):
     return jsonify(success=True, site=sanitize_site(site))
 
 #
-#  GET /sites
+# Returns a list of sites or return the site matches the query. Currently
+# only url is supported.
 #
-# Returns a list of sites or return the site
-# matches the query
+#  GET /sites
+#  GET /sites?url=http://www.mozilla.com
+#
+# Returns a list of sites found, even if there is one result:
 #
 #  [{ 'id': 'b263bdc6-8692-4ace-aa8b-922b9ec0fc37',
 #     'url': 'https://www.mozilla.com',
@@ -214,17 +217,11 @@ def update_site(site_id):
 @app.route('/sites', methods=['GET'])
 @api_guard
 def get_sites():
-    query_url = request.args.get('url')
-    if query_url:
-        site = sites.find_one({'url': query_url})
-        if site:
-            site['groups'] = _find_groups_for_site(site['url'])
-            return jsonify(success=True, site=sanitize_site(site))
-        else:
-            jsonify(success=True, site=[])
-    else:
-        sitez = [sanitize_site(site) for site in sites.find()]
-        for site in sitez:
-            site['groups'] = _find_groups_for_site(site['url'])
-        return jsonify(success=True, sites=sitez)
-
+    query = {}
+    url = request.args.get('url')
+    if url:
+        query['url'] = url
+    sitez = [sanitize_site(site) for site in sites.find(query)]
+    for site in sitez:
+        site['groups'] = _find_groups_for_site(site['url'])
+    return jsonify(success=True, sites=sitez)
