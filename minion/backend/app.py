@@ -14,6 +14,7 @@ import minion.backend.views.scans
 import minion.backend.views.sites
 import minion.backend.views.plans
 import minion.backend.views.plugins
+import minion.backend.views.issues
 
 def configure_app(app, production=True, debug=False):
     app.debug = debug

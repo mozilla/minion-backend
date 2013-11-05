@@ -83,7 +83,7 @@ def load_plugin():
                 app.logger.info("Found %s" % str(obj))
                 plugin_name = module.__name__ + '.' + obj.__name__
                 candidates[plugin_name] = obj
-    
+
     for plugin_name, plugin_obj in candidates.iteritems():
         try:
             _register_plugin(plugin_name, plugin_obj)
@@ -116,5 +116,7 @@ def sanitize_session(session):
             session[field] = calendar.timegm(session[field].utctimetuple())
     return session
 
+def sanitize_time(t):
+    return calendar.timegm(t.utctimetuple())
 
 load_plugin()
