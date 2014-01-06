@@ -41,7 +41,7 @@ if __name__ == "__main__":
                 "http://testaspnet.vulnweb.com",
                 "http://testfire.net"
             ],
-            "plans": ["basic", "zap", "skipfish"]
+            "plans": ["basic"]
         }
     }
 
