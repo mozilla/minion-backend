@@ -649,6 +649,9 @@ by setting Content-Security-Policy in the header only.",
          },
 
     }
+    SCHEME_SOURCE = r"(https|http|data|blob|javascript|ftp)\:"
+    HOST_SOURCE = r'((https|http|data|blob|javascript|ftp)\:\/\/)?((\*\.)?[a-z0-9\-]+(\.[a-z0-9\-]+)*|\*)(\:(\*|[0-9]+))?'
+    KEYWORD_SOURCE = r"('self'|'unsafe-inline'|'unsafe-eval')"
 
     def _extract_csp_header(self, headers, keys_tuple):
         keys = set(headers)
@@ -663,14 +666,15 @@ by setting Content-Security-Policy in the header only.",
             value = headers[name]
         return name, value
 
-    def _parse_csp(self, csp):
-        # adopted from Django
-        _url_regex = re.compile(
-            r'((?:http|ftp)s?://|\*.)*'  # http:// or https://
-            r'(?:(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+(?:[A-Z]{2,6}\.?|[A-Z0-9-]{2,}\.?))'  # domain...
-            r'(?::\d+)?'  # optional port
-            r'(?:/?|[/?]\S+)$', re.IGNORECASE)
+    def _match(self, uri, regex):
+        r = re.compile(regex)
+        m = r.match(uri)
+        if m and m.group() == uri:
+            return True
+        else:
+            return False
 
+    def _parse_csp(self, csp):
         options = collections.defaultdict(list)
         p = re.compile(r';\s*')
         for rule in p.split(csp):
@@ -682,8 +686,10 @@ by setting Content-Security-Policy in the header only.",
                         if len(values) > 2:
                             raise ValueError("When %s is present, other values cannot co-exist with %s" %(value, value))
                     elif value not in ("'self'", "'unsafe-inline'", "'unsafe-eval'", "'https:'", "'https'"):
-                        if _url_regex.match(value) is None:
-                            raise ValueError("%s does not seem like a valid uri for %s" % (value, a[0]))
+                        if not self._match(value, self.SCHEME_SOURCE) and \
+                           not self._match(value, self.KEYWORD_SOURCE) and \
+                           not self._match(value, self.HOST_SOURCE):
+                            raise ValueError("%s does not seem like a valid source expression for %s" % (value, a[0]))
                     elif value == "'unsafe-inline'" or value == "'unsafe-eval'":
                         issue = self._format_report('unsafe')
                         issue['Summary'] = issue['Summary'].format(directive=value)
