@@ -25,7 +25,9 @@ RULES = {'DEFAULT-SRC': "default-src 'self'",
          "DEFAULT-SRC-DOMAIN-SUB-DOMAIN-IMG-MEDIA-SCRIPT": 
             "default-src 'self'; img-src *; media-src media1.com media2.com; script-src userscripts.example.com",
          "EVAL": "script-src 'self' 'unsafe-eval' https://mydomain.com",
-         "INLINE": "script-src 'self' 'unsafe-inline' https://mydomain.com"
+         "INLINE": "script-src 'self' 'unsafe-inline' https://mydomain.com",
+         "BLOB": "default-src 'self' *.mega.co.nz http://*.mega.co.nz;" + 
+                 "script-src 'self' mega.co.nz data: blob:;"
 }
 
 @test_app.route('/no-csp')
@@ -75,6 +77,10 @@ def report_only():
     resp.headers['Content-Security-Policy-Report-Only'] = 'default *;'
     return resp
 
+@test_app.route('/blob')
+def blog():
+    return _make_res('c', RULES['BLOB'])
+
 class TestCSPPlugin(TestPluginBaseClass):
     __test__ = True
     @classmethod
@@ -111,7 +117,7 @@ Content-Security-Policy to secure your site.', runner_resp[1]['data']['Descripti
             self.assertEqual('High', runner_resp[1]['data']['Severity'])
             self.assertEqual('Malformed Content-Security-Policy header is set', \
                 runner_resp[1]['data']['Summary'])
-            self.assertEqual('Malformed CSP header set: {value} does not seem like a valid uri for {name}'.format(
+            self.assertEqual('Malformed CSP header set: {value} does not seem like a valid source expression for {name}'.format(
                 value=expected['value'], name=expected['name']), runner_resp[1]['data']['Description'])
 
         elif expectation == 'UNSAFE-INLINE':
@@ -189,4 +195,6 @@ Content-Security-Policy to secure your site.', runner_resp[1]['data']['Descripti
         api_name = '/report_only'
         self.validate_plugin(api_name, self.validate_csp, expectation='REPORT_ONLY')
 
-
+    def test_blob(self):
+        api_name = '/blob'
+        self.validate_plugin(api_name, self.validate_csp, expectation=True)
