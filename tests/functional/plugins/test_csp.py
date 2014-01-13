@@ -27,7 +27,8 @@ RULES = {'DEFAULT-SRC': "default-src 'self'",
          "EVAL": "script-src 'self' 'unsafe-eval' https://mydomain.com",
          "INLINE": "script-src 'self' 'unsafe-inline' https://mydomain.com",
          "BLOB": "default-src 'self' *.mega.co.nz http://*.mega.co.nz;" + 
-                 "script-src 'self' mega.co.nz data: blob:;"
+                 "script-src 'self' mega.co.nz data: blob:;",
+         "MALFORMED": "default-src 'selff'",
 }
 
 @test_app.route('/no-csp')
@@ -53,8 +54,7 @@ def default_src_self_trusted_subdomain_all_img_some_media_some_script(type):
 
 @test_app.route('/malformed-csp')
 def malformed_csp():
-    mf = RULES['DEFAULT-SRC-DOMAIN-SUB-DOMAIN-IMG-MEDIA-SCRIPT'].replace(';', '')
-    return _make_res('x', mf)
+    return _make_res('c', RULES['MALFORMED'])
 
 @test_app.route('/eval-csp')
 def eval_csp():
@@ -179,7 +179,7 @@ Content-Security-Policy to secure your site.', runner_resp[1]['data']['Descripti
     def test_malformed_csp(self):
         api_name = '/malformed-csp'
         self.validate_plugin(api_name, self.validate_csp, expectation='INVALID',
-                expected={'value': 'img-src', 'name': 'default-src', 'hname': 'x-content-security-policy'})
+                expected={'value': "'selff'", 'name': 'default-src', 'hname': 'content-security-policy'})
     def test_eval_csp(self):
         api_name = '/eval-csp'
         self.validate_plugin(api_name, self.validate_csp, expectation='UNSAFE-EVAL')
