@@ -2,14 +2,12 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-import requests
-import unittest
+from multiprocessing import Process
 
 from flask import Flask, make_response, redirect, url_for
-from collections import namedtuple
+
 from base import TestPluginBaseClass, test_app
 from minion.plugins.basic import RobotsPlugin
-from multiprocessing import Process
 
 @test_app.route('/robots.txt')
 def robot():
@@ -25,7 +23,6 @@ no_robot_app = Flask(__name__)
 def home():
     res = make_response()
     return res
-
 
 class TestRobotsPlugin(TestPluginBaseClass):
     __test__ = True
@@ -55,44 +52,13 @@ class TestRobotsPlugin(TestPluginBaseClass):
         cls.server3.start()
 
         cls.pname = "RobotsPlugin"
-        cls.Issue = namedtuple('Issue', 'code summary severity')
-        cls.Robots = RobotsPlugin()
+        cls.plugin_class = RobotsPlugin()
 
     @classmethod
     def tearDownClass(cls):
         cls.server1.terminate()
         cls.server2.terminate()
         cls.server3.terminate()
-
-    def _get_summary(self, key, fill_with=None):
-        _summary = self.Robots.REPORTS[key]['Summary']
-        if fill_with:
-            return _summary.format(**fill_with)
-        else:
-            return _summary
-
-    def _run(self, base="http://localhost:1234", api="/test"):
-        runner_resp = self.run_plugin(self.pname, base + api)
-        return runner_resp
-
-    def _get_issues(self, resps):
-        issues = []
-        for issue in resps:
-            if issue.get('data') and issue['data'].get('Code'):
-                _issue = self.Issue(issue['data']['Code'],
-                                    issue['data']['Summary'],
-                                    issue['data']['Severity'])
-                issues.append(_issue)
-        return issues
-
-    def _test_expecting_codes(self, issues, expects, message):
-        self.assertEqual(len(issues), len(expects), msg=message)
-        for expect in expects:
-            self._test_expecting_code(issues, expect, message)
-
-    def _test_expecting_code(self, issues, expect, message):
-        codes = [issue.code for issue in issues]
-        self.assertEqual(True, expect in codes, msg=message)
 
     def test_valid_robots_file(self):
         # first, assert that the plugin can assert the file from direct link
