@@ -9,8 +9,8 @@ import time
 import unittest
 from multiprocessing import Process
 from subprocess import Popen, PIPE
-
 from flask import Flask
+from OpenSSL import SSL
 test_app = Flask(__name__)
 
 class TestPluginBaseClass(unittest.TestCase):
@@ -18,15 +18,22 @@ class TestPluginBaseClass(unittest.TestCase):
     PORTS = (1234, 1235, 1443)
 
     @classmethod
-    def setUpClass(cls):
+    def setUpClass(cls, tls=False):
         """ Every test class inherits from this base class
         must define cls.pname as the name of the plugin. """
 
-        def run_app():
-            test_app.run(host='localhost', port=1234)
+        def run_app(tls=False):
+            if tls:
+                context = SSL.Context(SSL.SSLv23_METHOD)
+                context.use_privatekey_file("https_data/minion-test.key")
+                context.use_certificate_file("https_data/minion-test.cert")
+                test_app.run(host='localhost', port=1234,
+                    ssl_context=context)
+            else:
+                test_app.run(host='localhost', port=1234)
 
         # use multiprocess to launch server and kill server
-        cls.server = Process(target=run_app)
+        cls.server = Process(target=run_app, kwargs={"tls": tls})
         cls.server.daemon = True
         cls.server.start()
 

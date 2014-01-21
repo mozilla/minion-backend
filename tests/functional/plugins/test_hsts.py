@@ -9,107 +9,107 @@ import time
 import unittest
 from multiprocessing import Process
 from subprocess import Popen, PIPE
-
-from flask import make_response
-
+from flask import make_response, request
+from collections import namedtuple
 from base import TestPluginBaseClass, test_app
+from minion.plugins.basic import HSTSPlugin
 
-from nose import SkipTest
-
-@test_app.route('/has-hsts')
-def has_hsts():
-    res = make_response("<h1>HELLO HTTPS</h1>")
-    res.headers['strict-transport-security'] = 'max-age=3153600'
-    return res
-
-@test_app.route('/no-hsts')
-def no_hsts():
+@test_app.route('/test')
+def endpoint():
+    value = request.args.get("hsts-value")
     res = make_response("")
-    return res
-
-@test_app.route("/negative-hsts")
-def has_negative_hsts():
-    res = make_response("")
-    res.headers['strict-transport-security'] = 'max-age=-1'
-    return res
-
-@test_app.route("/invalid-hsts")
-def invalid_hsts():
-    res = make_response("")
-    res.headers['strict-transport-security'] = 'max-agee=3153600'
-    return res
-
-@test_app.route('/hsts-include-subdomain')
-def include_subdomain():
-    res = make_response("")
-    res.headers['strict-transport-security'] = 'max-age=3153600; includeSubdomain'
+    if value:
+        res.headers['strict-transport-security'] = value
     return res
 
 class TestHSTSPlugin(TestPluginBaseClass):
     __test__ = True
+    Issue = namedtuple('Issue', 'code summary severity')
+    HSTS = HSTSPlugin()
 
     @classmethod
     def setUpClass(cls):
-        def run_app(port):
-            test_app.run(port=port)
+        super(TestHSTSPlugin, cls).setUpClass(tls=True)
+        cls.pname = "HSTSPlugin"
 
-        def find_stunnel():
-            for path in os.environ['PATH'].split(os.pathsep):
-                stunnel_path = os.path.join(path, 'stunnel4')
-                if os.path.exists(stunnel_path):
-                    return stunnel_path
+    def _run_plugin(self, pname, url):
+        runner_resp = self.run_plugin(pname, url)
+        return runner_resp
 
-        cls.stunnel_process = None
-        cls.stunnel_path = find_stunnel()
-        if cls.stunnel_path:
-            cls.stunnel_process = Popen([cls.stunnel_path, 'stunnel-data/minion-test.ini'], stdout=PIPE, stderr=PIPE)
+    def _run(self, base="http://localhost:1234", endpoint="/test", hsts_value=None):
+        API = base + endpoint
+        r = requests.Request('GET', API,
+            params={"hsts-value": hsts_value}).prepare()
+        return self._run_plugin(self.pname, r.url)
 
-        # server1 will be HTTP and one can access https through 1443
-        cls.server1 = Process(target=run_app, args=(1235,))
-        cls.server1.daemon = True
-        cls.server1.start()
-        cls.pname = 'HSTSPlugin'
+    def _get_summary(self, key, fill_with=None):
+        _summary = self.HSTS.REPORTS[key]['Summary']
+        if fill_with:
+            return _summary.format(**fill_with)
+        else:
+            return _summary
 
-    @classmethod
-    def tearDownClass(cls):
-        cls.server1.terminate()
-        if cls.stunnel_process:
-            cls.stunnel_process.terminate()
+    def _get_issues(self, resps):
+        issues = []
+        for issue in resps:
+            if issue.get('data') and issue['data'].get('Code'):
+                _issue = self.Issue(issue['data']['Code'],
+                                    issue['data']['Summary'],
+                                    issue['data']['Severity'])
+                issues.append(_issue)
+        return issues
 
-    def validate_hsts(self, runner_resp, request_resp, expected=None, expectation=True):
-        if expectation is True:
-            self.assertEqual('Strict-Transport-Security header is set properly', \
-                runner_resp[1]['data']['Summary'])
-            self.assertEqual("Site has the following Strict-Transport-Security header set: %s" \
-                    % request_resp.headers['strict-transport-security'], runner_resp[1]['data']['Description'])
-            self.assertEqual(True, 'max-age' in request_resp.headers['strict-transport-security'])
-            self.assertEqual('Info', runner_resp[1]['data']['Severity'])
-        elif expectation is False:
-            self.assertEqual('High', runner_resp[1]['data']['Severity'])
-            self.assertEqual('Strict-Transport-Security header is not set', \
-                runner_resp[1]['data']['Summary'])
-        elif expectation is 'BAD-CERT':
-            self.assertEqual('Error', runner_resp[1]['data']['Severity'])
-        elif expectation is "INVALID":
-            self.assertEqual('High', runner_resp[1]['data']['Severity'])
-            self.assertEqual("Site sets an invalid Strict-Transport-Security header", \
-                    runner_resp[1]['data']['Summary'])
-        elif expectation is "NEGATIVE":
-            self.assertEqual('High', runner_resp[1]['data']['Severity'])
-            self.assertEqual("Site sets a negative max-age in the Strict-Transport-Security header", \
-                    runner_resp[1]['data']['Summary'])
+    def _test_expecting_codes(self, issues, expects, message):
+        self.assertEqual(len(issues), len(expects), msg=message)
+        for expect in expects:
+            self._test_expecting_code(issues, expect, message)
 
-    def test_hsts_fail_on_cert_without_ca(self):
-        if not self.stunnel_path:
-            raise SkipTest
-        api_name = '/has-hsts'
-        self.validate_plugin(api_name, self.validate_hsts, expectation='BAD-CERT',\
-            base='https://localhost:1443')
+    def _test_expecting_code(self, issues, expect, message):
+        codes = [issue.code for issue in issues]
+        self.assertEqual(True, expect in codes, msg=message)
 
-    def test_hsts_good_on_signed_cert(self):
-        self.validate_plugin(None, self.validate_hsts, expectation=True, base=None,\
-           target='https://www.mozillalabs.com')
+    def _test_expecting_summary(self, issues, summary_name, message,
+            fill_with=None):
+        summaries = [issue.summary for issue in issues]
+        expecting_summary = self._get_summary(summary_name, fill_with=fill_with)
+        self.assertEqual(True, expecting_summary in summaries, msg=message)
 
-    def test_hsts_no_hsts_header_over_https(self):
-        self.validate_plugin(None, self.validate_hsts, expectation=False,\
-            target='https://google.com')
+    #NOTE: We will comment this out until we agree that curly.get should add
+    # an option to enable and disable SSL verification.
+    """
+    def test_hsts_is_set(self):
+        resp = self._run(base="https://localhost:1234", hsts_value="max-age=3153600")
+        issues = self._get_issues(resp)
+        self._test_expecting_summary(
+            issues,
+            "set",
+            "HSTS is set properly should be in issues.")
+        self._test_expecting_codes(
+            issues,
+            ["HSTS-0"],
+            "Expecting HSTS is set properly")
+    """
+
+    def test_hsts_set_properly(self):
+        resp = self._run_plugin(self.pname, "https://mozillalabs.com")
+        issues = self._get_issues(resp)
+        self._test_expecting_summary(
+            issues,
+            "set",
+            "HSTS is set properly should be in issues.")
+        self._test_expecting_codes(
+            issues,
+            ["HSTS-0"],
+            "Expecting HSTS is set properly")
+
+    def test_hsts_not_set(self):
+        resp = self._run_plugin(self.pname, "https://google.com")
+        issues = self._get_issues(resp)
+        self._test_expecting_summary(
+            issues,
+            "not-set",
+            "HSTS is not set should be in issues.")
+        self._test_expecting_codes(
+            issues,
+            ["HSTS-2"],
+            "Expecting HSTS is not set")
