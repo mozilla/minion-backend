@@ -2,9 +2,27 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-from flask import make_response, request
+import requests
+import sys
+import time
+import unittest
 
+from flask import make_response, request
+from collections import namedtuple
 from base import TestPluginBaseClass, test_app
+from minion.plugins.basic import ServerDetailsPlugin
+
+@test_app.route('/test')
+def endpoint():
+    headers = request.args.getlist("headers")
+    values = request.args.getlist("values")
+
+    res = make_response("")
+    if headers and values:
+        _headers = dict(zip(headers, values))
+        for name, value in _headers.items():
+            res.headers[name] = value
+    return res
 
 # headers to be exposed
 HEADERS = {
@@ -29,34 +47,71 @@ def respond_with_all_headers():
 
 class TestServerDetailsPlugin(TestPluginBaseClass):
     __test__ = True
+    Issue = namedtuple('Issue', 'code summary severity')
+    ServerDetails = ServerDetailsPlugin()
+
     @classmethod
     def setUpClass(cls):
         super(TestServerDetailsPlugin, cls).setUpClass()
         cls.pname = "ServerDetailsPlugin"
 
-    def validate_server_details_plugin(self, runner_resp, request_resp, expected=None, expectation=True):
-        if expectation == 'ALL':
-            # the first report json returned must be [1], thus the number of issues reported is 
-            # len(msgs) - 2
-            self.assertEqual(expected, len(runner_resp)-2)
-            count = 1
-            for name, value in HEADERS.iteritems():
-                self.assertEqual("'%s' is found" % name, runner_resp[count]['data']['Summary'])
-                self.assertEqual("Site has set %s header" % name, \
-                        runner_resp[count]['data']['Description'])
-                count += 1
-                self.assertEqual('Medium', runner_resp[count]['data']['Severity'])
-        elif expectation == 'SINGLE':
-            self.assertEqual('Medium', runner_resp[2]['data']['Severity'])
-            self.assertEqual("Site has set %s header" % expected, \
-                    runner_resp[2]['data']['Description'])
-            self.assertEqual("%s is found" % expected, \
-                    runner_resp[2]['data']['Summary'])
+    def _get_summary(self, key, fill_with=None):
+        _summary = self.ServerDetails.REPORTS[key]['Summary']
+        if fill_with:
+            return _summary.format(**fill_with)
+        else:
+            return _summary
 
-    """
-    def test_server_exposes_single(self):
-        for name, value in HEADERS.iteritems():
-            api_name = '/expose-single/{name}'
-            self.validate_plugin(api_name.format(name=name), self.validate_server_details_plugin, \
-                    expected=name, expectation='SINGLE')
-    """
+    def _run(self, headers=None, values=None):
+        API = "http://localhost:1234/test"
+        r = requests.Request('GET', API,
+            params={"headers": headers, "values": values}).prepare()
+        runner_resp = self.run_plugin(self.pname, r.url)
+        return runner_resp
+
+    def _get_issues(self, resps):
+        issues = []
+        for issue in resps:
+            if issue.get('data') and issue['data'].get('Code'):
+                _issue = self.Issue(issue['data']['Code'],
+                                    issue['data']['Summary'],
+                                    issue['data']['Severity'])
+                issues.append(_issue)
+        return issues
+
+    def _test_expecting_codes(self, issues, expects, message):
+        self.assertEqual(len(issues), len(expects), msg=message)
+        for expect in expects:
+            self._test_expecting_code(issues, expect, message)
+
+    def _test_expecting_code(self, issues, expect, message):
+        codes = [issue.code for issue in issues]
+        self.assertEqual(True, expect in codes, msg=message)
+
+    def _test_expecting_summary(self, issues, summary_name, message,
+            fill_with=None):
+        summaries = [issue.summary for issue in issues]
+        expecting_summary = self._get_summary(summary_name, fill_with=fill_with)
+        self.assertEqual(True, expecting_summary in summaries, msg=message)
+
+    def test_serverdetails_expose_powered_by(self):
+        resp = self._run(headers=["X-Powered-By"], values=["PHP/5.2.6"])
+        issues = self._get_issues(resp)
+
+        self._test_expecting_codes(
+            issues,
+            ['SD-0', 'SD-0'],
+            "X-Powered-By is set")
+
+    def test_serverdetails_expose_all(self):
+        resp = self._run(
+            headers=["Server", "X-Powered-By", "X-AspNet-Version",
+                     "X-AspNetMvc-Version", "X-Backend-Server"],
+            values=["PyServer", "PHP/5.2.6", "5.0.111212", "4.0", "foobar-server"])
+
+        issues = self._get_issues(resp)
+        self._test_expecting_codes(
+            issues,
+            ['SD-0', 'SD-0', 'SD-0', 'SD-0', 'SD-0'],
+            "Server, X-Powered-By, X-AspNet-Version, X-AspNetMvc-Version,\
+X-Backend-Server are detected.")
