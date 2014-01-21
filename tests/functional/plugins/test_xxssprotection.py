@@ -7,75 +7,130 @@ import sys
 import time
 import unittest
 
-from flask import make_response
-
+from flask import make_response, request
+from collections import namedtuple
 from base import TestPluginBaseClass, test_app
+from minion.plugins.basic import XXSSProtectionPlugin
 
-@test_app.route('/xxsprotected')
-def xxsprotected():
+@test_app.route('/test')
+def endpoint():
+    value = request.args.get("xxss-value")
     res = make_response("")
-    res.headers['X-XSS-Protection'] = '1; mode=block'
-    return res
-
-@test_app.route('/xxsprotect-zero')
-def xxsprotect_zero():
-    res = make_response("")
-    res.headers['X-XSS-Protection'] = '0'
-    return res
-
-@test_app.route('/bad-xxsprotected-value')
-def bad_xxsprotected_value():
-    res = make_response("")
-    res.headers['X-XSS-Protection'] = 'CHEESE'
-    return res
-
-@test_app.route('/not-xxsprotected')
-def not_xxsprotected():
-    res = make_response("")
+    if value:
+        res.headers['X-XSS-Protection'] = value
     return res
 
 class TestXXSSProtectionPlugin(TestPluginBaseClass):
     __test__ = True
+    Issue = namedtuple('Issue', 'code summary severity')
+    XXSS = XXSSProtectionPlugin()
+
     @classmethod
     def setUpClass(cls):
         super(TestXXSSProtectionPlugin, cls).setUpClass()
         cls.pname = 'XXSSProtectionPlugin'
 
-    def validate_xxssprotection(self, runner_resp, request_resp, expected=None, expectation=True):
-        if expectation is True:
-            self.assertEqual('Info', runner_resp[1]['data']['Severity'])
-            self.assertEqual('X-XSS-Protection is set properly', runner_resp[1]['data']['Summary'])
-            self.assertEqual('Site has the following X-XSS-Protection header set: %s' \
-                    % request_resp.headers['x-xss-protection'], runner_resp[1]['data']['Description'])
-            self.assertEqual(200, request_resp.status_code)
-        elif expectation == 'INVALID':
-            self.assertEqual('High', runner_resp[1]['data']['Severity'])
-            self.assertEqual('Invalid X-XSS-Protection header detected', runner_resp[1]['data']['Summary'])
-            self.assertEqual('The following X-XSS-Protection header value is detected and is invalid: %s' \
-                    % expected, runner_resp[1]['data']['Description'])
-            self.assertEqual(expected, request_resp.headers['x-xss-protection'])
-        elif expectation == 'DISABLE':
-            self.assertEqual('High', runner_resp[1]['data']['Severity'])
-            self.assertEqual('X-XSS-Protection header is set to disable', 
-                    runner_resp[1]['data']['Summary'])
-            self.assertEqual(expected, request_resp.headers['x-xss-protection'])
-        elif expectation is False:
-            self.assertEqual('High', runner_resp[1]['data']['Severity'])
-            self.assertEqual('X-XSS-Protection header is not set', \
-                    runner_resp[1]['data']['Summary'])
-            self.assertEqual(True, 'x-xss-protection' not in request_resp.headers)
+    def _get_summary(self, key, fill_with=None):
+        _summary = self.XXSS.REPORTS[key]['Summary']
+        if fill_with:
+            return _summary.format(**fill_with)
+        else:
+            return _summary
 
-    def test_xxsprotect_with_1_mode_block(self):
-        api_name = '/xxsprotected'
-        self.validate_plugin(api_name, self.validate_xxssprotection, expectation=True)
-    def test_xxsprotect_with_0(self):
-        api_name = '/xxsprotect-zero'
-        self.validate_plugin(api_name, self.validate_xxssprotection, expected='0',\
-                expectation='DISABLE')
-    def test_xxsprotect_with_invalid_value(self):
-        api_name = '/bad-xxsprotected-value'
-        self.validate_plugin(api_name, self.validate_xxssprotection, \
-            expected='CHEESE', expectation='INVALID')
-    def test_without_xxssprotection(self):
-        api_name = '/not-xxsprotected'
-        self.validate_plugin(api_name, self.validate_xxssprotection, expectation=False)
+    def _run(self, xxss_value=None):
+        API = "http://localhost:1234/test"
+        r = requests.Request('GET', API,
+            params={"xxss-value": xxss_value}).prepare()
+        runner_resp = self.run_plugin(self.pname, r.url)
+        return runner_resp
+
+    def _get_issues(self, resps):
+        issues = []
+        for issue in resps:
+            if issue.get('data') and issue['data'].get('Code'):
+                _issue = self.Issue(issue['data']['Code'],
+                                    issue['data']['Summary'],
+                                    issue['data']['Severity'])
+                issues.append(_issue)
+        return issues
+
+    def _test_expecting_codes(self, issues, expects, message):
+        self.assertEqual(len(issues), len(expects), msg=message)
+        for expect in expects:
+            self._test_expecting_code(issues, expect, message)
+
+    def _test_expecting_code(self, issues, expect, message):
+        codes = [issue.code for issue in issues]
+        self.assertEqual(True, expect in codes, msg=message)
+
+    def _test_expecting_summary(self, issues, summary_name, message,
+            fill_with=None):
+        summaries = [issue.summary for issue in issues]
+        expecting_summary = self._get_summary(summary_name, fill_with=fill_with)
+        self.assertEqual(True, expecting_summary in summaries, msg=message)
+
+    def test_xxssplugin_set_1_and_mode_block(self):
+        resp = self._run(xxss_value="1; mode=block")
+        issues = self._get_issues(resp)
+        self._test_expecting_summary(
+            issues,
+            'set',
+            "X-XSS-Protection is set should be in issues")
+
+        self._test_expecting_codes(
+            issues,
+            ['XXSSP-0'],
+            "X-XSS-Protection is set")
+
+    def test_xxssplugin_set_1_without_mode_block_is_invalid(self):
+        resp = self._run(xxss_value="1")
+        issues = self._get_issues(resp)
+        self._test_expecting_summary(
+            issues,
+            'invalid',
+            "X-XSS-Protection set 1 without mode=block is invalid should be in issues")
+
+        self._test_expecting_codes(
+            issues,
+            ['XXSSP-1'],
+            "X-XSS-Protection invalid setting is detected")
+
+    def test_xxssplugin_set_random_invalid_value(self):
+        resp = self._run(xxss_value="foobar")
+        issues = self._get_issues(resp)
+        self._test_expecting_summary(
+            issues,
+            'invalid',
+            "X-XSS-Protection set invalid random value should be in issues")
+
+        self._test_expecting_codes(
+            issues,
+            ['XXSSP-1'],
+            "X-XSS-Protection invalid setting is detected")
+
+    def test_xxssplugin_set_0_disable(self):
+        resp = self._run(xxss_value="0")
+        issues = self._get_issues(resp)
+        self._test_expecting_summary(
+            issues,
+            'disabled',
+            "X-XSS-Protection set 0 disable protection should be in issues")
+
+        self._test_expecting_codes(
+            issues,
+            ['XXSSP-3'],
+            "X-XSS-Protection is disabled")
+
+    def test_xxssplugin_not_set(self):
+        resp = self._run()
+        issues = self._get_issues(resp)
+        self._test_expecting_summary(
+            issues,
+            'not-set',
+            "X-XSS-Protection is not set should be in issues")
+
+        self._test_expecting_codes(
+            issues,
+            ['XXSSP-2'],
+            "Expecting X-XSS-Protection header not present")
+
