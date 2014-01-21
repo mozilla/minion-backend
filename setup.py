@@ -12,7 +12,7 @@ install_requires = [
     'twisted==13.0.0',
     'pycurl==7.19.0',
     'gunicorn==0.17.4',
-    'ipaddress==1.0.4'
+    'ipaddress==1.0.4',
 ]
 
 plugins_requires = [
@@ -21,7 +21,8 @@ plugins_requires = [
 
 tests_requires = [
     'nose',
-    'mock'
+    'mock',
+    'pyopenssl==0.13.1']
 ]
 
 setup(name="minion-backend",

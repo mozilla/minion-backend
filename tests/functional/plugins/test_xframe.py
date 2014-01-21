@@ -2,100 +2,73 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-from flask import make_response
+from flask import make_response, request
 
 from base import TestPluginBaseClass, test_app
+from minion.plugins.basic import XFrameOptionsPlugin
 
-@test_app.route('/xfo-with-deny')
-def xfo_with_deny():
+@test_app.route('/test')
+def endpoint():
+    value = request.args.get("xframe-value")
     res = make_response("")
-    res.headers['X-Frame-Options'] = 'DENY'
-    return res
-
-@test_app.route('/xfo-with-sameorigin')
-def xfo_with_sameorigin():
-    res = make_response("")
-    res.headers['X-Frame-Options'] = 'SAMEORIGIN'
-    return res
-
-@test_app.route('/xfo-with-allow-from')
-def xfo_with_allow_from():
-    res = make_response("")
-    res.headers['X-Frame-Options'] = 'ALLOW-FROM http://localhost:1234/'
-    return res
-
-@test_app.route('/xfo-with-allow-from-with-colon')
-def xfo_with_allow_from_with_colon():
-    res = make_response("")
-    res.headers['X-Frame-Options'] = 'ALLOW-FROM: http://localhost:1234/'
-    return res
-
-@test_app.route('/xfo-with-allow-from-without-http')
-def xfo_with_allow_from_withou_http():
-    res = make_response("")
-    res.headers['X-Frame-Options'] = 'ALLOW-FROM localhost:1234/'
-    return res
-
-@test_app.route('/bad-xfo')
-def bad_xfo():
-    res = make_response("<h1>Hello World!</h1>")
-    res.headers['X-Frame-Options'] = "CHEESE"
-    return res
-
-@test_app.route('/no-xfo')
-def no_xfo():
-    res = make_response("")
+    if value:
+        res.headers['X-Frame-Options'] = value
     return res
 
 class TestXFrameOptionsPlugin(TestPluginBaseClass):
     __test__ = True
+
     @classmethod
     def setUpClass(cls):
         super(TestXFrameOptionsPlugin, cls).setUpClass()
         cls.pname = "XFrameOptionsPlugin"
+        cls.plugin_class = XFrameOptionsPlugin()
 
-    def validate_xframe_plugin(self, runner_resp, request_resp, expected=None, expectation=True):
-        if expectation is True:
-            self.assertEqual('X-Frame-Options header is set properly', runner_resp[1]['data']['Summary'])
-            self.assertEqual('Info', runner_resp[1]['data']['Severity'])
-            self.assertEqual(expected, request_resp.headers['X-Frame-Options'])
-        elif expectation == 'INVALID':
-            fragement = request_resp.headers['X-Frame-Options']
-            self.assertEqual(True, fragement in runner_resp[1]['data']['Description'])
-            self.assertEqual("High", runner_resp[1]['data']['Severity'])
-            self.assertEqual("The following X-Frame-Options header value is detected and is invalid: %s" % fragement, \
-                runner_resp[1]['data']['Description'])
-            self.assertEqual(expected, request_resp.headers['X-Frame-Options'])
-        else:
-            self.assertEqual(True, "X-Frame-Options header is not found." in runner_resp[1]['data']['Description'])
+    def test_xfo_not_set(self):
+        resp = self._run()
+        issues = self._get_issues(resp)
+        self._test_expecting_codes(issues,
+            ['XFO-2'],
+            "XFO is not set detected.")
 
-    def test_bad_xframe_option(self):
-        api_name = "/bad-xfo"
-        self.validate_plugin(api_name, self.validate_xframe_plugin, expected='CHEESE', expectation='INVALID')
+    def test_set_xfo_with_same_origin(self):
+        resp = self._run(params={"xframe-value": "SAMEORIGIN"})
+        issues = self._get_issues(resp)
+        self._test_expecting_codes(issues,
+            ['XFO-0'],
+            "XFO is properly set detected.")
 
-    def test_xframe_option_with_same_origin(self):
-        api_name = '/xfo-with-sameorigin'
-        self.validate_plugin(api_name, self.validate_xframe_plugin, expected='SAMEORIGIN', expectation=True)
+    def test_set_xfo_with_deny(self):
+        resp = self._run(params={"xframe-value": "DENY"})
+        issues = self._get_issues(resp)
+        self._test_expecting_codes(issues,
+            ['XFO-0'],
+            "XFO is properly set detected.")
 
-    def test_xframe_option_with_deny(self):
-        api_name = '/xfo-with-deny'
-        self.validate_plugin(api_name, self.validate_xframe_plugin, expected='DENY', expectation=True)
+    def test_set_xfo_with_allow_from(self):
+        resp = self._run(params={"xframe-value": "ALLOW-FROM http://localhost:1234/"})
+        issues = self._get_issues(resp)
+        self._test_expecting_codes(issues,
+            ['XFO-0'],
+            "XFO is properly set detected.")
 
-    def test_xframe_option_with_allow_from(self):
-        api_name = '/xfo-with-allow-from'
-        self.validate_plugin(api_name, self.validate_xframe_plugin, \
-                expected='ALLOW-FROM http://localhost:1234/', expectation=True)
+    def test_xfo_mark_invalid_if_colon_append_to_allow_from(self):
+        resp = self._run(params={"xframe-value": "ALLOW-FROM: http://localhost:1234/"})
+        issues = self._get_issues(resp)
+        self._test_expecting_codes(issues,
+            ['XFO-1'],
+            "XFO is not properly set detected.")
 
-    def test_xframe_option_with_allow_from_colon_gets_rejected(self):
-        api_name = '/xfo-with-allow-from-with-colon'
-        self.validate_plugin(api_name, self.validate_xframe_plugin, \
-                expected='ALLOW-FROM: http://localhost:1234/', expectation='INVALID')
+    def test_xfo_mark_invalid_when_scheme_is_missing(self):
+        resp = self._run(params={"xframe-value": "ALLOW-FROM localhost:1234/"})
+        issues = self._get_issues(resp)
+        self._test_expecting_codes(issues,
+            ['XFO-1'],
+            "XFO is not properly set detected.")
 
-    def test_xframe_option_without_http(self):
-        api_name = '/xfo-with-allow-from-without-http'
-        self.validate_plugin(api_name, self.validate_xframe_plugin, \
-                expected='ALLOW-FROM localhost:1234/', expectation='INVALID')
-
-    def test_xframe_options_not_set(self):
-        api_name = '/no-xfo'
-        self.validate_plugin(api_name, self.validate_xframe_plugin, expectation=False)
+    def test_xfo_mark_invalid_on_random_value_value(self):
+        resp = self._run(params={"xframe-value": "foo"})
+        issues = self._get_issues(resp)
+        self._test_expecting_codes(issues,
+            ['XFO-1'],
+            "Expecting invalid XFO value detected.")

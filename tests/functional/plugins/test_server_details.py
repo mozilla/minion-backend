@@ -5,58 +5,46 @@
 from flask import make_response, request
 
 from base import TestPluginBaseClass, test_app
+from minion.plugins.basic import ServerDetailsPlugin
 
-# headers to be exposed
-HEADERS = {
-    'X-Powered-By': 'PHP/5.2.6',
-    'X-AspNet-Version': '5.0.111212',
-    'X-AspNetMvc-Version': '4.0',
-    'X-Backend-Server': 'cheese-burger'
-}
+@test_app.route('/test')
+def endpoint():
+    headers = request.args.getlist("headers")
+    values = request.args.getlist("values")
 
-@test_app.route('/expose-single/<name>')
-def respond_with_a_header(name):
-    res = make_response('')
-    res.headers[name] = HEADERS[name]
-    return res
-
-@test_app.route('/expose-all')
-def respond_with_all_headers():
-    res = make_response('')
-    for name, value in HEADERS.iteritems():
-        res.headers[name] = value
+    res = make_response("")
+    if headers and values:
+        _headers = dict(zip(headers, values))
+        for name, value in _headers.items():
+            res.headers[name] = value
     return res
 
 class TestServerDetailsPlugin(TestPluginBaseClass):
     __test__ = True
+
     @classmethod
     def setUpClass(cls):
         super(TestServerDetailsPlugin, cls).setUpClass()
         cls.pname = "ServerDetailsPlugin"
+        cls.plugin_class = ServerDetailsPlugin()
 
-    def validate_server_details_plugin(self, runner_resp, request_resp, expected=None, expectation=True):
-        if expectation == 'ALL':
-            # the first report json returned must be [1], thus the number of issues reported is 
-            # len(msgs) - 2
-            self.assertEqual(expected, len(runner_resp)-2)
-            count = 1
-            for name, value in HEADERS.iteritems():
-                self.assertEqual("'%s' is found" % name, runner_resp[count]['data']['Summary'])
-                self.assertEqual("Site has set %s header" % name, \
-                        runner_resp[count]['data']['Description'])
-                count += 1
-                self.assertEqual('Medium', runner_resp[count]['data']['Severity'])
-        elif expectation == 'SINGLE':
-            self.assertEqual('Medium', runner_resp[2]['data']['Severity'])
-            self.assertEqual("Site has set %s header" % expected, \
-                    runner_resp[2]['data']['Description'])
-            self.assertEqual("%s is found" % expected, \
-                    runner_resp[2]['data']['Summary'])
+    def test_serverdetails_expose_powered_by(self):
+        resp = self._run(params={"headers":["X-Powered-By"], "values":["PHP/5.2.6"]})
+        issues = self._get_issues(resp)
 
-    """
-    def test_server_exposes_single(self):
-        for name, value in HEADERS.iteritems():
-            api_name = '/expose-single/{name}'
-            self.validate_plugin(api_name.format(name=name), self.validate_server_details_plugin, \
-                    expected=name, expectation='SINGLE')
-    """
+        self._test_expecting_codes(
+            issues,
+            ['SD-0', 'SD-0'],
+            "X-Powered-By is set")
+
+    def test_serverdetails_expose_all(self):
+        resp = self._run(
+            params={"headers": ["Server", "X-Powered-By", "X-AspNet-Version",
+                     "X-AspNetMvc-Version", "X-Backend-Server"],
+                    "values":  ["PyServer", "PHP/5.2.6", "5.0.111212", "4.0", "foobar-server"]})
+
+        issues = self._get_issues(resp)
+        self._test_expecting_codes(
+            issues,
+            ['SD-0', 'SD-0', 'SD-0', 'SD-0', 'SD-0'],
+            "Server, X-Powered-By, X-AspNet-Version, X-AspNetMvc-Version, X-Backend-Server are detected.")
