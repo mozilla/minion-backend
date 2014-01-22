@@ -22,7 +22,7 @@ plugins_requires = [
 tests_requires = [
     'nose',
     'mock',
-    'pyopenssl==0.13.1']
+    'pyopenssl==0.13.1',
 ]
 
 setup(name="minion-backend",
