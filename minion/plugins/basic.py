@@ -413,6 +413,10 @@ class ServerDetailsPlugin(BlockingPlugin):
             "Title": 'RFC 2616 - "Server" header'
         },
         {
+            "URL": "http://blogs.msdn.com/b/varunm/archive/2013/04/23/remove-unwanted-http-response-headers.aspx",
+            "Title": "MSDN - Remove Unwanted HTTP Response Headers"
+        },
+        {
             "URL": "https://developer.mozilla.org/en-US/docs/HTTP/Headers",
             "Title": "Mozilla Developer Network - HTTP Headers"
         },
@@ -426,8 +430,8 @@ class ServerDetailsPlugin(BlockingPlugin):
         "set":
             {
                 "Code": "SD-0",
-                "Summary": "",
-                "Description": "Site has set {header} header",
+                "Summary": "{header} header is set",
+                "Description": "{description}",
                 "Severity": "Medium",
                 "URLs": [ {"URL": None, "Extra": None} ],
                 "FurtherInfo": FURTHER_INFO
@@ -443,6 +447,17 @@ class ServerDetailsPlugin(BlockingPlugin):
          }
     }
 
+    DESCRIPTIONS = {
+        "rfc2068": "Revealing the specific software version of the server may allow the server machine to become \
+more vulnerable to attacks against software that is known to contain security holes.",
+        "server": "The Server header exposes the web server software being used.",
+        "x-powered-by": "The X-Powered-By header specifies some of the technology supporting the running application. \
+This is typically seem in ASP and PHP web applications.",
+        "x-aspnet-version": "The X-AspNet-Version header specifies the version of ASP.NET being used.",
+        "x-aspnetmvc-version": "The X-AspNetMvc-Version header specifies the version of ASP.NET MVC being used.",
+        "x-backend-server": "The X-Backend-Server header specifies which of the many servers is serving the request."
+    }
+
     def do_run(self):
         r = minion.curly.get(self.configuration['target'], connect_timeout=5, timeout=15)
         r.raise_for_status()
@@ -451,11 +466,19 @@ class ServerDetailsPlugin(BlockingPlugin):
         for header in headers:
             if header.lower() in r.headers:
                 at_least_one = True
-                issue = self._format_report('set', description_formats={'header': header})
-                issue['Summary'] = "'%s' header is found" % header
-                self.report_issues([issue])
+                description = " ".join([self.DESCRIPTIONS[header.lower()], self.DESCRIPTIONS["rfc2068"]])
+                self.report_issues([
+                    format_report(self, "set", [
+                        {"Summary": {"header": header}},
+                        {"Description": {"description": description}}
+                    ])
+                ])
         if not at_least_one:
-            self.report_issues([self._format_report('none', description_formats={'headers': headers})])
+                self.report_issues([
+                    format_report(self, "none", [
+                        {"Description": {"headers": headers}}
+                    ])
+                ])
 
 class RobotsPlugin(BlockingPlugin):
 
