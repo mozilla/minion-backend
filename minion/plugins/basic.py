@@ -4,7 +4,6 @@
 
 
 import collections
-import copy
 import logging
 import os
 import re
@@ -52,7 +51,7 @@ This indicates the site is reachable.",
             {
                 "Code": "ALIVE-1",
                 "Summary": "Site could not be reached",
-                "Description": None,
+                "Description": "{error}",
                 "Severity": "Fatal",
                 "URLs": [ { "URL": None, "Extra": None} ],
                 "FurtherInfo": FURTHER_INFO,
@@ -63,13 +62,17 @@ This indicates the site is reachable.",
         try:
             r = minion.curly.get(self.configuration['target'], connect_timeout=5, timeout=15)
             r.raise_for_status()
-            issue = self._format_report('good', description_formats={'status_code': str(r.status)})
+            issue = self.format_report('good', [
+                {"Description": {"status_code": str(r.status)}}
+            ])
             self.report_issue(issue)
         except minion.curly.CurlyError as error:
             self.report_issue(error.issue)
             return AbstractPlugin.EXIT_STATE_ABORTED
         except minion.curly.BadResponseError as error:
-            issue = self._format_report('bad', description=str(error))
+            issue = self.format_report('bad', [
+                {"Description": {"error": str(error)}}
+            ])
             self.report_issue(issue)
             return AbstractPlugin.EXIT_STATE_ABORTED
 
@@ -166,24 +169,30 @@ by ensuring that their content is not embedded into other sites.",
             xfo_value = r.headers['x-frame-options']
             # 'DENY' and 'SAMEORIGIN' don't carry extra values
             if xfo_value.upper() in ('DENY', 'SAMEORIGIN'):
-                issue = self._format_report('set', description_formats={'header': xfo_value})
-                self.report_issues([issue])
+                issue = self.format_report('set', [
+                    {"Description": {"header": xfo_value}}
+                ])
+                self.report_issue(issue)
             # only strict ALLOW-FROM syntax is allowed
             elif 'ALLOW-FROM' in xfo_value.upper():
                 if self._allow_from_validator(xfo_value):
-                    issue = self._format_report('set', description_formats={'header': xfo_value})
-                    self.report_issues([issue])
+                    issue = self.format_report('set', [
+                        {"Description": {"header": xfo_value}}
+                    ])
+                    self.report_issue(issue)
                 else:
-                    issue = self._format_report('invalid', description_formats={'header': xfo_value})
-                    self.report_issues([issue])
+                    issue = self.format_report('invalid', [
+                        {"Description": {"header": xfo_value}}
+                    ])
+                    self.report_issue(issue)
            # found invalid/unknown option value
             else:
-                issue = self._format_report('invalid', description_formats={'header': xfo_value})
-                self.report_issues([issue])
+                issue = self.format_report('invalid', [
+                    {"Description": {"header": xfo_value}}
+                ])
+                self.report_issue(issue)
         else:
-            issue = self._format_report('not-set')
-            self.report_issues([issue])
-
+            self.report_issue(self.REPORTS['not-set'])
 
 class HSTSPlugin(BlockingPlugin):
 
@@ -252,24 +261,27 @@ lets a web site tell browsers that it should only be communicated with using HTT
         r.raise_for_status()
         if r.url.startswith("https://"):
             if 'strict-transport-security' in r.headers:
+                hsts_value = r.headers['strict-transport-security']
                 regex = re.compile(r"^max-age=(?P<delta>\d+)(\s)?(;)?(?P<option> includeSubDomains)?$")
-                match = regex.match(r.headers['strict-transport-security'])
+                match = regex.match(hsts_value)
                 if match:
                     groups = match.groupdict()
                     if int(groups['delta']) < 0:
-                        issue = self._format_report('negative')
-                        self.report_issues([issue])
+                        self.report_issue(self.REPORTS["negative"])
                     else:
-                        issue = self._format_report('set', description_formats={'header': r.headers['strict-transport-security']})
-                        self.report_issues([issue])
+                        issue = self.format_report('set', [
+                            {"Description": {"header": hsts_value}}
+                        ])
+                        self.report_issue(issue)
                 else:
-                    issue = self._format_report('invalid', description_formats={'header': r.headers['strict-transport-security']})
-                    self.report_issues([issue])
+                    issue = self.format_report('invalid', [
+                        {"Description": {"header": hsts_value}}
+                    ])
+                    self.report_issue(issue)
             else:
-                self.report_issues([self._format_report('not-set')])
+                self.report_issue(self.REPORTS["not-set"])
         else:
-            self.report_issues([self._format_report('non-https')])
-
+            self.report_issue(self.REPORTS["non-https"])
 
 class XContentTypeOptionsPlugin(BlockingPlugin):
 
@@ -319,16 +331,19 @@ prevent attacks based on MIME-type confusion.",
     def do_run(self):
         r = minion.curly.get(self.configuration['target'], connect_timeout=5, timeout=15)
         r.raise_for_status()
-        value = r.headers.get('x-content-type-options')
-        if not value:
-            self.report_issues([self._format_report('not-set')])
+        xcontent_value = r.headers.get('x-content-type-options')
+        if not xcontent_value:
+            self.report_issue(self.REPORTS["not-set"])
         else:
-            if value.lower() == 'nosniff':
-                issue = self._format_report('set', description_formats={'header': value})
-                self.report_issues([issue])
+            if xcontent_value.lower() == 'nosniff':
+                issue = self.format_report("set", [
+                    {"Description": {"header": xcontent_value}}
+                ])
             else:
-                issue = self._format_report('invalid', description_formats={'header': value})
-                self.report_issues([issue])
+                issue = self.format_report("invalid", [
+                    {"Description": {"header": xcontent_value}}
+                ])
+            self.report_issue(issue)
 
 class XXSSProtectionPlugin(BlockingPlugin):
 
@@ -386,17 +401,23 @@ This header enables Cross-site scripting (XSS) filter built into most recent web
     def do_run(self):
         r = minion.curly.get(self.configuration['target'], connect_timeout=5, timeout=15)
         r.raise_for_status()
-        value = r.headers.get('x-xss-protection')
-        if not value:
-            self.report_issues([self._format_report('not-set')])
+        xxss_value = r.headers.get('x-xss-protection')
+        if not xxss_value:
+            self.report_issue(self.REPORTS["not-set"])
         else:
-            if value.lower() == '1; mode=block':
-                self.report_issues([self._format_report('set', description_formats={'header': value})])
-            elif value == '0':
-                self.report_issues([self._format_report('disabled', description_formats={'header': value})])
+            if xxss_value.lower() == '1; mode=block':
+                issue = self.format_report("set", [
+                    {"Description": {"header": xxss_value}}
+                ])
+            elif xxss_value == '0':
+                issue = self.format_report("disabled", [
+                    {"Description": {"header": xxss_value}}
+                ])
             else:
-                self.report_issues([self._format_report('invalid', description_formats={'header': value})])
-
+                issue = self.format_report("invalid", [
+                    {"Description": {"header": xxss_value}}
+                ])
+            self.report_issue(issue)
 
 class ServerDetailsPlugin(BlockingPlugin):
 
@@ -467,18 +488,18 @@ This is typically seem in ASP and PHP web applications.",
             if header.lower() in r.headers:
                 at_least_one = True
                 description = " ".join([self.DESCRIPTIONS[header.lower()], self.DESCRIPTIONS["rfc2068"]])
-                self.report_issues([
+                self.report_issue(
                     format_report(self, "set", [
                         {"Summary": {"header": header}},
                         {"Description": {"description": description}}
                     ])
-                ])
+                )
         if not at_least_one:
-                self.report_issues([
+                self.report_issues(
                     format_report(self, "none", [
                         {"Description": {"headers": headers}}
                     ])
-                ])
+                )
 
 class RobotsPlugin(BlockingPlugin):
 
@@ -561,14 +582,15 @@ class RobotsPlugin(BlockingPlugin):
             return False
 
     def do_run(self):
+        issue = None
         result = self.validator(self.configuration['target'])
         if result is True:
-            self.report_issues([self._format_report('found')])
-        if result == 'NOT-FOUND':
-            self.report_issues([self._format_report('not-found')])
+            issue = self.REPORTS["found"]
+        elif result == 'NOT-FOUND':
+            issue = self.REPORTS["not-found"]
         elif not result:
-            self.report_issues([self._format_report('invalid')])
-
+            issue = self.REPORTS["invalid"]
+        self.report_issue(issue)
 
 def format_report(self, issue_key, format_list):
     issue = copy.deepcopy(self.REPORTS[issue_key])
@@ -795,25 +817,28 @@ header, X-Content-Security-Policy, works with the deprecated directive 'xhr-conn
         if "x-content-security-policy-report-only" in headers:
             xcsp_ro = True
 
+        issues = []
         if csp:
-            self.report_issues([self._format_report('csp-set')])
+            issues.append(self.REPORTS["csp-set"])
         else:
-            self.report_issues([self._format_report('csp-not-set')])
+            issues.append(self.REPORTS["csp-not-set"])
 
         if csp and csp_ro:
-            self.report_issues([self._format_report('csp-csp-ro-set')])
+            issues.append(self.REPORTS["csp-csp-ro-set"])
         elif csp_ro and not csp:
-            self.report_issues([self._format_report('csp-ro-only-set')])
+            issues.append(self.REPORTS["csp-ro-only-set"])
 
         if xcsp:
-            self.report_issues([self._format_report('xcsp-set')])
+            issues.append(self.REPORTS["xcsp-set"])
         else:
-            self.report_issues([self._format_report('xcsp-not-set')])
+            issues.append(self.REPORTS["xcsp-not-set"])
 
         if xcsp and xcsp_ro:
-            self.report_issues([self._format_report('xcsp-xcsp-ro-set')])
+            issues.append(self.REPORTS["xcsp-xcsp-ro-set"])
         elif xcsp_ro and not xcsp:
-            self.report_issues([self._format_report('xcsp-ro-only-set')])
+            issues.append(self.REPORTS["xcsp-ro-only-set"])
+
+        self.report_issues(issues)
 
     def _split_policy(self, csp):
         r1 = re.compile(';\s*')
@@ -832,6 +857,7 @@ header, X-Content-Security-Policy, works with the deprecated directive 'xhr-conn
             self.policies.append(self.Policy(d[0], d[1:], " ".join(d)))
 
     def _check_directives(self):
+        issues = []
         depr_dirs = []
         unknown_dirs = []
         for policy in self.policies:
@@ -839,14 +865,13 @@ header, X-Content-Security-Policy, works with the deprecated directive 'xhr-conn
                 depr_dirs.append(policy)
             elif policy.directive not in self.DIRECTIVES:
                 unknown_dirs.append(policy)
+
         if unknown_dirs:
             unknown_s = "\n".join(p.str for p in unknown_dirs)
-            self.report_issues([
-                format_report(self, 'unknown-directive', [
-                    {'Summary': {"count": len(unknown_dirs)}},
-                    {"Description": {"policies": unknown_s}}
-                ])
-            ])
+            issues.append(self.format_report('unknown-directive', [
+                {'Summary': {"count": len(unknown_dirs)}},
+                {"Description": {"policies": unknown_s}}
+            ]))
 
         if depr_dirs:
             solutions = []
@@ -858,13 +883,15 @@ header, X-Content-Security-Policy, works with the deprecated directive 'xhr-conn
                     old_policy=policy.str, new_policy=new_policy)
                 descriptions.append(self.DESCRIPTIONS[policy.directive])
                 solutions.append(solution_str)
-            self.report_issues([
-                format_report(self, 'deprecated-directive', [
-                    {'Summary': {"count": len(depr_dirs)}},
-                    {"Description": {"description": "\n".join(descriptions)}},
-                    {"Solution": {"solution": "\n".join(solutions)}}
-                ])
-            ])
+            # now we know all the deprecated directives...
+            issues.append(self.format_report('deprecated-directive', [
+                {'Summary': {"count": len(depr_dirs)}},
+                {"Description": {"description": "\n".join(descriptions)}},
+                {"Solution": {"solution": "\n".join(solutions)}}
+            ]))
+
+        self.report_issues(issues)
+
     def _check_source_lists(self):
         bad_none = []
         inline = []
@@ -880,25 +907,25 @@ header, X-Content-Security-Policy, works with the deprecated directive 'xhr-conn
                     inline.append(policy)
                 if "'unsafe-eval'" in policy.source_list:
                     eval.append(policy)
+
+        issues = []
         if bad_none:
-            self.report_issues([
-                format_report(self, 'bad-none', [
-                    {'Summary': {'count': len(bad_none)}},
-                    {'Description': {'directives': str(bad_none)}}
-                ])
-            ])
+            issues.append(self.format_report('bad-none', [
+                {'Summary': {'count': len(bad_none)}},
+                {'Description': {'directives': str(bad_none)}}
+            ]))
+
         if inline:
-            self.report_issues([
-                format_report(self, 'inline', [
-                    {'Description': {"policies": "\n".join(p.str for p in inline)}}
-                ])
-            ])
+            issues.append(self.format_report('inline', [
+                {'Description': {"policies": "\n".join(p.str for p in inline)}}
+            ]))
+
         if eval:
-            self.report_issues([
-                format_report(self, 'eval', [
-                    {'Description': {"policies": "\n".join(p.str for p in eval)}}
-                ])
-            ])
+            issues.append(self.format_report('eval', [
+                {'Description': {"policies": "\n".join(p.str for p in eval)}}
+            ]))
+
+        self.report_issues(issues)
 
     def do_run(self):
         r = minion.curly.get(self.configuration['target'], connect_timeout=5, timeout=15)
