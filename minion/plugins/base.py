@@ -2,6 +2,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+import copy
 import logging
 import os
 import sys
@@ -138,9 +139,10 @@ class AbstractPlugin:
         self.callbacks.report_progress(percentage, description)
 
     def report_issues(self, issues):
-        for issue in issues:
-            issue['Id'] = str(uuid.uuid4())
-        self.callbacks.report_issues(issues)
+        if issues:
+            for issue in issues:
+                issue['Id'] = str(uuid.uuid4())
+            self.callbacks.report_issues(issues)
 
     def report_issue(self, issue):
         self.report_issues([issue])
@@ -152,48 +154,11 @@ class AbstractPlugin:
         self.callbacks.report_finish(state=state)
         reactor.stop()
 
-    def _format_report(self, condition, description=None, \
-            description_formats=None, url_list=None):
-        """ Format a standard report based on REPORTS defined
-        in each plugin.
-
-        Parameters
-        ----------
-        condition : str
-            Either 'good' or 'bad' or some value that is a valid key
-            in self.REPORTS
-        description : optional, str
-            Default to None. If a description is provided, it will replace
-            the original self.REPORTS[condition]['Description'].
-        description_formats : optional, dict
-            Default to None. If a default description is defined and contains
-            format variables in the string, one can pass a dictionary of format
-            variables. Example:
-                str = '{name}'
-                self._format_report(description_formats={'name': 'Minion'})
-            Note when description_formats is present, we assume a non-empty string
-            exist and will take precedent over ``description`` input parameter.
-        url_list : optional, list
-            Default to None and will only add target url. Otherwise, the input
-            will replace the default self.REPORTS[condition]['URLs']. 
-            The list should contain one or more dictionaries with 'URL' 
-            and optionally 'Extra' as key.
-
-        Returns
-        -------
-        issue : dict
-
-        """
-
-        issue = self.REPORTS[condition]
-        if description_formats:
-            issue['Description'] = issue['Description'].format(**description_formats)
-        elif description:
-            issue['Description'] = description
-        if url_list is None:
-            issue['URLs'] = [{'URL': self.configuration['target'], 'Extra': None}]
-        else:
-            issue['URLs'] = url_list
+    def format_report(self, issue_key, format_list):
+        issue = copy.deepcopy(self.REPORTS[issue_key])
+        for component in format_list:
+            for component_name, kwargs in component.items():
+                issue[component_name] = issue[component_name].format(**kwargs)
         return issue
 
 class BlockingPlugin(AbstractPlugin):
