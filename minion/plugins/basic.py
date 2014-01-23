@@ -488,18 +488,14 @@ This is typically seem in ASP and PHP web applications.",
             if header.lower() in r.headers:
                 at_least_one = True
                 description = " ".join([self.DESCRIPTIONS[header.lower()], self.DESCRIPTIONS["rfc2068"]])
-                self.report_issue(
-                    format_report(self, "set", [
-                        {"Summary": {"header": header}},
-                        {"Description": {"description": description}}
-                    ])
-                )
+                self.report_issue(self.format_report("set", [
+                    {"Summary": {"header": header}},
+                    {"Description": {"description": description}}
+                ]))
         if not at_least_one:
-                self.report_issues(
-                    format_report(self, "none", [
-                        {"Description": {"headers": headers}}
-                    ])
-                )
+            self.report_issues(self.format_report("none", [
+                {"Description": {"headers": headers}}
+            ]))
 
 class RobotsPlugin(BlockingPlugin):
 
@@ -591,13 +587,6 @@ class RobotsPlugin(BlockingPlugin):
         elif not result:
             issue = self.REPORTS["invalid"]
         self.report_issue(issue)
-
-def format_report(self, issue_key, format_list):
-    issue = copy.deepcopy(self.REPORTS[issue_key])
-    for component in format_list:
-        for component_name, kwargs in component.items():
-            issue[component_name] = issue[component_name].format(**kwargs)
-    return issue
 
 #
 # CSPPlugin
