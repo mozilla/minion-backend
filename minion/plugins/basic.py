@@ -52,6 +52,7 @@ This indicates the site is reachable.",
                 "Code": "ALIVE-1",
                 "Summary": "Site could not be reached",
                 "Description": "{error}",
+                "Solution": "{solution}",
                 "Severity": "Fatal",
                 "URLs": [ { "URL": None, "Extra": None} ],
                 "FurtherInfo": FURTHER_INFO,
@@ -115,6 +116,7 @@ class XFrameOptionsPlugin(BlockingPlugin):
                 "Code": "XFO-1",
                 "Summary": "Invalid X-Frame-Options header detected",
                 "Description": "The following X-Frame-Options header value is detected and is invalid: {header}",
+                "Solution": "{solution}",
                 "Severity": "High",
                 "URLs": [ { "URL": None, "Title": None} ],
                 "FurtherInfo": FURTHER_INFO
@@ -242,6 +244,9 @@ lets a web site tell browsers that it should only be communicated with using HTT
                 "Summary": "Target is a non-HTTPS site",
                 "Description": "Strict-Transport-Security header is only applicable on HTTPS-based site.",
                 "Severity": "Info",
+                "Solution": "Remove Strict-Transport-Security (HSTS) header from HTTP response header. \
+Since HSTS is only applied if user has visited the HTTPS endpoint once, it is recommend to do a 301 \
+redirect from HTTP to HTTPS and include the HSTS header in the HTTPS response header.",
                 "URLs": [ { "URL": None, "Title": None} ],
                 "FurtherInfo": FURTHER_INFO
             },
@@ -251,6 +256,8 @@ lets a web site tell browsers that it should only be communicated with using HTT
                 "Summary": "max-age is negative",
                 "Description": "Strict-Transport-Security header max-age must be a positive number.",
                 "Severity": "High",
+                "Solution": "The max-age value can be any value greater than or equal to 0. For example, \
+max-age=31536000 tells the browser to apply HSTS for one year.",
                 "URLs": [ { "URL": None, "Title": None} ],
                 "FurtherInfo": FURTHER_INFO
             },
@@ -312,6 +319,7 @@ class XContentTypeOptionsPlugin(BlockingPlugin):
                 "Summary": "Invalid X-Content-Type-Options header detected",
                 "Description": "The following X-Content-Type-Options header value is detected and is invalid: {header}",
                 "Severity": "High",
+                "Solution": "To enable X-Content-Type-Options, the header must look like this: X-Content-Type-Options: nosniff",
                 "URLs": [ { "URL": None, "Title": None} ],
                 "FurtherInfo": FURTHER_INFO
             },
@@ -374,6 +382,8 @@ class XXSSProtectionPlugin(BlockingPlugin):
                 "Summary": "Invalid X-XSS-Protection header detected",
                 "Description": "The following X-XSS-Protection header value is detected and is invalid: {header}",
                 "Severity": "High",
+                "Solution": "To enable X-XSS-Protection header, the value of the header must be 1;mode=block\nTo disable \
+the protection, just supply the value 0.",
                 "URLs": [ { "URL": None, "Title": None} ],
                 "FurtherInfo": FURTHER_INFO
             },
@@ -384,6 +394,7 @@ class XXSSProtectionPlugin(BlockingPlugin):
                 "Description": "X-XSS-Protection header is not found. \
 This header enables Cross-site scripting (XSS) filter built into most recent web browsers.",
                 "Severity": "High",
+                "Solution": "To enable X-XSS-Protection header, the value of the header must be 1;mode=block",
                 "URLs": [ { "URL": None, "Title": None} ],
                 "FurtherInfo": FURTHER_INFO
             },
@@ -393,6 +404,7 @@ This header enables Cross-site scripting (XSS) filter built into most recent web
                 "Summary": "X-XSS-Protection header is set to disable",
                 "Description": "X-XSS-Protection header is set to 0 and consequent disabled Cross-site-scripting (XSS) filter.",
                 "Severity": "High",
+                "Solution": "To enable X-XSS-Protection header, the value of the header must be 1;mode=block",
                 "URLs": [ { "URL": None, "Title": None} ],
                 "FurtherInfo": FURTHER_INFO
             },
@@ -434,10 +446,6 @@ class ServerDetailsPlugin(BlockingPlugin):
             "Title": 'RFC 2616 - "Server" header'
         },
         {
-            "URL": "http://blogs.msdn.com/b/varunm/archive/2013/04/23/remove-unwanted-http-response-headers.aspx",
-            "Title": "MSDN - Remove Unwanted HTTP Response Headers"
-        },
-        {
             "URL": "https://developer.mozilla.org/en-US/docs/HTTP/Headers",
             "Title": "Mozilla Developer Network - HTTP Headers"
         },
@@ -447,6 +455,17 @@ class ServerDetailsPlugin(BlockingPlugin):
         }
 ]
 
+    REMOVAL_REFERENCES = [
+        {
+            "URL": "http://blogs.msdn.com/b/varunm/archive/2013/04/23/remove-unwanted-http-response-headers.aspx",
+            "Title": "MSDN - Remove Unwanted HTTP Response Headers"
+        },
+        {
+            "URL": "http://stackoverflow.com/a/2661807/230884",
+            "Title": "Removing X-Powered-By header for PHP application",
+        },
+]
+
     REPORTS = {
         "set":
             {
@@ -454,8 +473,11 @@ class ServerDetailsPlugin(BlockingPlugin):
                 "Summary": "{header} header is set",
                 "Description": "{description}",
                 "Severity": "Medium",
+                "Solution": "The solution to remove the header from the response can be application and environment \
+specific. Please have a look at the references in further info and consult with the web framework and/or web server \
+the site is run on.",
                 "URLs": [ {"URL": None, "Extra": None} ],
-                "FurtherInfo": FURTHER_INFO
+                "FurtherInfo": REMOVAL_REFERENCES + FURTHER_INFO
              },
          "none":
          {
@@ -531,7 +553,10 @@ class RobotsPlugin(BlockingPlugin):
          {
              "Code": "ROBOTS-1",
              "Summary": "robots.txt not found",
-             "Description": "Site has no robots.txt",
+             "Description": "robots.txt is useful to stop geninue search engine crawlers to perform exhaustive search \
+on the instructed site. Site owner can specify which directory is allowed and disallowed from scanning so that geninue \
+search engines will not index the disallow resources and return in a search result later. However, this file is not a \
+security defense solution as anybody can write a crawler that does not respect the robots.txt and perform exhaustive search.",
              "Severity": "Medium",
              "URLs": [ {"URL": None, "Extra": None} ],
              "FurtherInfo": FURTHER_INFO
@@ -540,7 +565,8 @@ class RobotsPlugin(BlockingPlugin):
          {
             "Code": "ROBOTS-2",
             "Summary": "Invalid entry found in robots.txt",
-            "Description": "robots.txt may contain an invalid or unsupport entry.",
+            "Description": "robots.txt may contain an invalid or unsupport entry. Some directives are not officially endorsed \
+by the standard and Minion does not have a complete list of these unofficial, rarely-used custom directives.",
             "Severity": "Medium",
             "URLs": [ {"URL": None, "Extra": None}],
             "FurtherInfo": FURTHER_INFO
@@ -749,6 +775,7 @@ header, X-Content-Security-Policy, works with the deprecated directive 'xhr-conn
             "Code": "CSP-11",
             "Summary": "When 'none' is specify, no other source expressions can be specified",
             "Description": DESCRIPTIONS['none'] + "The following directives specify 'none' and other sources:\n{directives}",
+            "Solution": "Either use 'none' to match nothing or remove 'none' and enforce the rest of the whitelist.",
             "Severity": "High",
             "URLs": [ {"URL": None, "Extra": None}],
             "FurtherInfo": FURTHER_INFO
@@ -759,6 +786,13 @@ header, X-Content-Security-Policy, works with the deprecated directive 'xhr-conn
             "Summary": "unsafe-inline is enabled",
             "Description": DESCRIPTIONS['unsafe-inline'] + "The following policies have unsafe-inline specified:\n{policies}",
             "Severity": "High",
+            "Solution": "As of the 1.0 specification, it is recommended to move all inline Javascript and CSS code to files, \
+load these files using the HTML link tag, and then remove unsafe-inline from the header. To accommodate iterative development, \
+you can add Content-Security-Policy-Report-Only to the response header, with almost the same setting as the \
+Content-Security-Policy header except unsafe-inline is removed in the Report-Only header. This Report-Only header is used to \
+monitor and report violation without actually enforcing the settings as developers convert inline code to source files gradually.\
+Until no more unsafe-inline violation is sent, remove the Report-Only header and remove unsafe-inline from the \
+Content-Security-Policy header.",
             "URLs": [ {"URL": None, "Extra": None}],
             "FurtherInfo": FURTHER_INFO
         },
@@ -767,6 +801,13 @@ header, X-Content-Security-Policy, works with the deprecated directive 'xhr-conn
             "Code": "CSP-13",
             "Summary": "unsafe-eval is enabled",
             "Description": DESCRIPTIONS['unsafe-eval'] + "The following policies have unsafe-eval specified:\n{policies}",
+            "Solution": "The removal of eval function is application specific which may involve rewriting third-party \
+library which use eval. To accommodate iterative development, you can add Content-Security-Poilicy-Reoport-Only header, \
+with almost the same setting as the Content-Security-Policy header except unsafe-eval is removed in the Report-Only \
+header and an additional report-uri directive which specifices the destination of CSP violating report. Since the \
+Report-Only header is used to monitor and report violation without actually enforcing the settings, developers can remove \
+eval from the application gradually. Until no more unsafe-eval violation is sent, remove the Report-Only header and \
+remove unsafe-eval from the Content-Security-Policy header.",
             "Severity": "High",
             "URLs": [ {"URL": None, "Extra": None}],
             "FurtherInfo": FURTHER_INFO
