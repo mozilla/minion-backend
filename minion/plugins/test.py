@@ -7,6 +7,13 @@ import time
 from minion.plugins.base import BlockingPlugin
 
 
+class HelloWorldPlugin(BlockingPlugin):
+    """ This plugin returns an issue immediately. """
+
+    def do_run(self):
+        issue = {"Summary": "Hello World", "Severity": "Info"}
+        self.report_issues([issue])
+
 class DelayedPlugin(BlockingPlugin):
 
     """
