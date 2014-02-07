@@ -67,8 +67,6 @@ class TestScanAPIs(TestAPIBaseClass):
             for name in ('queued', 'started', 'finished', 'progress'):
                 self.assertEqual(session[name], None)
 
-    # NOTE: Uncomment when #296 is fixed.
-    """
     def test_get_scan_details(self):
         scan = Scan(self.user.email, self.TEST_PLAN["name"], {"target": self.target_url})
         res1 = scan.create()
@@ -81,7 +79,6 @@ class TestScanAPIs(TestAPIBaseClass):
         # bug #140 and bug #146
         res3 = scan.get_scan_details(scan_id, email=self.user.email)
         self.assertEqual(res3.json(), res2.json())
-    """
 
     # bug #140 and bug #146
     def test_get_scan_details_filter_with_nonexistent_user(self):
@@ -110,8 +107,8 @@ class TestScanAPIs(TestAPIBaseClass):
         self.assertEqual(res2.json()["success"], False)
         self.assertEqual(res2.json()["reason"], "not-found")
 
-    # NOTE: Uncomment this when #296 is fixed
-    ''' 
+    # NOTE: Uncomment this once #299 is fixed.
+    '''
     def test_scan(self):
         """
         This is a comprehensive test that runs through the following

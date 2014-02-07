@@ -351,8 +351,6 @@ class TestInviteAPIs(TestAPIBaseClass):
         site = Site(self.target_url)
         res2 = site.create()
 
-        # NOTE: Uncomment the following checks when #296 is resolved.
-        """
         # create a group in minion
         group = Group(self.group_name, sites=[site.url], users=[recipient.email])
         group.create()
@@ -390,4 +388,3 @@ class TestInviteAPIs(TestAPIBaseClass):
         res8 = group.get()
         self.assertEqual(res8.json()["group"]["sites"], [site.url])
         self.assertEqual(res8.json()["group"]["users"], [recipient_2.email])
-        """

@@ -77,7 +77,7 @@ def create_group():
                 return jsonify(success=False, reason='user %s does not exist'%user)
     if sitez:
         for site in sitez:
-            if not sites.find_one({'name': site}):
+            if not sites.find_one({'url': site}):
                 return jsonify(success=False, reason='site %s does not exist'%site)
 
     if groups.find_one({'name': group['name']}) is not None:
