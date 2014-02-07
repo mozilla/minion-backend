@@ -229,7 +229,10 @@ def update_plan(plan_name):
 @permission
 def get_plan(plan_name):
     plan = get_plan_by_plan_name(plan_name)
-    # Fill in the details of the plugin
-    for step in plan['workflow']:
-        plugin = plugins.get(step['plugin_name'])
-    return jsonify(success=True, plan=sanitize_plan(plan))
+    if plan:
+        # Fill in the details of the plugin
+        for step in plan['workflow']:
+            plugin = plugins.get(step['plugin_name'])
+        return jsonify(success=True, plan=sanitize_plan(plan))
+    else:
+        return jsonify(success=False, reason="Plan does not exist")

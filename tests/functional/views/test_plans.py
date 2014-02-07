@@ -104,14 +104,15 @@ class TestPlanAPIs(TestAPIBaseClass):
         plan = Plan(self.TEST_PLAN)
         res1 = plan.create()
         self.assertEqual(res1.json()["success"], True)
+
         # Delete the plan
         res2 = plan.delete(self.TEST_PLAN["name"])
         self.assertEqual(res2.json()["success"], True)
-        # NOTE: Fix this whne #298 is fixed
+
         # Make sure the plan is gone
-        # res3 = plan.get(self.TEST_PLAN["name"])
-        # self.assertEqual(res3.json()["success"], False)
-        # self.assertEqual(res3.json()["reason"], "Plan does not exist.")
+        res3 = plan.get(self.TEST_PLAN["name"])
+        self.assertEqual(res3.json()["success"], False)
+        self.assertEqual(res3.json()["reason"], "Plan does not exist")
 
     def test_delete_nonexistent_plan(self):
         plan = Plan(None)
