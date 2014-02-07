@@ -2,11 +2,9 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-import copy
-import pprint
 import uuid
 
-from base import BACKEND_KEY, BASE, _call, TestAPIBaseClass
+from base import (TestAPIBaseClass, User, Group, Invite, Invites, Site, Group)
 
 # issue #114
 class TestInviteAPIs(TestAPIBaseClass):
@@ -24,330 +22,372 @@ class TestInviteAPIs(TestAPIBaseClass):
         self.assertEqual(True, invite_url in '\n'.join(msgs[6:-1]))
 
     def test_post_invite(self):
-        recipient = self.random_email()
-        # must create both sender and user
-        res1 = self.create_user()
-        res2 = self.create_user(email=recipient, name='Alice', invitation=True)
+        sender = User(self.email, name="Bob")
+        sender.create()
+        recipient = User(self.random_email(), name="Alice")
+        recipient.invite()
+        invite = Invite(sender.email, recipient.email)
+        res = invite.create()
+        self.assertEqual(res.json()["success"], True)
 
-        res3 = self.create_invites(recipient=recipient, sender=self.email)
-        self.assertSuccessfulResponse(res3)
-        expected_top_keys = ('success', 'invite',)
-        self._test_keys(res3.json().keys(), expected_top_keys)
-        expected_inner_keys = ('id', 'recipient', 'sender', 'sent_on', 'accepted_on', \
-                'sender_name', 'recipient_name')
-        self._test_keys(res3.json()['invite'].keys(), expected_inner_keys)
-        self.assertEqual(res3.json()['invite']['recipient'], recipient)
-        self.assertEqual(res3.json()['invite']['sender'], self.email)
-        self.assertEqual(res3.json()['invite']['recipient_name'], 'Alice')
-        self.assertEqual(res3.json()['invite']['sender_name'], 'Bob')
-        self.assertEqual(True, res3.json()['invite']['accepted_on'] is None)
-        self.assertEqual(True, res3.json()['invite']['sent_on'] is not None)
-        self.assertEqual(True, res3.json()['invite']['id'] is not None)
+        expected_inner_keys = ("id", "recipient", "sender", "sent_on", \
+                "accepted_on", "sender_name", "recipient_name", \
+                "status", "expire_on", "max_time_allowed", "notify_when")
+
+        self.assertEqual(set(res.json()['invite'].keys()),
+            set(expected_inner_keys))
+
+        self.assertEqual(res.json()['invite']['recipient'], recipient.email)
+        self.assertEqual(res.json()['invite']['sender'], sender.email)
+        self.assertEqual(res.json()['invite']['recipient_name'], recipient.name)
+        self.assertEqual(res.json()['invite']['sender_name'], sender.name)
+        self.assertEqual(True, res.json()['invite']['accepted_on'] is None)
+        self.assertEqual(True, res.json()['invite']['sent_on'] is not None)
+        self.assertEqual(True, res.json()['invite']['id'] is not None)
         # issue 172
-        self.assertEqual(res3.json()['invite']['status'], 'pending')
-
+        self.assertEqual(res.json()['invite']['status'], 'pending')
 
     # bug #133
     def test_send_invite_with_groups_and_sites(self):
-        recipient = self.random_email()
-        res1 = self.create_user()
-        res2 = self.create_user(email=recipient, name='Alice', invitation=True)
-        res2 = self.create_invites(recipient=recipient, sender=self.email)
-        invite_id = res2.json()['invite']['id']
-        # also create a group and a site
-        res3 = self.create_site()
-        site_id = res3.json()['site']['id']
-        res4 = self.create_group(group_name='test')
-        res5 = self.modify_group('test', data={'addSites': [self.target_url]})
-        # update user to the group and site
-        res6 = self.modify_group('test', data={'addUsers': [recipient,]})
-        res7 = self.update_site(site_id, {'users': ['test'],})
-        # check user belongs to them
-        res8 = self.get_group('test')
-        self.assertEqual(res8.json()['group']['users'], [recipient,])
-        res9 = self.get_site_by_id(site_id)
+        sender = User(self.email, name="Bob")
+        sender.create()
+        recipient = User(self.random_email(), name="Alice")
+        recipient.invite()
 
-        # remove invitation
-        res10 = self.delete_invite(invite_id)
-        self.assertEqual(res10.json()['success'], True)
-        # check user is removed from sites and groups association
-        res11 = self.get_group('test')
-        self.assertEqual(res11.json()['group']['users'], [])
+        # create the invitation
+        invite = Invite(sender.email, recipient.email)
+        res = invite.create() 
+        invite_id = res.json()['invite']['id']
 
-    def test_invite_existing_recipient(self):
-        # I know. Create yourself again?
-        recipient = self.random_email()
-        res1 = self.create_user(email=recipient)
-        res2 = self.create_invites(recipient=recipient, sender=recipient)
-        self.assertEqual(res2.json()['success'], False)
-        self.assertEqual(res2.json()['reason'], 'recipient-already-joined')
+        # create a site in minion
+        site = Site(self.target_url)
+        res2 = site.create()
+        site_id = res2.json()["site"]["id"]
+
+        # Uncomment the following checks when #297 is resolved.
+        """
+        # create a group in minion
+        group = Group(self.group_name, sites=[site.url], users=[recipient.email])
+        res3 = group.create()
+
+        # site should exists in group and recipient should also be in the same group
+        res4 = group.get()
+        self.assertEqual(res4.json()['group']['users'], [recipient.email,])
+
+        res5 = site.get(site_id)
+        self.assertEqual(res5.json()["site"]["groups"], [group.group_name])
+
+        # finally, if we query recipient's user object, user should be in
+        # the group and have access to a site.
+        res6 = recipient.get()
+        self.assertEqual(res6.json()["user"]["sites"], [site.url])
+        self.assertEqual(res6.json()["user"]["groups"], [group.group_name])
+        """
+
+    def test_invite_an_existing_user(self):
+        sender = User(self.email)
+        sender.create()
+        recipient = User(self.random_email(), name="Alice")
+        # don't invite, do a physical creation
+        recipient.create()
+
+        # try invite recipient even though recipient is an active member
+        invite = Invite(sender.email, recipient.email)
+        res = invite.create()
+        self.assertEqual(res.json()['success'], False)
+        self.assertEqual(res.json()['reason'], 'recipient-already-joined')
 
     def test_duplicate_invitations(self):
-        recipient = self.random_email()
-        res1 = self.create_user()
-        res2 = self.create_user(email=recipient, invitation=True)
-        res3 = self.create_invites(recipient=recipient, sender=self.email)
-        res4 = self.create_invites(recipient=recipient, sender=self.email)
-        self.assertEqual(res3.json()['success'], True)
-        self.assertEqual(res4.json()['success'], False)
-        self.assertEqual(res4.json()['reason'], 'duplicate-invitation-not-allowed')
+        sender = User(self.email)
+        sender.create()
+        recipient = User(self.random_email(), name="Alice")
+        recipient.invite()
+
+        # send first invitation to recipient
+        invite = Invite(sender.email, recipient.email)
+        res = invite.create()
+        self.assertEqual(res.json()["success"], True)
+
+        # send a second invitation to recipient
+        res2 = invite.create()
+        self.assertEqual(res2.json()['success'], False)
+        self.assertEqual(res2.json()['reason'], 'duplicate-invitation-not-allowed')
+        
 
     def test_sender_not_found(self):
-        recipient = self.random_email()
-        res1 = self.create_user(email=recipient, invitation=True)
-        res2 = self.create_invites(recipient=recipient, sender=self.email)
-        self.assertEqual(res2.json()['success'], False)
-        self.assertEqual(res2.json()['reason'], 'sender-not-found-in-user-record')
+        recipient = User(self.random_email(), name="Alice")
+        recipient.invite()
+
+        invite = Invite(self.email, recipient.email)
+        res = invite.create()
+
+        # sender self.email has not yet been created in minion
+        self.assertEqual(res.json()['success'], False)
+        self.assertEqual(res.json()['reason'], 'sender-not-found-in-user-record')
 
     def test_get_all_invites(self):
-        recipient1 = self.random_email()
-        recipient2 = self.random_email()
-        recipient3 = self.random_email()
-        res1 = self.create_user()
-        res1 = self.create_user(email=recipient1, name='Alice', invitation=True)
-        res1 = self.create_user(email=recipient2, name='Betty', invitation=True)
-        res1 = self.create_user(email=recipient3, name='Cathy', invitation=True)
+        # create a couple invitations and GET /invites should
+        # return all the invitations in the system
+        recipient1 = User(self.random_email())
+        recipient1.invite()
+        recipient2 = User(self.random_email())
+        recipient2.invite()
+        recipient3 = User(self.random_email())
+        recipient3.invite()
 
-        res2 = self.create_invites(recipient=recipient1, sender=self.email)
-        res3 = self.create_invites(recipient=recipient2, sender=self.email)
-        res4 = self.create_invites(recipient=recipient3, sender=self.email)
+        sender = User(self.random_email())
+        sender.create()
 
-        res5 = self.get_invites()
-        self.assertEqual(len(res5.json()['invites']), 3)
-        self.assertEqual(res5.json()['invites'][0]['recipient'], recipient1)
-        self.assertEqual(res5.json()['invites'][1]['recipient'], recipient2)
-        self.assertEqual(res5.json()['invites'][2]['recipient'], recipient3)
+        invite1 = Invite(sender.email, recipient1.email)
+        invite1.create()
+        invite2 = Invite(sender.email, recipient2.email)
+        invite2.create()
+        invite3 = Invite(sender.email, recipient3.email)
+        invite3.create()
+
+        res = Invites().get()
+        self.assertEqual(len(res.json()['invites']), 3)
+        self.assertEqual(res.json()['invites'][0]['recipient'], recipient1.email)
+        self.assertEqual(res.json()['invites'][1]['recipient'], recipient2.email)
+        self.assertEqual(res.json()['invites'][2]['recipient'], recipient3.email)
 
     def test_get_invites_filter_by_sender_and_or_recipient(self):
-        recipient1 = self.random_email()
-        recipient2 = self.random_email()
-        recipient3 = self.random_email()
-        sender2 = self.random_email()
+        # recipient1 will be invited by sender1
+        # recipient2 and 3 will be invited by sender23
+        recipient1 = User(self.random_email())
+        recipient1.invite()
+        recipient2 = User(self.random_email())
+        recipient2.invite()
+        recipient3 = User(self.random_email())
+        recipient3.invite()
 
-        # create senders
-        res1 = self.create_user()
-        res2 = self.create_user(email=sender2)
+        sender1 = User(self.random_email())
+        sender1.create()
+        sender23 = User(self.random_email())
+        sender23.create()
 
-        # create recipients in the user table
-        res2 = self.create_user(email=recipient1, name='Alice', invitation=True)
-        res2 = self.create_user(email=recipient2, name='Betty', invitation=True)
-        res2 = self.create_user(email=recipient3, name='Cathy', invitation=True)
+        invite1 = Invite(sender1.email, recipient1.email)
+        invite1.create()
+        invite2 = Invite(sender23.email, recipient2.email)
+        invite2.create()
+        invite3 = Invite(sender23.email, recipient3.email)
+        invite3.create()
 
-        # create recipients
-        res3 = self.create_invites(recipient=recipient1, sender=self.email)
-        res4 = self.create_invites(recipient=recipient2, sender=sender2)
-        res5 = self.create_invites(recipient=recipient3, sender=self.email)
+        # recipient1 should be given filter=sender1
+        res1 = Invites().get(sender=sender1.email)
+        self.assertEqual(len(res1.json()['invites']), 1)
+        self.assertEqual(res1.json()['invites'][0]['recipient'], recipient1.email)
+        self.assertEqual(res1.json()['invites'][0]['sender'], sender1.email)
 
-        # only recipient2 is returned given filter by sender
-        res6 = self.get_invites(filters={'sender': sender2})
-        self.assertEqual(len(res6.json()['invites']), 1)
-        self.assertEqual(res6.json()['invites'][0]['recipient'], recipient2)
-        self.assertEqual(res6.json()['invites'][0]['sender'], sender2)
+        # recipient2 and 3 are returned given filter=sender23
+        res2 = Invites().get(sender=sender23.email)
+        self.assertEqual(len(res2.json()['invites']), 2)
+        self.assertEqual(res2.json()['invites'][0]['recipient'], recipient2.email)
+        self.assertEqual(res2.json()['invites'][1]['recipient'], recipient3.email)
 
-        # recipient2 is not returned given filter by sender
-        res7 = self.get_invites(filters={'sender': self.email})
-        self.assertEqual(len(res7.json()['invites']), 2)
-        self.assertEqual(res7.json()['invites'][0]['recipient'], recipient1)
-        self.assertEqual(res7.json()['invites'][1]['recipient'], recipient3)
+        # no recipient is returned given filter=unknwon
+        res3 = Invites().get(sender="unknown@example.org")
+        self.assertEqual(len(res3.json()['invites']), 0)
 
-        # only recipient1 is returned given filter by recipient
-        res8 = self.get_invites(filters={'recipient': recipient1})
-        self.assertEqual(len(res8.json()['invites']), 1)
-        self.assertEqual(res8.json()['invites'][0]['recipient'], recipient1)
+        # recipient1 is returned given filter recipient=recipient1
+        res4 = Invites().get(recipient=recipient1.email)
+        self.assertEqual(len(res4.json()['invites']), 1)
+        self.assertEqual(res4.json()['invites'][0]['recipient'], recipient1.email)
 
-        # only recipient1 is returned given filter by recipient AND sender
-        res9 = self.get_invites(
-            filters={'recipient': recipient1, 'sender': self.email})
-        self.assertEqual(len(res9.json()['invites']), 1)
-        self.assertEqual(res9.json()['invites'][0]['recipient'], recipient1)
+        # recipient2 is returned given filter recipient=recipient2 and sender=sender23
+        res5 = Invites().get(recipient=recipient2.email,
+            sender=sender23.email)
+        self.assertEqual(len(res5.json()['invites']), 1)
+        self.assertEqual(res5.json()['invites'][0]['recipient'], recipient2.email)
 
-    def test_get_invite_by_id(self):
-        recipient1 = self.random_email()
-        recipient2 = self.random_email()
+    def test_fetch_invite_by_id(self):
+        recipient = User(self.random_email())
+        recipient.invite()
 
-        # create senders
-        res1 = self.create_user()
+        sender = User(self.random_email())
+        sender.create()
 
-        # create recipients in the user table
-        res1 = self.create_user(email=recipient1, name='Alice', invitation=True)
-        res1 = self.create_user(email=recipient2, name='Betty', invitation=True)
+        invite = Invite(sender.email, recipient.email)
+        res = invite.create()
+        self.assertEqual(res.json()["success"], True)
+        invite_id = res.json()["invite"]["id"]
 
-        # create invites
-        res2 = self.create_invites(recipient=recipient1, sender=self.email)
-        res3 = self.create_invites(recipient=recipient2, sender=self.email)
+        res2 = invite.get(invite_id)
+        self.assertEqual(res2.json()['invite']['recipient'], recipient.email)
+        self.assertEqual(res2.json()['invite']['sender'], sender.email)
+        self.assertEqual(res2.json()['invite']['id'], invite_id)
 
-        # get recipient1
-        recipient1_id = res2.json()['invite']['id']
-        res4 = self.get_invite(id=recipient1_id)
-        self.assertEqual(res4.json().get('invite'), res2.json()['invite'])
-        self.assertEqual(res4.json()['invite']['recipient'], recipient1)
-        self.assertEqual(res4.json()['invite']['sender'], self.email)
-        self.assertEqual(res4.json()['invite']['id'], recipient1_id)
+    def test_resend_invite(self):
+        recipient = User(self.random_email())
+        recipient.invite()
 
-    def test_resent_invite(self):
-        recipient = self.random_email()
-        # create senders
-        res1 = self.create_user()
+        sender = User(self.random_email())
+        sender.create()
 
-        # create recipients in the user table
-        res1 = self.create_user(email=recipient, name='Alice', invitation=True)
+        invite = Invite(sender.email, recipient.email)
+        res1 = invite.create()
+        self.assertEqual(res1.json()["success"], True)
+        old_invite_id = res1.json()["invite"]["id"]
 
-        res2 = self.create_invites(recipient=recipient, sender=self.email)
-        res3 = self.update_invite(id=res2.json()['invite']['id'],
-                resend=True)
-        # should not equal
-        self.assertNotEqual(res2.json(), res3.json())
-        self.assertNotEqual(res2.json()['invite']['id'], res3.json()['invite']['id'])
+        # resent invitation to recipient should produce a new invitiation id
+        res2 = invite.update(old_invite_id, "resend", login=recipient.email)
+        self.assertNotEqual(res2.json()['invite']['id'], old_invite_id)
 
     def test_decline_invite(self):
-        recipient = self.random_email()
-        res1 = self.create_user()
-        res2 = self.create_user(email=recipient, name='Alice', invitation=True)
-        # create a group (bug #175)
-        res3 = self.create_group(group_name='test_group')
-        self.assertEqual(res3.json()['success'], True)
-        self.assertEqual(res3.json()['group']['name'], 'test_group')
+        recipient = User(self.random_email())
+        recipient.invite()
+        sender = User(self.random_email())
+        sender.create()
 
-        # add user to a group (bug #175)
-        res4 = self.update_user(recipient, {'groups': ['test_group']})
-        self.assertEqual(res4.json()['user']['groups'], ['test_group'])
+        invite = Invite(sender.email, recipient.email)
+        res1 = invite.create()
+        invite_id = res1.json()["invite"]["id"]
 
-        res5 = self.create_invites(recipient=recipient, sender=self.email)
-        res6 = self.update_invite(id=res5.json()['invite']['id'],
-                decline=True)
-        self.assertEqual(res6.json()['invite']['status'], 'declined')
+        # create a group in minion that includes the recipient (bug#175)
+        group = Group(self.group_name, users=[recipient.email])
+        group.create()
 
-        # check user is no longer in the group (bug #175)
-        res7 = self.get_group('test_group')
-        self.assertEqual(res7.json()['group']['users'], [])
+        # ensure now the recipient is part of the new group
+        res2 = recipient.get()
+        self.assertEqual(res2.json()['user']['groups'], [group.group_name])
 
-        # check user no longer exist  (bug #176)
-        res8 = self.get_user(recipient)
-        self.assertEqual(res8.json()['success'], False)
-        self.assertEqual(res8.json()['reason'], 'no-such-user')
+        # recipient has declined the invitation
+        res3 = invite.update(invite_id, "decline", login=recipient.email)
+        self.assertEqual(res3.json()['invite']['status'], 'declined')
 
-    def test_delete_invite(self):
-        # Delete recipient1's invitation.
-        recipient1 = self.random_email()
-        recipient2 = self.random_email()
+        # when recipient declined, user account is deleted (bug #175)
+        res4 = recipient.get()
+        self.assertEqual(res4.json()['success'], False)
+        self.assertEqual(res4.json()['reason'], 'no-such-user')
 
-        res1 = self.create_user()
-        # create recipients in the user table
-        res1 = self.create_user(email=recipient1, name='Alice', invitation=True)
-        res1 = self.create_user(email=recipient2, name='Betty', invitation=True)
+        # when recipient declined, user is also not part of a group anymore (bug #175)
+        res5 = group.get()
+        self.assertEqual(res5.json()['group']['users'], [])
 
-        res2 = self.create_invites(recipient=recipient1, sender=self.email)
-        recipient1_id = res2.json()['invite']['id']
-        res3 = self.create_invites(recipient=recipient2, sender=self.email)
-        recipient2_id = res3.json()['invite']['id']
+    def test_delete_not_used_invitation(self):
+        recipient = User(self.random_email())
+        recipient.invite()
+        sender = User(self.random_email())
+        sender.create()
 
-        # ensure we have two records
-        res4 = self.get_invites()
-        self.assertEqual(len(res4.json()['invites']), 2)
-        self.assertEqual(res4.json()['invites'][0]['recipient'], recipient1)
-        self.assertEqual(res4.json()['invites'][1]['recipient'], recipient2)
+        invite = Invite(sender.email, recipient.email)
+        res1 = invite.create()
+        invite_id = res1.json()["invite"]["id"]
 
-        # we need to ensure users are created and are marked as 'invited' (bug #123)
-        res4 = self.get_user(recipient1)
-        self.assertEqual(res4.json()['user']['email'], recipient1)
-        self.assertEqual(res4.json()['user']['status'], 'invited')
-        res4 = self.get_user(recipient2)
-        self.assertEqual(res4.json()['user']['email'], recipient2)
-        self.assertEqual(res4.json()['user']['status'], 'invited')
+        # create a group in minion that includes the recipient (bug#175)
+        group = Group(self.group_name, users=[recipient.email])
+        group.create()
 
-        # now delete recipient1
-        res5 = self.delete_invite(id=recipient1_id)
-        self.assertEqual(res5.json()['success'], True)
+        # ensure now the recipient is part of the new group
+        res2 = recipient.get()
+        self.assertEqual(res2.json()['user']['groups'], [group.group_name])
+        # also, this user is still marked as "invited"
+        self.assertEqual(res2.json()['user']['status'], 'invited')
 
-        # re-delete should yield false
-        res6 = self.delete_invite(id=recipient1_id)
-        self.assertEqual(res6.json()['success'], False)
-        self.assertEqual(res6.json()['reason'], 'no-such-invitation')
+        # admin deletes this invitation off minion
+        res3 = invite.delete(invite_id)
+        self.assertEqual(res3.json()["success"], True)
 
-        # recipient1 should not even be in users table anymore
-        res7 = self.get_user(recipient1)
-        self.assertEqual(res7.json()['success'], False)
-        self.assertEqual(res7.json()['reason'], 'no-such-user')
+        # since invitation is gone, user should be gone too
+        res4 = recipient.get()
+        self.assertEqual(res4.json()['success'], False)
+        self.assertEqual(res4.json()['reason'], 'no-such-user')
 
-        # we should only get one back
-        res8 = self.get_invites()
-        self.assertEqual(len(res8.json()['invites']), 1)
-        self.assertEqual(res8.json()['invites'][0]['recipient'], recipient2)
+        # recipient is also gone from any group association
+        res5 = group.get()
+        self.assertEqual(res5.json()['group']['users'], [])
 
     # bug #123
     def test_delete_invite_does_not_delete_accepted_user(self):
-        #Delete recipient1's invite does not delete the user if
-        #recipient1 has already accepted the invitation.
+        # Delete recipient's invite does not delete the user if
+        # recipient has already accepted the invitation.
+        recipient = User(self.random_email())
+        recipient.invite()
+        sender = User(self.random_email())
+        sender.create()
 
-        recipient1 = self.random_email()
+        invite = Invite(sender.email, recipient.email)
 
-        res1 = self.create_user() # create sender
-        res2 = self.create_user(email=recipient1, invitation=True)
+        res1 = invite.create()
+        invite_id = res1.json()["invite"]["id"]
 
-        # send invitation
-        res3 = self.create_invites(recipient=recipient1, sender=self.email)
-        invite_id = res3.json()['invite']['id']
-        res4 = self.update_invite(invite_id, accept=True, login=recipient1)
+        # accept the invitation with the same invitation email
+        res2 = invite.update(invite_id, "accept", login=recipient.email)
+        self.assertEqual(res2.json()["success"], True)
 
-        # check user is no longer invited
-        res5 = self.get_user(recipient1)
-        self.assertEqual(res5.json()['user']['email'], recipient1)
-        self.assertEqual(res5.json()['user']['status'], 'active')
+        # upon invitation acceptance, user status changed to active
+        res3 = recipient.get()        
+        self.assertEqual(res3.json()['user']['email'], recipient.email)
+        self.assertEqual(res3.json()['user']['status'], 'active')
 
-        # now delete invitation
-        res6 = self.delete_invite(invite_id)
+        # now admin chooses to delete the invitation
+        res4 = invite.delete(invite_id)
+        self.assertEqual(res4.json()["success"], True)
+
         # check invitation is gone
-        res7 = self.get_invite(invite_id)
-        self.assertEqual(res7.json()['success'], False)
-        self.assertEqual(res7.json()['reason'], 'invitation-does-not-exist')
+        res5 = invite.get(invite_id)
+        self.assertEqual(res5.json()['success'], False)
+        self.assertEqual(res5.json()['reason'], 'invitation-does-not-exist')
 
-        # finally, check user still exist
-        res8 = self.get_user(recipient1)
-        self.assertEqual(res8.json()['success'], True)
-        self.assertEqual(res8.json()['user']['email'], recipient1)
-        self.assertEqual(res8.json()['user']['status'], 'active')
+        # yet, the user is still present
+        res6 = recipient.get()
+        self.assertEqual(res6.json()['success'], True)
+        self.assertEqual(res6.json()['user']['email'], recipient.email)
+        self.assertEqual(res6.json()['user']['status'], 'active')
 
     # bug #155
-    def test_update_user_login_if_persona_is_different(self):
-        #If persona email address is different, update the primary email
-        #account.
+    def test_accept_invite_with_a_different_login_email(self):
+        # we allow recipient to login with a different email address.
+        recipient = User(self.random_email())
+        recipient.invite()
+        sender = User(self.random_email())
+        sender.create()
 
-        recipient = self.random_email()
-        persona = self.random_email()
-        res1 = self.create_user() # create sender
-        res2 = self.create_user(email=recipient, invitation=True)
-        userid = res2.json()['user']['id']
+        invite = Invite(sender.email, recipient.email)
+        res1 = invite.create()
+        invite_id = res1.json()["invite"]["id"]
 
-        # create a group (bug #170)
-        res3 = self.create_group(group_name='test_group')
-        self.assertEqual(res3.json()['success'], True)
-        self.assertEqual(res3.json()['group']['name'], 'test_group')
+        # create a group and a site and add the recipient to the group
+        site = Site(self.target_url)
+        res2 = site.create()
 
-        # add user to a group (bug #170)
-        res4 = self.update_user(recipient, {'groups': ['test_group']})
-        self.assertEqual(res4.json()['user']['groups'], ['test_group'])
+        # NOTE: Uncomment the following checks when #296 is resolved.
+        """
+        # create a group in minion
+        group = Group(self.group_name, sites=[site.url], users=[recipient.email])
+        group.create()
 
-        # now send an invite
-        res5 = self.create_invites(recipient=recipient, sender=self.email)
-        invite_id = res5.json()['invite']['id']
+        # ensure user and site are in this new group
+        res3 = group.get()
+        self.assertEqual(res3.json()["group"]["sites"], [site.url])
+        self.assertEqual(res3.json()["group"]["users"], [recipient.email])
 
-        # accept invite and login with a different email
-        res6 = self.update_invite(invite_id, accept=True, login=persona)
-        self.assertEqual(res6.json()['success'], True)
+        # user should have access to the group and the site
+        res4 = recipient.get()
+        self.assertEqual(res4.json()["user"]["sites"], [site.url])
+        self.assertEqual(res4.json()["user"]["groups"], [group.group_name])
 
-        # this should raise not found
-        res7 = self.get_user(recipient)
-        self.assertEqual(res7.json()['success'], False)
-        self.assertEqual(res7.json()['reason'], 'no-such-user')
+        # recipient accepts the invitation with a different login email address
+        actual_login = self.random_email()
+        recipient_2 = User(actual_login)
+        res5 = invite.update(invite_id, "accept", login=recipient_2.email)
+        self.assertEqual(res5.json()["success"], True)
 
-        # get user by persona email
-        res8 = self.get_user(persona)
-        self.assertEqual(res8.json()['user']['email'], persona)
-        self.assertEqual(res8.json()['user']['status'], 'active')
-        # the userid should be the same as the one created through invite
-        self.assertEqual(userid, res8.json()['user']['id'])
+        # upon invitation acceptance, user status changed to active
+        res6 = recipient_2.get()
+        self.assertEqual(res6.json()['user']['email'], recipient_2.email)
+        self.assertEqual(res6.json()['user']['status'], 'active')
+        # the new email address has access to the group and site
+        self.assertEqual(res6.json()["user"]["groups"], [group.group_name])
+        self.assertEqual(res6.json()["user"]["sites"], [site.url])
 
-        # bug #170
-        # check original email recipient is not in group anymore
-        res9 = self.get_group('test_group')
-        self.assertEqual(res9.json()['group']['users'], [persona])
+        # if we query the old recipient email, it should not be found
+        res7 = recipient.get()
+        self.assertEqual(res7.json()["success"], False)
+        self.assertEqual(res7.json()["reason"], "no-such-user")
+
+        # group should agree that user and site are still member of the group
+        res8 = group.get()
+        self.assertEqual(res8.json()["group"]["sites"], [site.url])
+        self.assertEqual(res8.json()["group"]["users"], [recipient_2.email])
+        """

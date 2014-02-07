@@ -4,157 +4,353 @@
 
 import os
 import json
-import pprint
 import requests
-import shlex
-import tempfile
 import unittest
-from subprocess import Popen, PIPE
-from multiprocessing import Process
 
-from flask import Flask
 from pymongo import MongoClient
 
 import minion.backend.utils as backend_utils
 
-TEST_VIEW_ROOT = os.path.abspath(os.path.dirname(os.path.abspath(__file__)))
-test_app = Flask(__name__)
-@test_app.route('/')
-def basic_app():
-    res = make_response('')
-    res.headers['X-Content-Type-Options'] = 'nosniff'
-    res.headers['X-Frame-Options'] = 'SAMEORIGIN'
-    res.headers['X-XSS-Protection'] = '1; mode=block'
-    res.headers['Content-Security-Policy'] = 'default-src *'
-    return res
-
 BACKEND_KEY = backend_utils.backend_config()['api'].get('key')
-BASE = 'http://localhost:8383'
-APIS = {'users':
-            {'POST': '/users',
-             'GET': '/users'},
-        'user':
-            {'DELETE': '/users/{user_email}',
-             'GET': '/users/{user_email}',
-             'POST': '/users/{user_email}'},
-        'login':
-            {'PUT': '/login'},
-        'invites':
-            {'POST': '/invites',
-             'GET': '/invites'},
-        'invite': 
-            {'POST': '/invites/{id}/control',
-             'GET': '/invites/{id}',
-             'DELETE': '/invites/{id}'},
-        'groups':
-            {'POST': '/groups',
-              'GET': '/groups'},
-        'group':
-            {'GET': '/groups/{group_name}',
-             'DELETE': '/groups/{group_name}',
-             'PATCH': '/groups/{group_name}'},
-        'sites':
-            {'GET': '/sites',
-             'POST': '/sites'},
-        'site':
-            {'GET': '/sites/{site_id}',
-             'POST': '/sites/{site_id}'},
-        'plans':
-            {'GET': '/plans',
-             'POST': '/plans'},
-        'plan':
-            {'GET': '/plans/{plan_name}',
-             'DELETE': '/plans/{plan_name}',
-             'POST': '/plans/{plan_name}'},
-        'get_plugins':
-            {'GET': '/plugins'},
-        'scans':
-            {'POST': '/scans',},
-        'scan':
-            {'GET': '/scans/{scan_id}',
-             'PUT': '/scans/{scan_id}/control'},
-        'scan_summary':
-            {'GET': '/scans/{scan_id}/summary'},
-        'history':
-            {'GET': '/reports/history'},
-        'issues':
-            {'GET': '/reports/issues'},
-        'status':
-            {'GET': '/reports/status'},
-}
 
-def get_api(api_name, method, args=None):
-    """ Return a full url and map each key
-    in args to the url found in APIS. """
-    api = ''.join([BASE, APIS[api_name][method]])
-    if args:
-        return api.format(**args)
-    else:
-        return api
+class Resource(object):
+    """ Base class for each backend endpoint.
 
-def _call(task, method, auth=None, data=None, url_args=None, jsonify=True, \
-        headers=None, params=None):
-    """
-    Make HTTP request.
-
-    Parameters
-    ----------
-    task : str
-        The name of the api to call which corresponds
-        to a key name in ``APIS``.
-    method : str
-        Accept 'GET', 'POST', 'PUT', or
-        'DELETE'.
-    auth : optional, tuple
-        Basic auth tuple ``(username, password)`` pair.
-    data : optional, dict
-        A dictionary of data to pass to the API.
-    url_args : optional, dict
-        A dictionary of url arguments to replace in the
-        URL. For example, to match user's GET URL which
-        requires ``id``, you'd pass ``{'id': '3a7a67'}``.
-    jsonify : bool
-        If set to False, data will be sent as plaintext like GET.
-    headers : dict
-        Default to None. GET will send as plain/text while
-        POST, PUT, and PATCH will send as application/json.
-
-    Returns
-    -------
-    res : requests.Response
-        The response object.
+    To subclass, the constructor must call super on
+    this parent class. Access self.session to get
+    a requests object.
 
     """
 
-    req_objs = {'GET': requests.get,
-        'POST': requests.post,
-        'PUT': requests.put,
-        'DELETE': requests.delete,
-        'PATCH': requests.patch}
+    domain = "http://localhost:8383"
+    json_header = {"content-type": "application/json"}
+    backend_header = {"x-minion-backend-key": BACKEND_KEY}
 
-    method = method.upper()
-    api = APIS[task][method]
-    if url_args:
-        api = api.format(**url_args)
-    # concatenate base and api
-    api = os.path.join(BASE.strip('/'), api.strip('/'))
+    def __init__(self):
+        self.session = self._create_session()
 
-    req_objs = req_objs[method]
-    if jsonify and data and method != 'GET':
-        data = json.dumps(data)
+    def _create_session(self):
+        s = requests.Session()
+        s.headers.update(self.backend_header)
+        return s
 
-    if headers is None:
-        if jsonify:
-            headers = {'Content-Type': 'application/json',
-                    'X-Minion-Backend-Key': BACKEND_KEY}
-        else:
-            headers = {'X-Minion-Backend-Key': BACKEND_KEY}
+class Users(Resource):
+    def __init__(self):
+        super(Users, self).__init__()
+        self.api = self.domain + "/users"
 
-    if method == 'GET' or method == 'DELETE':
-        res = req_objs(api, params=data, auth=auth, headers=headers)
-    else:
-        res = req_objs(api, params=params, data=data, auth=auth, headers=headers)
-    return res
+    def get(self):
+        return self.session.get(self.api)
+
+class User(Resource):
+    def __init__(self, email, name=None, role="user", groups=None):
+        super(User, self).__init__()
+        self.api = self.domain + "/users"
+
+        self.email = email
+        self.name = name
+        self.role = role
+        self.groups = groups or []
+
+    def _create_user(self, invitation=False):
+        return self.session.post(self.api,
+            data=json.dumps({"email": self.email,
+                  "groups": self.groups,
+                  "name": self.name,
+                  "role": self.role,
+                  "invitation": invitation
+            }),
+            headers=self.json_header)
+
+    def create(self):
+        return self._create_user(invitation=False)
+
+    def invite(self):
+        return self._create_user(invitation=True)
+
+    def login(self):
+        return self.session.put(self.domain + "/login",
+            data=json.dumps({"email": self.email}),
+            headers=self.json_header)
+
+    def get(self):
+        return self.session.get(self.api + "/" + self.email,
+            params={"email": self.email})
+
+    def update(self, email=None, name=None, role=None, status="active", groups=None):
+        data = {}
+        if email:
+            self.email = data["email"] = email
+        if name:
+            self.name = data["name"] = name
+        if role:
+            self.role = data["role"] = role
+        if groups:
+            self.groups = data["groups"] = groups
+        if status:
+            data["status"] = status
+
+        return self.session.post(self.api + "/" + self.email,
+            data=json.dumps(data), headers=self.json_header)
+
+    def delete(self):
+        return self.session.delete(self.api + "/" + self.email)
+
+class Groups(Resource):
+    def __init__(self):
+        super(Groups, self).__init__()
+        self.api = self.domain + "/groups"
+
+    def get(self):
+        return self.session.get(self.api)
+
+class Group(Resource):
+    def __init__(self, group_name, description=None, sites=None, users=None):
+        super(Group, self).__init__()
+        self.api = self.domain + "/groups"
+
+        self.group_name = group_name
+        self.description = description
+        self.sites = sites or []
+        self.users = users or []
+
+    def create(self, invitation=False):
+        return self.session.post(self.api,
+            data=json.dumps({"name": self.group_name,
+                "description": self.description,
+                "users": self.users,
+                "sites": self.sites
+            }),
+            headers=self.json_header)
+
+    def get(self):
+        return self.session.get(self.api + "/" + self.group_name)
+
+    def update(self, add_sites=None, remove_sites=None, add_users=None, remove_users=None):
+        data = {}
+        if add_sites:
+            self.sites = list(set(self.sites + add_sites))
+            data["addSites"] = add_sites
+        if remove_sites:
+            self.sites = list(set(self.sites) - set(remove_sites))
+            data["removeSites"] = remove_sites
+        if add_users:
+            self.users = list(set(self.users + add_users))
+            data["addUsers"] = add_users
+        if remove_users:
+            self.users = list(set(self.users) - set(remove_users))
+            data["removeUsers"] = remove_users
+
+        return self.session.patch(self.api + "/" + self.group_name,
+            data=json.dumps(data), headers=self.json_header)
+
+    def delete(self):
+        return self.session.delete(self.api + "/" + self.group_name)
+
+class Sites(Resource):
+    def __init__(self):
+        super(Sites, self).__init__()
+        self.api = self.domain + "/sites"
+
+    def get(self, url=None):
+        params = {}
+        if url:
+            params["url"] = url
+        return self.session.get(self.api, params=params)
+
+class Site(Resource):
+    def __init__(self, url, groups=None, plans=None):
+        super(Site, self).__init__()
+        self.api = self.domain + "/sites"
+
+        self.url = url
+        self.groups = groups or []
+        self.plans = plans or []
+
+    def create(self, verify=False, value=None):
+        return self.session.post(self.api,
+            data=json.dumps({"url": self.url,
+                "groups": self.groups,
+                "plans": self.plans,
+                "verification": {"enabled": verify, "value": None},
+            }),
+            headers=self.json_header)
+        email = email or self.email
+
+    def get(self, id):
+        return self.session.get(self.api + "/" + id)
+
+    def update(self, id, groups=None, plans=None):
+        data = {"verification": {"enabled": False, "value": None}}
+        if groups:
+            self.groups = list(set(self.groups + groups))
+            data["groups"] = groups
+        if plans:
+            self.plans = list(set(self.plans + plans))
+            data["plans"] = plans
+        return self.session.post(self.api + "/" + id,
+            data=json.dumps(data), headers=self.json_header)
+
+    def delete(self, id):
+        return self.session.delete(self.api + "/" + id)
+
+class Invites(Resource):
+    def __init__(self):
+        super(Invites, self).__init__()
+        self.api = self.domain + "/invites"
+
+    def get(self, recipient=None, sender=None):
+        params = {}
+        if recipient:
+            params["recipient"] = recipient
+        if sender:
+            params["sender"] = sender
+        return self.session.get(self.api, params=params)
+
+class Invite(Resource):
+    def __init__(self, sender, recipient, base_url=None):
+        super(Invite, self).__init__()
+        self.api = self.domain + "/invites"
+        self.sender = sender
+        self.recipient = recipient
+        self.base_url = base_url or self.domain
+
+    def create(self, verify=False, value=None):
+        return self.session.post(self.api,
+            data=json.dumps({"sender": self.sender,
+                "recipient": self.recipient,
+                "base_url": self.base_url}),
+            headers=self.json_header)
+
+    def get(self, id):
+        return self.session.get(self.api + "/" + id)
+
+    def update(self, id, action, login=None):
+        data = {"action": action,
+            "login": login or self.recipient,
+            "base_url": self.base_url}
+        return self.session.post(self.api + "/" + id + "/control",
+            data=json.dumps(data), headers=self.json_header)
+
+    def delete(self, id):
+        return self.session.delete(self.api + "/" + id)
+
+class Plans(Resource):
+    def __init__(self):
+        super(Plans, self).__init__()
+        self.api = self.domain + "/plans"
+
+    def get(self, name=None, email=None):
+        params = {}
+        if name:
+            params["name"] = name
+        if email:
+            params["email"] = email
+        return self.session.get(self.api, params=params)
+
+class Plan(Resource):
+    def __init__(self, plan):
+        super(Plan, self).__init__()
+        self.api = self.domain + "/plans"
+        self.plan = plan
+
+    def create(self):
+        return self.session.post(self.api,
+            data=json.dumps(self.plan), headers=self.json_header)
+
+    def get(self, plan_name):
+        return self.session.get(self.api + "/" + plan_name)
+
+    def update(self, plan_name, new_plan):
+        self.plan = new_plan
+        return self.session.post(self.api + "/" + plan_name,
+            data=json.dumps(self.plan), headers=self.json_header)
+
+    def delete(self, plan_name):
+        return self.session.delete(self.api + "/" + plan_name)
+
+class Scans(Resource):
+    def __init__(self):
+        super(Scans, self).__init__()
+        self.api = self.domain + "/scans"
+
+    def get(self, limit=None, site_id=None):
+        params = {}
+        if limit:
+            params["limit"] = limit
+        if site_id:
+            params["site_id"] = site_id
+        return self.session.get(self.api, params=params)
+
+class Scan(Resource):
+    def __init__(self, email, plan_name, configuration):
+        super(Scan, self).__init__()
+        self.api = self.domain + "/scans"
+        self.configuration = configuration
+        self.email = email
+        self.plan_name = plan_name
+
+    def create(self):
+        return self.session.post(self.api,
+            data=json.dumps({
+                "user": self.email,
+                "configuration": self.configuration,
+                "plan": self.plan_name
+            }),
+            headers=self.json_header)
+
+    def get_scan_details(self, scan_id, email=None):
+        return self.session.get(self.api + "/" + scan_id,
+            params={"email": email})
+
+    def get_summary(self, scan_id, email=None):
+        return self.session.get(self.api + "/" + scan_id + "/summary",
+            params={"email": email})
+
+    def start(self, scan_id, email=None):
+        return self._update(scan_id, "START", email=email)
+
+    def stop(self, scan_id, email=None):
+        return self._update(scan_id, "STOP", email=email)
+
+    def _update(self, scan_id, state, email=None):
+        return self.session.put(self.api + "/" + scan_id + "/control",
+            data=state, params={"email": email})
+
+class Plugins(Resource):
+    def __init__(self):
+        super(Plugins, self).__init__()
+        self.api = self.domain + "/plugins"
+
+    def get(self):
+        return self.session.get(self.api)
+
+class Reports(Resource):
+    def __init__(self):
+        super(Reports, self).__init__()
+        self.api = self.domain + "/reports"
+
+    def get_history(self, user=None):
+        params = {}
+        if user is not None:
+            params = {'user': user}
+        return self.session.get(self.api + "/history", params=params)
+
+    def get_status(self, user=None, group_name=None):
+        params = {}
+        if user is not None:
+            params['user'] = user
+            if group_name:
+                params["group_name"] = group_name
+        return self.session.get(self.api + "/status", params=params)
+
+    def get_issues(self, user=None, group_name=None):
+        params = {}
+        if user is not None:
+            params["user"] = user
+            if group_name:
+                params["group_name"] = group_name
+        return self.session.get(self.api + "/issues", params=params)
 
 class TestAPIBaseClass(unittest.TestCase):
     def setUp(self):
@@ -163,271 +359,10 @@ class TestAPIBaseClass(unittest.TestCase):
         self.db = self.mongodb.minion
 
         self.email = "bob@example.org"
-        self.email2 = "alice@example.org"
         self.role = "user"
         self.group_name = "minion-test-group"
         self.group_description = "minion test group is awesome."
-        self.group_name2 = "minion-test-group2"
-        self.group_description2 = "minion test group 2 is super."
-
-        self.target_url = "http://foo.com"
-        self.site2 = "http://bar.com"
-
         self.target_url = 'http://localhost:1234'
 
     def tearDown(self):
         self.mongodb.drop_database("minion")
-
-    def import_plan(self, plan_name='basic'):
-        ROOT = os.path.dirname(
-                os.path.dirname(os.path.dirname(os.path.dirname(
-                    os.path.abspath(__file__)))))
-        PLANS_ROOT = os.path.join(ROOT, 'plans')
-        self.plans = self.db.plans
-        self.scans = self.db.scans
-        with open(os.path.join(PLANS_ROOT, '%s.plan' % plan_name), 'r') as f:
-            self.plan = json.load(f)
-            self.plans.remove({'name': self.plan['name']})
-            resp = self.create_plan(self.plan)
-            self.assertEqual(resp.json()['success'], True)
-
-    @staticmethod
-    def _get_plugin_name(full):
-        """ Return the name of the plugin. """
-        cls_name = full.split('.')[-1]
-        return cls_name.split('Plugin')[0]
-
-    def check_plugin_metadata(self, base, metadata):
-        """ Given a base configuration, parse
-        and verify the input metadata contains
-        the following keys: 'version', 'class',
-        'weight', and 'name' for each plugin. """
-
-        for index, plugin in enumerate(metadata):
-            p_name = self._get_plugin_name(base['workflow'][index]['plugin_name'])
-            # the plugin list is either under the key plugin, plugins or
-            # iself is already a list. We should consider using plugins
-            # over plugin; that is, change the key name in /plugins endpoint.
-            meta = plugin.get('plugin') or plugin.get('plugins') or plugin
-            self.assertEqual('light', meta['weight'])
-            self.assertEqual(p_name, meta['name'])
-            self.assertEqual(base['workflow'][index]['plugin_name'], meta['class'])
-            self.assertEqual("0.0", meta['version'])
-
-    def login_user(self, email="bob@example.org"):
-        data = {"email": email}
-        return _call('login', 'PUT', headers={'content-type': 'application/json'}, data=data)
-
-    def create_user(self, email="bob@example.org", name="Bob", role="user", groups=[], headers=None,
-            invitation=None):
-        data = {"email": email, "name": name, "role": role, "groups":groups, "invitation": invitation}
-        return _call('users', 'POST', headers=headers, data=data)
-
-    def update_user(self, user_email, user):
-        return _call('user', 'POST', url_args={'user_email': user_email}, data=user)
-
-    def get_user(self, user_email):
-        return _call('user', 'GET', url_args={'user_email': user_email})
-
-    def delete_user(self, user_email):
-        return _call('user', 'DELETE', url_args={'user_email': user_email})
-
-    def get_users(self):
-        return _call('users', 'GET')
-
-    def create_invites(self, recipient=None, sender=None, base_url="http://localhost:8080"):
-        return _call('invites', 'POST', 
-                data={'recipient': recipient, 'sender': sender, "base_url": "http://localhost:8080"})
-
-    def get_invites(self, filters=None):
-        return _call('invites', 'GET', data=filters)
-
-    def get_invite(self, id):
-        return _call('invite', 'GET', url_args={'id': id})
-
-    def update_invite(self, id, resend=None, accept=None, decline=None, base_url="http://localhost:8080", login=None):
-        if resend:
-            data = {'action': 'resend', "base_url": base_url}
-        elif accept:
-            data = {'action': 'accept'}
-        elif decline:
-            data = {'action': 'decline'}
-        if login:
-            data.update({'login': login})
-        return _call('invite', 'POST', url_args={'id': id}, data=data)
-
-    def delete_invite(self, id):
-        return _call('invite', 'DELETE', url_args={'id': id})
-
-    def create_group(self, group_name=None, group_description=None, users=None, \
-        sites=None):
-        if group_name is None:
-            group_name = self.group_name
-        if not group_description:
-            group_description = self.group_description
-        data = {'name': group_name, "description": self.group_description}
-        if users:
-            data.update({'users': users})
-        if sites:
-            data.update({'sites': sites})
-
-        return _call('groups', 'POST', data=data)
-
-    def get_groups(self):
-        return _call('groups', 'GET', jsonify=False)
-
-    def get_group(self, group_name):
-        return _call('group', 'GET', url_args={'group_name': group_name},
-            jsonify=False)
-
-    def delete_group(self, group_name):
-        return _call('group', 'DELETE', url_args={'group_name': group_name},
-            jsonify=False)
-
-    def modify_group(self, group_name, data=None):
-        return _call('group', 'PATCH', url_args={'group_name': group_name},
-            data=data)
-
-    def create_site(self, groups=None, plans=None, site=None, verify=True):
-        data = {'url': site or self.target_url}
-        if plans:
-            data.update({'plans': plans})
-        if groups:
-            data.update({'groups':groups})
-        data.update({'verification': {'enabled': verify, 'value': None}})
-        return _call('sites', 'POST', data=data)
-
-    def update_site(self, site_id, site, verify=True):
-        site.update({'verification': {'enabled': verify, 'value': None}})
-        return _call('site', 'POST', url_args={'site_id': site_id}, data=site)
-
-    def get_sites(self):
-        return _call('sites', 'GET', jsonify=False)
-
-    def get_site_by_id(self, site_id):
-        return _call('site', 'GET', url_args={'site_id': site_id}, jsonify=False)
-
-    def get_site_by_url(self, url):
-        return _call('sites', 'GET', data={'url': url}, jsonify=False)
-
-    def get_plans(self, email=None):
-        return _call('plans', 'GET', jsonify=False, data=email)
-
-    def create_plan(self, plan):
-        return _call('plans', 'POST', data=plan)
-
-    def update_plan(self, plan_name, plan):
-        return _call('plan', 'POST', url_args={'plan_name': plan_name}, data=plan)
-
-    def delete_plan(self, plan_name):
-        return _call('plan', 'DELETE', url_args={'plan_name': plan_name}, jsonify=False)
-
-    def get_plan(self, plan_name, email=None):
-        return _call('plan', 'GET', url_args={'plan_name': plan_name}, \
-            jsonify=False, data={'email': email})
-
-    def get_plugins(self):
-        return _call('get_plugins', 'GET', jsonify=False)
-
-    def create_scan(self, email=None, target_url=None):
-        if not target_url:
-            target_url = self.target_url
-        if not email:
-            email = self.email
-        return _call('scans', 'POST',
-            data={'plan': 'basic',
-                'configuration': {'target': target_url},
-                'user': email})
-
-    def get_scan(self, scan_id, email=None):
-        if not email:
-            email = None
-        params = {'email': email}
-        return _call('scan', 'GET', url_args={'scan_id': scan_id}, \
-                data=params, jsonify=False)
-
-    def control_scan(self, scan_id, state='START', email=None):
-        if not email:
-            email = self.email
-        return _call('scan', 'PUT', url_args={'scan_id': scan_id},
-            data=state, params={'email': email},jsonify=False)
-
-    def get_scan_summary(self, scan_id, email=None):
-        if not email:
-            email = self.email
-        return _call('scan_summary', 'GET', \
-            url_args={'scan_id': scan_id}, data={'email': email}, jsonify=False)
-
-    def get_reports_history(self, user=None):
-        data = {}
-        if user is not None:
-            data = {'user': user}
-        return _call('history', 'GET', data=data, jsonify=False)
-
-    def get_reports_status(self, user=None, group_name=None):
-        data = None
-        if user is not None:
-            data = {'user': user}
-            if group_name is not None:
-                data.update({'group_name': group_name})
-        return _call('status', 'GET', data=data, jsonify=False)
-
-    def get_reports_issues(self, user=None, group_name=None):
-        data = None
-        if user is not None:
-            data = {'user': user}
-            if group_name is not None:
-                data.update({'group_name': group_name})
-        return _call('issues', 'GET', data=data, jsonify=False)
-
-    def _test_keys(self, target, expected):
-        """
-        Compare keys are in the response. If there
-        is a difference (more or fewer) assertion
-        will raise False.
-
-        Parameters
-        ----------
-        target : tuple
-            A tuple of keys from res.json().keys()
-        expected : tuple
-            A tuple of keys expecting to match
-            against res.json().keys()
-
-        """
-
-        keys1 = set(expected)
-        self.assertEqual(set(), keys1.difference(target))
-
-    def assertSuccessfulResponse(self, r, success=True, reason=None):
-        r.raise_for_status()
-        self.assertEqual(r.json()['success'], success)
-        if not success and reason is not None:
-            self.assertEqual(r.json()['reason'], reason)
-
-    """
-    def start_smtp(self):
-        # pid is a list, a hack so we can get back the pid in the caller frame
-        self.stop_smtp()
-        def start():
-            p = Popen('/usr/bin/sudo /usr/bin/python -m smtpd -n -c DebuggingServer localhost:25',
-                    stdin=PIPE, stdout=PIPE, shell=True)
-            while True:
-                out = p.stdout.read()
-                err = p.stderr.read()
-                if len(out) > 0:
-                    with open('/tmp/minion_smtp_debug.txt', 'w+') as f:
-                        f.write(out)
-        p = Process(target=start)
-        p.daemon = True
-        p.start()
-
-    def stop_smtp(self):
-        def stop():
-            p = Popen("/usr/bin/sudo kill -9 `ps aux | grep DebuggingServer | awk '{print $2}'`", shell=True)
-            p.communicate()
-        p = Process(target=stop)
-        p.daemon = True
-        p.start()
-    """
-    
