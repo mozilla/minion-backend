@@ -41,7 +41,7 @@ def _check_plan_by_email(email, plan_name):
 
 def get_plans_by_email(email):
     plans = get_sanitized_plans()
-    matched_plans = [plan for plan in plans if _check_plan_by_email(email)]
+    matched_plans = [plan for plan in plans if _check_plan_by_email(email, plan["name"])]
     return matched_plans
 
 def permission(view):
@@ -134,7 +134,7 @@ def get_plans():
             plans = get_plans_by_email(email)
         else:
             plans = get_sanitized_plans()
-            return jsonify(success=True, plans=plans)
+        return jsonify(success=True, plans=plans)
 
 #
 # Delete an existing plan

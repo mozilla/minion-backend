@@ -20,14 +20,17 @@ class TestPlanAPIs(TestAPIBaseClass):
         """
 
         _plan = plan or self.TEST_PLAN
+        self.plan = Plan(_plan)
+        resp = self.plan.create()
+
         self.user = User(self.email)
         self.user.create()
-        self.site = Site(self.target_url)
+        self.site = Site(self.target_url, plans=[self.plan.plan["name"]])
         self.site.create()
         self.group = Group("testgroup", sites=[self.site.url], users=[self.user.email])
         self.group.create()
         self.plan = Plan(_plan)
-        return self.plan.create()
+        return resp
 
     def _assert_test_plan(self, plan):
         self.assertEqual("test", plan["name"])
@@ -55,14 +58,11 @@ class TestPlanAPIs(TestAPIBaseClass):
         self.assertEqual(len(resp.json()["plans"]), 1)
         self._assert_test_plan(resp.json()["plans"][0])
 
-    #NOTE: Wait until #297 is resolved
-    """
     def test_find_all_plans_registered_under_an_email(self):
         self._create_plan()
         resp = Plans().get(email=self.user.email)
         self.assertEqual(len(resp.json()["plans"]), 1)
         self._assert_test_plan(resp.json()["plans"][0])
-    """
 
     def test_create_invalid_plugin_plan(self):
         # Check /plans return invalid-plan-exists when plugin is not

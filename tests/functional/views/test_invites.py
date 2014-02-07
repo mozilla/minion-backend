@@ -65,7 +65,6 @@ class TestInviteAPIs(TestAPIBaseClass):
         site_id = res2.json()["site"]["id"]
 
         # Uncomment the following checks when #297 is resolved.
-        """
         # create a group in minion
         group = Group(self.group_name, sites=[site.url], users=[recipient.email])
         res3 = group.create()
@@ -82,7 +81,6 @@ class TestInviteAPIs(TestAPIBaseClass):
         res6 = recipient.get()
         self.assertEqual(res6.json()["user"]["sites"], [site.url])
         self.assertEqual(res6.json()["user"]["groups"], [group.group_name])
-        """
 
     def test_invite_an_existing_user(self):
         sender = User(self.email)
