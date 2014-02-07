@@ -2,92 +2,63 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-import json
-import os
-import pprint
-import requests
-import shutil
 import time
-from flask import Flask, make_response
-from multiprocessing import Process
-from subprocess import Popen, PIPE
 
-from base import BACKEND_KEY, BASE, _call, TestAPIBaseClass, TEST_VIEW_ROOT
-
-test_app = Flask(__name__)
-
-@test_app.route('/')
-def basic_app():
-    res = make_response('')
-    res.headers['X-Content-Type-Options'] = 'nosniff'
-    res.headers['X-Frame-Options'] = 'SAMEORIGIN'
-    res.headers['X-XSS-Protection'] = '1; mode=block'
-    res.headers['Content-Security-Policy'] = 'default-src *'
-    return res
+from base import (TestAPIBaseClass, User, Site, Group, Plan, Scan, Scans, Reports)
 
 class TestScanAPIs(TestAPIBaseClass):
+    TEST_PLAN = {
+        "name": "test-plan",
+        "description": "Plan that runs DelayPlugin",
+        "workflow": [
+            {
+                "plugin_name": "minion.plugins.test.DelayedPlugin",
+                "description": "",
+                "configuration": {
+                    "message": "Testing"
+                }
+            }
+        ]
+    }
+
+    def create_plan(self):
+        self.plan = Plan(self.TEST_PLAN)
+        res = self.plan.create()
+        self.assertEqual(res.json()["success"], True)
+        self.user = User(self.email)
+        self.user.create()
+        self.site = Site(self.target_url, plans=[self.plan.plan["name"]])
+        self.site.create()
+        self.group = Group("testgroup", sites=[self.site.url], users=[self.user.email])
+        self.group.create()
+
     def setUp(self):
         super(TestScanAPIs, self).setUp()
-        self.import_plan()
-
-    def copy_config(self, local_config_fname, config_name):
-        if not os.path.exists(os.path.expanduser("~/.minion/")):
-            os.mkdir(os.path.expanduser('~/.minion'))
-        if os.path.exists(os.path.expanduser("~/.minion/" + config_name)):
-            shutil.copyfile(
-                os.path.expanduser("~/.minion/" + config_name), 
-                os.path.expanduser("~/.minion/" + config_name + ".backup"))
-        shutil.copyfile(os.path.join(TEST_VIEW_ROOT, "configurations/" + local_config_fname), 
-            os.path.expanduser("~/.minion/" + config_name))
-
-    def _kill_ports(self, ports):
-        for port in ports:
-            p = Popen(['kill `fuser -n tcp %s`' % str(port)],\
-                    stdout=PIPE, stderr=PIPE, shell=True)
-            p.communicate()
-    
-    def start_server(self):
-        ''' Similar to plugin functional tests, we need
-        to start server and kill ports. '''
-        def run_app():
-            test_app.run(host='localhost', port=1234)
-        self._kill_ports([1234,])
-        self.server = Process(target=run_app)
-        self.server.daemon = True
-        self.server.start()
-       
-    def stop_server(self):
-        self.server.terminate()
-        self._kill_ports([1234,])    
+        self.create_plan()
 
     def test_create_scan_with_credential(self):
-        res1 = self.create_user(email=self.email)
-        res2 = self.create_group(group_name='test', users=[self.email,])
-        res3 = self.create_site(plans=['basic'], groups=['test'], verify=False)
-
-        # we have to manually update group to contain a site
-        res4 = self.modify_group('test', data={'addSites': [self.target_url,]})
-
-        res5 = self.create_scan(email=self.email, target_url=self.target_url) 
+        scan = Scan(self.user.email, self.TEST_PLAN["name"], {"target": self.target_url})
+        res = scan.create()
         expected_top_keys = ('success', 'scan',)
-        self._test_keys(res5.json().keys(), expected_top_keys)
+        self.assertEqual(res.json()["success"], True)
+        expected_scan_keys = set(['id', 'state', 'created', 'queued', 'started', \
+                'finished', 'plan', 'configuration', 'sessions', 'meta'])
+        self.assertEqual(set(res.json()["scan"].keys()), expected_scan_keys)
 
-        expected_scan_keys = ('id', 'state', 'created', 'queued', 'started', \
-                'finished', 'plan', 'configuration', 'sessions', 'meta',)
-        self._test_keys(res5.json()['scan'].keys(), expected_scan_keys)
-        # since ticket 106, scans keeps track of who started the scan now
-        meta = res5.json()['scan']['meta']
-        self.assertEqual(meta['user'], self.email)
+        meta = res.json()['scan']['meta']
+        # this scan is not tagged
         self.assertEqual(meta['tags'], [])
-        self.assertEqual(res5.json()['scan']['configuration']['target'],
+        # bug #106 add owner of the scan
+        self.assertEqual(meta['user'], self.user.email)
+        self.assertEqual(res.json()['scan']['configuration']['target'],
             self.target_url)
 
-        scan = res5.json()['scan']
+        scan = res.json()['scan']
+        expected_session_keys = ['id', 'state', 'plugin', 'configuration', \
+                'description', 'artifacts', 'issues', 'created', 'started', \
+                'queued', 'finished', 'progress']
         for session in scan['sessions']:
-            expected_session_keys = ('id', 'state', 'plugin', 'configuration', \
-                    'description', 'artifacts', 'issues', 'created', 'started', \
-                    'queued', 'finished', 'progress',)
-            self._test_keys(session.keys(), expected_session_keys)
+            self.assertEqual(set(session.keys()), set(expected_session_keys))
             self.assertEqual(session['configuration']['target'], self.target_url)
 
             self.assertEqual(session['state'], 'CREATED')
@@ -96,39 +67,56 @@ class TestScanAPIs(TestAPIBaseClass):
             for name in ('queued', 'started', 'finished', 'progress'):
                 self.assertEqual(session[name], None)
 
-    def test_get_scan(self):
-        res1 = self.create_user(email=self.email)
-        res2 = self.create_group(group_name='test', users=[self.email,])
-        res3 = self.create_site(plans=['basic'], groups=['test'])
-        # update group so it has the site as well
-        res4 = self.modify_group('test', data={'addSites': [self.target_url,]})
-        res5 = self.create_scan(email=self.email, target_url=self.target_url)
-        scan_id = res5.json()['scan']['id']
-        res6 = self.get_scan(scan_id, email=self.email)
-        # since scan hasn't started, should == res5
-        self.assertEqual(res5.json(), res6.json())
+    # NOTE: Uncomment when #296 is fixed.
+    """
+    def test_get_scan_details(self):
+        scan = Scan(self.user.email, self.TEST_PLAN["name"], {"target": self.target_url})
+        res1 = scan.create()
+        scan_id = res1.json()['scan']['id']
 
-        # get scan detail without supplying email in the query (issue #140, #146)
-        res7 = self.get_scan(scan_id)
-        self.assertEqual(res7.json(), res6.json())
-    
-    # issue#140 and issue #146
-    def test_get_scan_with_bad_permission(self):
-        res0 = self.create_user(email='fakeuser@example.org')
-        res1 = self.create_user(email=self.email)
-        res2 = self.create_group(group_name='test', users=[self.email,])
-        res3 = self.create_site(plans=['basic'], groups=['test'])
-        # update group so it has the site as well
-        res4 = self.modify_group('test', data={'addSites': [self.target_url,]})
-        res5 = self.create_scan(email=self.email, target_url=self.target_url)
-        scan_id = res5.json()['scan']['id']
-        res6 = self.get_scan(scan_id, email='fakeuser@example.org')
-        self.assertEqual(res6.json()['success'], False)
-        self.assertEqual(res6.json()['reason'], 'not-found')
-    
-    def start_basic_scan(self, local_config, config_name):
+        res2 = scan.get_scan_details(scan_id)
+        # since scan hasn't started, should == res1
+        self.assertEqual(res2.json(), res1.json())
+
+        # bug #140 and bug #146
+        res3 = scan.get_scan_details(scan_id, email=self.user.email)
+        self.assertEqual(res3.json(), res2.json())
+    """
+
+    # bug #140 and bug #146
+    def test_get_scan_details_filter_with_nonexistent_user(self):
+        # If we give a non-existent user in the request argument, it will return user not found
+        scan = Scan(self.user.email, self.TEST_PLAN["name"], {"target": self.target_url})
+        res1 = scan.create()
+        scan_id = res1.json()['scan']['id']
+
+        res2 = scan.get_scan_details(scan_id, email="nonexistentuser@example.org")
+        self.assertEqual(res2.json()["success"], False)
+        self.assertEqual(res2.json()["reason"], "user-does-not-exist")
+
+    # bug #140 and bug #146
+    def test_get_scan_details_filter_with_incorrect_user(self):
+        # Scan is started by Bob and only Bob's group has access to target_url.
+        # Alice does not belong to Bob's group so she has no permission to the scan
+        scan = Scan(self.user.email, self.TEST_PLAN["name"], {"target": self.target_url})
+        res1 = scan.create()
+        scan_id = res1.json()['scan']['id']
+
+        alice = User("alice@example.org")
+        res2 = alice.create()
+        self.assertEqual(res2.json()["success"], True)
+
+        res2 = scan.get_scan_details(scan_id, email=alice.email)
+        self.assertEqual(res2.json()["success"], False)
+        self.assertEqual(res2.json()["reason"], "not-found")
+
+    # NOTE: Uncomment this when #296 is fixed
+    ''' 
+    def test_scan(self):
         """
-        This test is very comprehensive. It tests
+        This is a comprehensive test that runs through the following
+        endpoints:
+
         1. POST /scans
         2. GET /scans/<scan_id>
         3. PUT /scans/<scan_id>/control
@@ -137,130 +125,72 @@ class TestScanAPIs(TestAPIBaseClass):
         6. GET /reports/status
         7. GET /reports/issues
 
-        ** some apis are checked with and without email.
-        local_config is the name of the local configuration
-        file from configurations directory.
-        config_name will match the actual configuration
-        name we are going to put in ~/.minion/ (either
-        scan, backend or frontend.json)
         """
-        self.start_server()
 
-        # modify config
-        self.copy_config(local_config, config_name)
- 
-        res1 = self.create_user(email=self.email)
-        res2 = self.create_group(users=[self.email,], group_name='test_group')
-        res3 = self.create_site(plans=['basic'], groups=['test_group'], verify=False)
-        res3 = self.modify_group('test_group', data={'addSites': [self.target_url,]})
+        # Create user, site, group, plan and site
+        # This is already handled in setUp call.
 
         # POST /scans
-        res4 = self.create_scan(email=self.email)
-        scan_id = res4.json()['scan']['id']
-        #pprint.pprint(res4.json(), indent=3)
+        # create a scan on target_url based on our test plan (which runs DelayPlugin)
+        scan = Scan(self.user.email, self.TEST_PLAN["name"], {"target": self.target_url})
+        res1 = scan.create()
+        scan_id = res1.json()['scan']['id']
 
         # PUT /scans/<scan_id>/control
-        res5 = self.control_scan(scan_id, 'START')
-        self.assertEqual(len(res5.json().keys()), 1)
-        self.assertEqual(res5.json()['success'], True)
-        #pprint.pprint(res5.json(), indent=3)
+        # Start the scan now.
+        res2 = scan.start(scan_id)
+        self.assertEqual(res2.json()['success'], True)
 
         # GET /scans/<scan_id>
-        res6 = self.get_scan(scan_id)
-        self._test_keys(res6.json().keys(), set(res4.json().keys()))
-        self._test_keys(res6.json()['scan'].keys(), set(res4.json()['scan'].keys()))
-        self.assertEqual(res6.json()['scan']['state'], 'QUEUED')
-        #pprint.pprint(res6.json(), indent=3)
-        
+        # Check the status. It should be in QUEUED (hopefully it doesn't go too fast)
+        res3 = scan.get_scan_details(scan_id)
+        self.assertEqual(res3.json()["scan"]["state"], "QUEUED")
+        # POST and GET scan details should have the same set of keys at the top-level
+        # and at the "scan" level
+        self.assertEqual(set(res3.json().keys()), set(res1.json().keys()))
+        self.assertEqual(set(res3.json()["scan"].keys()), set(res1.json()["scan"].keys()))
+
         # give scanner a few seconds
-        time.sleep(10)
-        return scan_id
+        time.sleep(6)
 
-    def test_basic_scan_aborted_due_to_blacklist_blockage(self):
-        scan_id = self.start_basic_scan('scan_block_local.json', 'scan.json')
-        # GET /scans/<scan_id>
-        res7 = self.get_scan(scan_id, email=self.email)
-        self.assertEqual(res7.json()['scan']['state'], 'ABORTED')
-        self.stop_server()
-
-    def test_basic_scan_finished(self):
-        scan_id = self.start_basic_scan('scan_free_all.json', 'scan.json')
         # GET /scans/<scan_id>
         # now check if the scan has completed or not
-        res7 = self.get_scan(scan_id, email=self.email)
-        self.assertEqual(res7.json()['scan']['state'], 'FINISHED')
+        res4 = scan.get_scan_details(scan_id)
+        self.assertEqual(res4.json()['scan']['state'], 'FINISHED')
         
         # GET /scans/<scan_id>/summary
-        res8 = self.get_scan_summary(scan_id, email=self.email)
-        self.assertEqual(res8.json()['summary']['meta'], 
-            {'user': self.email, 'tags': []}) # ticket 106
-        # check without email supplied
-        res81 = self.get_scan_summary(scan_id)
-        self.assertEqual(res81.json(), res8.json())
-     
+        res5 = scan.get_summary(scan_id)
+        # bug #106 include scan creator in the output
+        self.assertEqual(res5.json()['summary']['meta'], 
+            {'user': self.email, 'tags': []})
+
         # GET /reports/history
-        res9 = self.get_reports_history()
-        expected_top_keys = ('report', 'success',)
-        self._test_keys(res9.json().keys(), expected_top_keys)
-        expected_inner_keys = ('configuration', 'created', 'finished', 'id',
-                'issues', 'plan', 'queued', 'sessions', 'state',)
-        self._test_keys(res9.json()['report'][0].keys(), expected_inner_keys)
-        self.assertEqual(res9.json()['report'][0]['id'], scan_id)
-        
-        #pprint.pprint(res9.json(), indent=3)
+        res6 = Reports().get_history()
+        self.assertEqual(res6.json()["success"], True)
+        expected_inner_keys = set(['configuration', 'created', 'finished', 'id',
+                'issues', "meta", 'plan', 'queued', 'sessions', 'state'])
+        self.assertEqual(set(res6.json()['report'][0].keys()), expected_inner_keys)
+        self.assertEqual(res6.json()['report'][0]['id'], scan_id)
+
         # GET /reports/status
-        res10 = self.get_reports_status(user=self.email)
-        expected_top_keys = ('success', 'report',)
-        self._test_keys(res10.json().keys(), expected_top_keys)
-        expected_inner_keys = ('plan', 'scan', 'target',)
-        #pprint.pprint(res10.json(), indent=2)
-        self._test_keys(res10.json()['report'][0].keys(), expected_inner_keys)
-        self.assertEqual(res10.json()['report'][0]['plan'], 'basic')
-        self.assertEqual(res10.json()['report'][0]['target'], self.target_url)
+        res7 = Reports().get_status(user=self.user.email)
+        self.assertEqual(res7.json()["success"], True)
+        expected_inner_keys = set(['plan', 'scan', 'target'])
+        self.assertEqual(set(res7.json()['report'][0].keys()), expected_inner_keys)
+        self.assertEqual(res7.json()['report'][0]['plan'], self.plan.plan["name"])
+        self.assertEqual(res7.json()['report'][0]['target'], self.target_url)
 
         # GET /reports/issues
-        res11 = self.get_reports_issues(user=self.email)
-        expected_top_keys = ('report', 'success', )
-        self._test_keys(res11.json().keys(), expected_top_keys)
+        res8 = Reports().get_issues(user=self.user.email)
+        self.assertEqual(res8.json()["success"], True)
         expected_inner_keys = ('issues', 'target',)
-        self._test_keys(res11.json()['report'][0].keys(), expected_inner_keys)
+        self.assertEqual(set(res8.json()['report'][0].keys()), set(["issues", "target"]))
 
-        issues = res11.json()['report'][0]['issues']
-        # total of 8 basic plugins. they should all return something even if info
-        self.assertEqual(len(issues), 8)
-
-        # alive scan
-        self.assertEqual('Site is reachable', issues[0]['summary'])
+        issues = res8.json()['report'][0]['issues']
+        # DelayPlugin emits only one issue
+        self.assertEqual(len(issues), 1)
+        self.assertEqual(issues[0]["summary"], "Testing")
         self.assertEqual('Info', issues[0]['severity'])
-
-        # x-frame-options scan
-        self.assertEqual('X-Frame-Options header is set properly', issues[1]['summary'])
-        self.assertEqual('Info', issues[1]['severity'])
-
-        # strict-transport
-        self.assertEqual('Target is a non-HTTPS site', issues[2]['summary'])
-        self.assertEqual('Info', issues[2]['severity'])
-
-        # x-content-type-options
-        self.assertEqual('X-Content-Type-Options is set properly', issues[3]['summary'])
-        self.assertEqual('Info', issues[3]['severity'])
-
-        # x-xss-protection
-        self.assertEqual('X-XSS-Protection is set properly', issues[4]['summary'])
-        self.assertEqual('Info', issues[4]['severity'])
-
-        # server details headers
-        self.assertEqual("'Server' header is found", issues[5]['summary'])
-        self.assertEqual('Medium', issues[5]['severity'])
-
-        # robots
-        self.assertEqual("robots.txt not found", issues[6]['summary'])
-        self.assertEqual('Medium', issues[6]['severity'])
-
-        # CSP
-        self.assertEqual('Content-Security-Policy header set properly', issues[7]['summary'])
-        self.assertEqual('Info', issues[7]['severity'])
-
-        self.assertEqual(res11.json()['report'][0]['target'], self.target_url)
-        self.stop_server()
-        #pprint.pprint(res11.json(), indent=3)        
+        self.assertEqual(issues[0]["severity"], "Info")
+        self.assertEqual(res8.json()['report'][0]['target'], self.target_url)
+    '''
