@@ -9,14 +9,12 @@ from base import (TestAPIBaseClass, User, Site, Group, Plan, Scan, Scans, Report
 class TestScanAPIs(TestAPIBaseClass):
     TEST_PLAN = {
         "name": "test-plan",
-        "description": "Plan that runs DelayPlugin",
+        "description": "Plan that runs HelloWorldPlugin",
         "workflow": [
             {
-                "plugin_name": "minion.plugins.test.DelayedPlugin",
+                "plugin_name": "minion.plugins.test.HelloWorldPlugin",
                 "description": "",
-                "configuration": {
-                    "message": "Testing"
-                }
+                "configuration": {}
             }
         ]
     }
@@ -107,8 +105,6 @@ class TestScanAPIs(TestAPIBaseClass):
         self.assertEqual(res2.json()["success"], False)
         self.assertEqual(res2.json()["reason"], "not-found")
 
-    # NOTE: Uncomment this once #299 is fixed.
-    '''
     def test_scan(self):
         """
         This is a comprehensive test that runs through the following
@@ -128,7 +124,8 @@ class TestScanAPIs(TestAPIBaseClass):
         # This is already handled in setUp call.
 
         # POST /scans
-        # create a scan on target_url based on our test plan (which runs DelayPlugin)
+        # create a scan on target_url based on our 
+        # test plan (which runs HelloWorldPlugin)
         scan = Scan(self.user.email, self.TEST_PLAN["name"], {"target": self.target_url})
         res1 = scan.create()
         scan_id = res1.json()['scan']['id']
@@ -186,8 +183,7 @@ class TestScanAPIs(TestAPIBaseClass):
         issues = res8.json()['report'][0]['issues']
         # DelayPlugin emits only one issue
         self.assertEqual(len(issues), 1)
-        self.assertEqual(issues[0]["summary"], "Testing")
+        self.assertEqual(issues[0]["summary"], "Hello World")
         self.assertEqual('Info', issues[0]['severity'])
         self.assertEqual(issues[0]["severity"], "Info")
         self.assertEqual(res8.json()['report'][0]['target'], self.target_url)
-    '''
