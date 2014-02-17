@@ -54,6 +54,13 @@ Testing the development setup
 
 Minion comes with some basic plugins that are all executed from the `basic` plan. To get started with Minion, there are two methods to test development.
 
+If you want to run all the test or running ``functional/views/test_scan.py``, you must whitelist ``127.0.0.1``:
+
+```
+mkdir /home/<minion-user>/.minion
+echo '{"whitelist":["127.0.0.1"]}' > /home/<minion-user>/.minion/scan.json
+```
+
 #### Method 1: ``minion-db-init``
 
 This script will load fixtures into the database in addition to prompting for user email address and user's name, and an option
