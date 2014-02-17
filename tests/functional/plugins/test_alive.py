@@ -2,28 +2,15 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-from flask import make_response, request
-
-from base import TestPluginBaseClass, test_app
+from base import TestPluginBaseClass
 from minion.plugins.basic import AlivePlugin
-
-@test_app.route('/test')
-def endpoint():
-    timeout = request.args.get("timeout")
-    res = make_response("")
-
-    if timeout:
-        time.sleep(5)
-        return res
-    else:
-        return res
 
 class TestAlivePlugin(TestPluginBaseClass):
     __test__ = True
 
     @classmethod
     def setUpClass(cls):
-        super(TestAlivePlugin, cls).setUpClass()
+        super(TestAlivePlugin, cls).setUpClass("alive.py")
         cls.pname = 'AlivePlugin'
         cls.plugin_class = AlivePlugin()
 

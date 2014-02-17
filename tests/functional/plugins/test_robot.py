@@ -1,28 +1,13 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
+import os
+import time
 
-from multiprocessing import Process
+from subprocess import Popen
 
-from flask import Flask, make_response, redirect, url_for
-
-from base import TestPluginBaseClass, test_app
+from base import TestPluginBaseClass
 from minion.plugins.basic import RobotsPlugin
-
-@test_app.route('/robots.txt')
-def robot():
-    return redirect(url_for('static', filename='robots.txt'))
-
-bad_robot_app= Flask(__name__)
-@bad_robot_app.route('/robots.txt')
-def bad_robots():
-    return redirect(url_for('static', filename='bad-robots.txt'))
-
-no_robot_app = Flask(__name__)
-@no_robot_app.route('/')
-def home():
-    res = make_response()
-    return res
 
 class TestRobotsPlugin(TestPluginBaseClass):
     __test__ = True
@@ -31,34 +16,29 @@ class TestRobotsPlugin(TestPluginBaseClass):
     def setUpClass(cls):
         """ We have to launch three ports in order to test this plugin. """
 
-        _apps = {
-                    "good_robot_app": test_app,
-                    "bad_robot_app": bad_robot_app,
-                    "no_robot_app": no_robot_app
-                }
+        def run_app(app_file):
+            file_path = os.path.join(os.path.dirname(__file__),
+                "servers/" + app_file)
+            p = Popen(["python", file_path])
+            time.sleep(1)
+            return p
 
-        def run_app(port, name):
-            _app = _apps[name]
-            _app.run(host='localhost', port=port)
-
-        cls.server1 = Process(target=run_app, args=(1234, 'good_robot_app',))
-        cls.server2 = Process(target=run_app, args=(1235, 'bad_robot_app',))
-        cls.server3 = Process(target=run_app, args=(1236, 'no_robot_app',))
-        cls.server1.daemon = True
-        cls.server2.daemon = True
-        cls.server3.daemon = True
-        cls.server1.start()
-        cls.server2.start()
-        cls.server3.start()
+        cls.server1 = run_app("good_robots.py")
+        cls.server2 = run_app("bad_robots.py")
+        cls.server3 = run_app("no_robots.py")
 
         cls.pname = "RobotsPlugin"
         cls.plugin_class = RobotsPlugin()
 
     @classmethod
     def tearDownClass(cls):
+        cls.server1.kill()
         cls.server1.terminate()
+        cls.server2.kill()
         cls.server2.terminate()
+        cls.server3.kill()
         cls.server3.terminate()
+        time.sleep(1)
 
     def test_valid_robots_file(self):
         # first, assert that the plugin can assert the file from direct link

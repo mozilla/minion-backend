@@ -2,25 +2,15 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-from flask import make_response, request
-
-from base import TestPluginBaseClass, test_app
+from base import TestPluginBaseClass
 from minion.plugins.basic import XXSSProtectionPlugin
-
-@test_app.route('/test')
-def endpoint():
-    value = request.args.get("xxss-value")
-    res = make_response("")
-    if value:
-        res.headers['X-XSS-Protection'] = value
-    return res
 
 class TestXXSSProtectionPlugin(TestPluginBaseClass):
     __test__ = True
 
     @classmethod
     def setUpClass(cls):
-        super(TestXXSSProtectionPlugin, cls).setUpClass()
+        super(TestXXSSProtectionPlugin, cls).setUpClass("xxss_protection.py")
         cls.pname = 'XXSSProtectionPlugin'
         cls.plugin_class = XXSSProtectionPlugin()
 

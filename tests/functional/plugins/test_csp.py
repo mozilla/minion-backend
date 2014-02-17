@@ -2,35 +2,15 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-from flask import make_response, request
-
-from base import TestPluginBaseClass, test_app
+from base import TestPluginBaseClass
 from minion.plugins.basic import CSPPlugin
 
-@test_app.route('/test')
-def endpoint():
-    headers = request.args.getlist("headers")
-    policy = request.args.get("policy", "default-src 'self';")
-    res = make_response("")
-
-    for h in headers:
-        _h = h.lower()
-        if _h == 'xcsp':
-            res.headers.add('X-Content-Security-Policy', policy)
-        elif _h == 'csp':
-            res.headers.add('Content-Security-Policy', policy)
-        elif _h == 'csp-ro':
-            res.headers.add('Content-Security-Policy-Report-Only', policy)
-        elif _h == "xcsp-ro":
-            res.headers['X-Content-Security-Policy-Report-Only'] = policy
-    return res
-    
 class TestCSPPlugin(TestPluginBaseClass):
     __test__ = True
 
     @classmethod
     def setUpClass(cls):
-        super(TestCSPPlugin, cls).setUpClass()
+        super(TestCSPPlugin, cls).setUpClass("csp.py")
         cls.pname = 'CSPPlugin'
         cls.plugin_class = CSPPlugin()
 

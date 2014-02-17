@@ -2,29 +2,15 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-from flask import make_response, request
-
-from base import TestPluginBaseClass, test_app
+from base import TestPluginBaseClass
 from minion.plugins.basic import ServerDetailsPlugin
-
-@test_app.route('/test')
-def endpoint():
-    headers = request.args.getlist("headers")
-    values = request.args.getlist("values")
-
-    res = make_response("")
-    if headers and values:
-        _headers = dict(zip(headers, values))
-        for name, value in _headers.items():
-            res.headers[name] = value
-    return res
 
 class TestServerDetailsPlugin(TestPluginBaseClass):
     __test__ = True
 
     @classmethod
     def setUpClass(cls):
-        super(TestServerDetailsPlugin, cls).setUpClass()
+        super(TestServerDetailsPlugin, cls).setUpClass("server_details.py")
         cls.pname = "ServerDetailsPlugin"
         cls.plugin_class = ServerDetailsPlugin()
 
