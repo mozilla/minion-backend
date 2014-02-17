@@ -2,28 +2,17 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-from flask import make_response, request
-
-from base import TestPluginBaseClass, test_app
+from base import TestPluginBaseClass
 from minion.plugins.basic import HSTSPlugin
-
-@test_app.route('/test')
-def endpoint():
-    value = request.args.get("hsts-value")
-    res = make_response("")
-    if value:
-        res.headers['strict-transport-security'] = value
-    return res
 
 class TestHSTSPlugin(TestPluginBaseClass):
     __test__ = True
 
     @classmethod
     def setUpClass(cls):
-        super(TestHSTSPlugin, cls).setUpClass(tls=True)
+        super(TestHSTSPlugin, cls).setUpClass("hsts.py")
         cls.pname = "HSTSPlugin"
         cls.plugin_class = HSTSPlugin()
-
 
     #NOTE: We will comment this out until we agree that curly.get should add
     # an option to enable and disable SSL verification.

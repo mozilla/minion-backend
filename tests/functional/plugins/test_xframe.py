@@ -2,25 +2,15 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-from flask import make_response, request
-
-from base import TestPluginBaseClass, test_app
+from base import TestPluginBaseClass
 from minion.plugins.basic import XFrameOptionsPlugin
-
-@test_app.route('/test')
-def endpoint():
-    value = request.args.get("xframe-value")
-    res = make_response("")
-    if value:
-        res.headers['X-Frame-Options'] = value
-    return res
 
 class TestXFrameOptionsPlugin(TestPluginBaseClass):
     __test__ = True
 
     @classmethod
     def setUpClass(cls):
-        super(TestXFrameOptionsPlugin, cls).setUpClass()
+        super(TestXFrameOptionsPlugin, cls).setUpClass("xframe.py")
         cls.pname = "XFrameOptionsPlugin"
         cls.plugin_class = XFrameOptionsPlugin()
 

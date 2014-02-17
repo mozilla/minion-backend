@@ -15,37 +15,23 @@ from subprocess import Popen, PIPE
 from flask import Flask
 from OpenSSL import SSL
 
-test_app = Flask(__name__)
-
 class TestPluginBaseClass(unittest.TestCase):
     __test__ = False
     PORTS = (1234, 1235, 1443)
     Issue = namedtuple('Issue', 'code summary severity')
 
     @classmethod
-    def setUpClass(cls, tls=False):
-        """ Every test class inherits from this base class
-        must define cls.pname as the name of the plugin. """
-
-        def run_app(tls=False):
-            if tls:
-                context = SSL.Context(SSL.SSLv23_METHOD)
-                context.use_privatekey_file("https_data/minion-test.key")
-                context.use_certificate_file("https_data/minion-test.cert")
-                test_app.run(host='localhost', port=1234,
-                    ssl_context=context)
-            else:
-                test_app.run(host='localhost', port=1234)
-
-        # use multiprocess to launch server and kill server
-        cls.server = Process(target=run_app, kwargs={"tls": tls})
-        cls.server.daemon = True
-        cls.server.start()
+    def setUpClass(cls, app_file):
+        file_path = os.path.join(os.path.dirname(__file__),
+            "servers/" + app_file)
+        cls.server = Popen(["python", file_path])
+        time.sleep(1)
 
     @classmethod
     def tearDownClass(cls):
+        cls.server.kill()
         cls.server.terminate()
-        time.sleep(3)
+        time.sleep(1)
 
     def run_plugin(self, pname, api):
         pname = "minion.plugins.basic." + pname
