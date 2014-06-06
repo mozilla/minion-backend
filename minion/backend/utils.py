@@ -13,6 +13,7 @@ import os
 import socket
 import smtplib
 import urlparse
+import netaddr
 from email.mime.text import MIMEText
 
 DEFAULT_WHITELIST = []
@@ -76,8 +77,8 @@ def scan_config():
 def scannable(target, whitelist=[], blacklist=[]):
 
     """
-    Check the target url against a whitelist and blacklist. Returns
-    whether the target is allowed to be scanned. Can throw exceptions
+    Check the target url or CIDR network against a whitelist and blacklist.
+    Returns whether the target is allowed to be scanned. Can throw exceptions
     if the hostname lookup fails.
     """
 
@@ -86,6 +87,30 @@ def scannable(target, whitelist=[], blacklist=[]):
             network = ipaddress.IPv4Network(unicode(network))
             if ipaddress.IPv4Address(unicode(address)) in network:
                 return True
+
+    #
+    # If the target is a CIDR network then for each IP address,
+    # see if it matches the whitelist and blacklist. if it
+    # matches the whitelist then we are good and check the next address. If it
+    # matches the blacklist then we fail immediately.
+    #
+
+    try:
+        cidr = netaddr.IPNetwork(target)
+
+        for address in list(cidr):
+            if match(str(address), whitelist):
+                continue
+            if match(str(address), blacklist):
+                return False
+
+        return True
+    except:
+        pass
+
+    #
+    # Else it's an url
+    #
 
     url = urlparse.urlparse(target)
 
