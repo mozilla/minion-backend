@@ -461,7 +461,7 @@ def run_plugin(scan_id, session_id):
                     finished = msg['data']['state']
                     if msg['data']['state'] in ('FINISHED', 'FAILED', 'STOPPED', 'TERMINATED', 'TIMEOUT', 'ABORTED'):
                         send_task("minion.backend.tasks.session_finish",
-                                  [scan['id'], session['id'], msg['data']['state'], time.time()],
+                                  [scan['id'], session['id'], msg['data']['state'], time.time(), msg['data']['failure']],
                                   queue='state').get()
 
             except Queue.Empty:
@@ -653,9 +653,17 @@ def scan(scan_id):
         #
 
         scan['state'] = 'FINISHED'
+
+        #
+        # If one of the plugin has failed then marked the scan as failed
+        #
+        for session in scan['sessions']:
+            if session['state'] == 'FAILED':
+                scan['state'] = 'FAILED'
+
         #scans.update({"id": scan_id}, {"$set": {"state": "FINISHED", "finished": datetime.datetime.utcnow()}})
         send_task("minion.backend.tasks.scan_finish",
-                  [scan_id, "FINISHED", time.time()],
+                  [scan_id, scan['state'], time.time()],
                   queue='state').get()
 
     except Exception as e:

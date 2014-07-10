@@ -13,6 +13,8 @@ import importlib
 import optparse
 import signal
 import uuid
+import traceback
+import socket
 
 import zope.interface
 from twisted.internet import reactor
@@ -45,8 +47,8 @@ class JSONCallbacks:
     def report_artifacts(self, name, paths):
         pass
 
-    def report_finish(self, state = "FINISHED"):
-        self._write({"msg": "finish", "data": {"state": state}})
+    def report_finish(self, state = "FINISHED", failure=""):
+        self._write({"msg": "finish", "data": {"state": state, "failure": failure}})
 
 
 class PluginRunner:
@@ -83,7 +85,12 @@ class PluginRunner:
             self.plugin.do_configure()
         except Exception as e:
             logging.exception("Failed to configure plugin %s" % str(self.plugin))
-            self.callbacks.report_finish(state = AbstractPlugin.EXIT_STATE_FAILED)
+            failure = {
+                "message": "Failed to configure plugin",
+                "exception": traceback.format_exc(),
+                "hostname": socket.gethostname()
+            }
+            self.callbacks.report_finish(state = AbstractPlugin.EXIT_STATE_FAILED, failure = failure)
             return False
 
         try:
@@ -91,7 +98,12 @@ class PluginRunner:
             self.plugin.do_start()
         except Exception as e:
             logging.exception("Failed to start plugin %s" % str(self.plugin))
-            self.callbacks.report_finish(state = AbstractPlugin.EXIT_STATE_FAILED)
+            failure = {
+                "message": "Failed to start plugin",
+                "exception": traceback.format_exc(),
+                "hostname": socket.gethostname()
+            }
+            self.callbacks.report_finish(state = AbstractPlugin.EXIT_STATE_FAILED, failure = failure)
             return False
 
         return True
