@@ -7,7 +7,8 @@ import uuid
 from flask import jsonify, request
 
 from minion.backend.app import app
-from minion.backend.views.base import _check_required_fields, api_guard, groups, sites
+import minion.backend.tasks as tasks
+from minion.backend.views.base import _check_required_fields, api_guard, groups, sites, schedules
 from minion.backend.views.groups import _check_group_exists
 from minion.backend.views.plans import _check_plan_exists
 
@@ -225,3 +226,40 @@ def get_sites():
     for site in sitez:
         site['groups'] = _find_groups_for_site(site['url'])
     return jsonify(success=True, sites=sitez)
+
+
+@app.route('/scanschedule', methods=["POST"])
+def scanschedule():
+  site = request.json
+  target = site.get('target')
+  scan_id = site.get('scan_id')
+  schedule = site.get('schedule')
+
+  minute = schedule.get('minute')
+
+  plan = site.get('plan')
+
+  data = {
+    'task': "minion.backend.tasks.run_scheduled_scan",
+    'args': [target, plan],
+    'site': target,
+    'queue':'scanschedule',
+    'routing_key':'scanschedule',
+    'exchange':'',
+    'plan': plan,
+    'name': target + ":" + plan,
+    'enabled':True,
+    'crontab': {
+      'minute':str(schedule.get('minute')),
+      'hour':str(schedule.get('hour')),
+      'day_of_week':str(schedule.get('dayOfWeek')),
+      'day_of_month':str(schedule.get('dayOfMonth')),
+      'month_of_year':str(schedule.get('dayOfYear'))
+     }
+  }
+
+  schedules.insert(data)
+
+  message="Site is " + target +  "/ ---->" + scan_id + "/" + plan + '/' + str(minute)
+  #message="Site is " + str(target) +  "/" + str(scan_id) + "/" + str(plan)
+  return message

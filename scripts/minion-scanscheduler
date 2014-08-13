@@ -1,0 +1,1 @@
+celery beat -S celerybeatmongo.schedulers.MongoScheduler --loglevel debug
