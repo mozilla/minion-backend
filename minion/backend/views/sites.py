@@ -258,7 +258,14 @@ def scanschedule():
      }
   }
 
-  schedules.insert(data)
+  # Find existing schedule by target and plan
+  # If not found insert, else update
+  schedule = schedules.find_one({"site":target, "plan":plan})
+  if not schedule:
+    schedules.insert(data)
+  else:
+    schedules.update({"site":target, "plan":plan},
+                     {"$set": {"crontab": data['crontab']}});
 
   message="Site is " + target +  "/ ---->" + scan_id + "/" + plan + '/' + str(minute)
   #message="Site is " + str(target) +  "/" + str(scan_id) + "/" + str(plan)
