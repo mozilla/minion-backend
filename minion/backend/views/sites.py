@@ -254,7 +254,7 @@ def scanschedule():
       'hour':str(schedule.get('hour')),
       'day_of_week':str(schedule.get('dayOfWeek')),
       'day_of_month':str(schedule.get('dayOfMonth')),
-      'month_of_year':str(schedule.get('dayOfYear'))
+      'month_of_year':str(schedule.get('monthOfYear'))
      }
   }
 
