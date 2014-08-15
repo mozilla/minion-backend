@@ -231,42 +231,47 @@ def get_sites():
 @app.route('/scanschedule', methods=["POST"])
 def scanschedule():
   site = request.json
-  target = site.get('target')
   scan_id = site.get('scan_id')
   schedule = site.get('schedule')
 
-  minute = schedule.get('minute')
-
   plan = site.get('plan')
+  target = site.get('target')
 
-  data = {
-    'task': "minion.backend.tasks.run_scheduled_scan",
-    'args': [target, plan],
-    'site': target,
-    'queue':'scanschedule',
-    'routing_key':'scanschedule',
-    'exchange':'',
-    'plan': plan,
-    'name': target + ":" + plan,
-    'enabled':True,
-    'crontab': {
-      'minute':str(schedule.get('minute')),
-      'hour':str(schedule.get('hour')),
-      'day_of_week':str(schedule.get('dayOfWeek')),
-      'day_of_month':str(schedule.get('dayOfMonth')),
-      'month_of_year':str(schedule.get('monthOfYear'))
-     }
-  }
+  removeSite = schedule.get('remove')
 
-  # Find existing schedule by target and plan
-  # If not found insert, else update
-  schedule = schedules.find_one({"site":target, "plan":plan})
-  if not schedule:
-    schedules.insert(data)
+  if removeSite is not None:
+    schedules.remove({'site':target, 'plan':plan})
+    message = "Schedule scan for " + target + " removed"
+
   else:
-    schedules.update({"site":target, "plan":plan},
-                     {"$set": {"crontab": data['crontab']}});
+    data = {
+      'task': "minion.backend.tasks.run_scheduled_scan",
+      'args': [target, plan],
+      'site': target,
+      'queue':'scanschedule',
+      'routing_key':'scanschedule',
+      'exchange':'', #Exchange is not required. Fails sometimes if exchange is provided. #TODO Figure out why
+      'plan': plan,
+      'name': target + ":" + plan,
+      'enabled':True,
+      'crontab': {
+        'minute':str(schedule.get('minute')),
+        'hour':str(schedule.get('hour')),
+        'day_of_week':str(schedule.get('dayOfWeek')),
+        'day_of_month':str(schedule.get('dayOfMonth')),
+        'month_of_year':str(schedule.get('monthOfYear'))
+       }
+    }
 
-  message="Site is " + target +  "/ ---->" + scan_id + "/" + plan + '/' + str(minute)
-  #message="Site is " + str(target) +  "/" + str(scan_id) + "/" + str(plan)
-  return message
+    # Find existing schedule by target and plan
+    # If not found insert, else update
+    schedule = schedules.find_one({"site":target, "plan":plan})
+    if not schedule:
+      schedules.insert(data)
+    else:
+      schedules.update({"site":target, "plan":plan},
+                       {"$set": {"crontab": data['crontab']}});
+
+    message="Scheduled scan successfully set for site: " + target + " RemoveSite: " + str(removeSite)
+
+  return jsonify(message=message,success=True)
