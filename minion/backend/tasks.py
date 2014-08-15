@@ -420,7 +420,6 @@ def run_plugin(scan_id, session_id):
         #
         # Move the session in the STARTED state
         #
-
         send_task("minion.backend.tasks.session_start",
                   [scan_id, session_id, time.time()],
                   queue='state').get()
