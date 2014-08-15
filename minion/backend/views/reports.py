@@ -58,7 +58,8 @@ def get_reports_history():
 #             'day_of_week'   : '*',
 #             'day_of_month'  : '*',
 #             'month_of_year' : '*'
-#           }
+#           },
+#           'scheduleEnabled': True
 #       }],
 #    'success': True }
 
@@ -83,16 +84,18 @@ def get_reports_sites():
                 for plan_name in site['plans']:
                     schedule = schedules.find_one({'site':site_url, 'plan':plan_name})
                     crontab = None
+                    scheduleEnabled = False
                     if schedule is not None:
                         crontab = schedule['crontab']
+                        scheduleEnabled = schedule['enabled']
 
                     l = list(scans.find({'configuration.target':site['url'], 'plan.name': plan_name}).sort("created", -1).limit(1))
                     if len(l) == 1:
                         scan = summarize_scan(sanitize_scan(l[0]))
                         s = {v: scan.get(v) for v in ('id', 'created', 'state', 'issues')}
-                        result.append({'target': site_url, 'plan': plan_name, 'scan': scan, 'crontab':crontab})
+                        result.append({'target': site_url, 'plan': plan_name, 'scan': scan, 'crontab': crontab, 'scheduleEnabled': scheduleEnabled})
                     else:
-                        result.append({'target': site_url, 'plan': plan_name, 'scan': None, 'crontab':crontab})
+                        result.append({'target': site_url, 'plan': plan_name, 'scan': None, 'crontab': crontab, 'scheduleEnabled': scheduleEnabled})
     return jsonify(success=True, report=result)
 
 #

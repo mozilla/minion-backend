@@ -230,20 +230,37 @@ def get_sites():
 
 @app.route('/scanschedule', methods=["POST"])
 def scanschedule():
-  site = request.json
-  scan_id = site.get('scan_id')
-  schedule = site.get('schedule')
+    site = request.json
+    scan_id = site.get('scan_id')
+    schedule = site.get('schedule')
 
-  plan = site.get('plan')
-  target = site.get('target')
+    plan = site.get('plan')
+    target = site.get('target')
 
-  removeSite = schedule.get('remove')
+    removeSite = schedule.get('remove')
+    enabled = True
+    crontab = {}
+    message = "Scan Schedule not set"
 
-  if removeSite is not None:
-    schedules.remove({'site':target, 'plan':plan})
-    message = "Schedule scan for " + target + " removed"
+    if removeSite is not None:
+        # Removing scan from scanschedule results in incomplete removal because of celerybeat-mongo running in background
+        # Hence  we just set "enabled" to false
+        enabled = False
+        message = "Removed Schedule for: " + target
 
-  else:
+    else:
+        enabled = True
+        message="Scheduled Scan successfully set for site: " + target
+
+    # TODO: Provide failsafe values
+    crontab = {
+      'minute':str(schedule.get('minute')),
+      'hour':str(schedule.get('hour')),
+      'day_of_week':str(schedule.get('dayOfWeek')),
+      'day_of_month':str(schedule.get('dayOfMonth')),
+      'month_of_year':str(schedule.get('monthOfYear'))
+    }
+
     data = {
       'task': "minion.backend.tasks.run_scheduled_scan",
       'args': [target, plan],
@@ -253,14 +270,8 @@ def scanschedule():
       'exchange':'', #Exchange is not required. Fails sometimes if exchange is provided. #TODO Figure out why
       'plan': plan,
       'name': target + ":" + plan,
-      'enabled':True,
-      'crontab': {
-        'minute':str(schedule.get('minute')),
-        'hour':str(schedule.get('hour')),
-        'day_of_week':str(schedule.get('dayOfWeek')),
-        'day_of_month':str(schedule.get('dayOfMonth')),
-        'month_of_year':str(schedule.get('monthOfYear'))
-       }
+      'enabled': enabled,
+      'crontab': crontab
     }
 
     # Find existing schedule by target and plan
@@ -270,8 +281,7 @@ def scanschedule():
       schedules.insert(data)
     else:
       schedules.update({"site":target, "plan":plan},
-                       {"$set": {"crontab": data['crontab']}});
+                       {"$set": {"crontab": crontab, "enabled":enabled}});
 
-    message="Scheduled scan successfully set for site: " + target + " RemoveSite: " + str(removeSite)
 
-  return jsonify(message=message,success=True)
+    return jsonify(message=message,success=True)
