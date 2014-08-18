@@ -64,7 +64,7 @@ def run_scheduled_scan(target, plan):
     data = {
         'plan': plan,
         'configuration': {'target': target},
-        'user': 'pwaradpande@mozilla.com'
+        'user': scan_config().get('cronuser')
       } 
 
     r = requests.post(cfg['api']['url'] + "/scans", 
@@ -79,7 +79,7 @@ def run_scheduled_scan(target, plan):
     q = requests.put(cfg['api']['url'] + "/scans/" + scan_id + "/control",
         headers={'Content-Type':'text/plain'},
         data="START",
-        params={"email":"pwaradpande@mozilla.com"});
+        params={"email":scan_config().get('cronuser')});
 
     q.raise_for_status()
     logger.debug("Scheduled scan STARTED - Target:" + target + " Plan:" + plan + "  result: " + str(q.status_code))

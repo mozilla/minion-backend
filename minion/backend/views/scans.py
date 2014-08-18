@@ -12,10 +12,18 @@ from minion.backend.app import app
 from minion.backend.views.base import api_guard, groups, plans, plugins, scans, sanitize_session, users, sites
 from minion.backend.views.plans import sanitize_plan
 
+
+cronuser = backend_utils.scan_config().get('cronuser')
+
 def permission(view):
     @functools.wraps(view)
     def has_permission(*args, **kwargs):
         email = request.args.get('email')
+
+        # If the task is scheduled by crontab, proceed with the task
+        if email == cronuser:
+            return view(*args, **kwargs)
+
         if email:
             user = users.find_one({'email': email})
             if not user:
