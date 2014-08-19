@@ -30,7 +30,6 @@ DEFAULT_CRON_USER = 'cron'
 DEFAULT_SCAN_CONFIG = {
     'whitelist': DEFAULT_WHITELIST,
     'blacklist': DEFAULT_BLACKLIST,
-    'cronuser': DEFAULT_CRON_USER
 }
 
 DEFAULT_BACKEND_CONFIG = {
