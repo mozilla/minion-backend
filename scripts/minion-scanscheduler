@@ -1,1 +1,3 @@
-celery beat -S celerybeatmongo.schedulers.MongoScheduler --loglevel debug
+#!/bin/bash
+
+exec celery beat -S celerybeatmongo.schedulers.MongoScheduler --config=minion.backend.celeryconfig  --loglevel=debug
