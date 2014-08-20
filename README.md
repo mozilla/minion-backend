@@ -51,6 +51,7 @@ scripts/minion-plugin-worker
 
 ```
 scripts/minion-scanschedule-worker
+```
 
 ```
 scripts/minion-scanscheduler
