@@ -5,10 +5,11 @@ import datetime
 import re
 import uuid
 from flask import jsonify, request
+from celery.schedules import crontab_parser, ParseException
 
 from minion.backend.app import app
 import minion.backend.tasks as tasks
-from minion.backend.views.base import _check_required_fields, api_guard, groups, sites, schedules
+from minion.backend.views.base import _check_required_fields, api_guard, groups, sites, scanschedules
 from minion.backend.views.groups import _check_group_exists
 from minion.backend.views.plans import _check_plan_exists
 
@@ -32,6 +33,43 @@ def sanitize_site(site):
     if 'created' in site:
         site['created'] = calendar.timegm(site['created'].utctimetuple())
     return site
+
+
+def check_cron(crontab):
+    cron_errors = []
+
+    # Validate Minute
+    try:
+        crontab_parser(60).parse(crontab['minute'])
+    except (ValueError, ParseException):
+        cron_errors.append("Error in Value: Minute")
+
+    # Validate Hour
+    try:
+        crontab_parser(24).parse(crontab['hour'])
+    except (ValueError, ParseException):
+        cron_errors.append("Error in Value: Hour")
+
+    # Validate Day of Week
+    try:
+        crontab_parser(7).parse(crontab['day_of_week'])
+    except (ValueError, ParseException):
+        cron_errors.append("Error in Value: Day of Week")
+
+    # Validate Day of Month
+    try:
+        crontab_parser(31,1).parse(crontab['day_of_month'])
+    except (ValueError, ParseException):
+        cron_errors.append("Error in Value: Day of Month")
+
+    # Validate Month of Year
+    try:
+        crontab_parser(12,1).parse(crontab['month_of_year'])
+    except (ValueError, ParseException):
+        cron_errors.append("Error in Value: Month of Year")
+
+    return cron_errors
+
 
 # API Methods to manage sites
 
@@ -252,7 +290,6 @@ def scanschedule():
         enabled = True
         message="Scheduled Scan successfully set for site: " + target
 
-    # TODO: Provide failsafe values
     crontab = {
       'minute':str(schedule.get('minute')),
       'hour':str(schedule.get('hour')),
@@ -260,6 +297,12 @@ def scanschedule():
       'day_of_month':str(schedule.get('dayOfMonth')),
       'month_of_year':str(schedule.get('monthOfYear'))
     }
+
+    # Validate Crontab schedule values
+    crontab_errors = check_cron(crontab)
+    if crontab_errors:
+        message = "Error in crontab values"
+        return jsonify(message=message,success=False,errors=crontab_errors)
 
     data = {
       'task': "minion.backend.tasks.run_scheduled_scan",
@@ -274,9 +317,8 @@ def scanschedule():
       'crontab': crontab
     }
 
-    # Find existing schedule by target and plan
-    # If not found insert, else update
-    schedule = schedules.find_one({"site":target, "plan":plan})
+    # Insert/Update existing schedule by target and plan
+    schedule = scanschedules.find_one({"site":target, "plan":plan})
     if not schedule:
       schedules.insert(data)
     else:
