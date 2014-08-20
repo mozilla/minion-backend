@@ -320,9 +320,9 @@ def scanschedule():
     # Insert/Update existing schedule by target and plan
     schedule = scanschedules.find_one({"site":target, "plan":plan})
     if not schedule:
-      schedules.insert(data)
+      scanschedules.insert(data)
     else:
-      schedules.update({"site":target, "plan":plan},
+      scanschedules.update({"site":target, "plan":plan},
                        {"$set": {"crontab": crontab, "enabled":enabled}});
 
 
