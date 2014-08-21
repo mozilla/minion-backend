@@ -10,7 +10,7 @@ from flask import jsonify, request
 import minion.backend.utils as backend_utils
 import minion.backend.tasks as tasks
 from minion.backend.app import app
-from minion.backend.views.base import api_guard, scans, sites, users
+from minion.backend.views.base import api_guard, scans, sites, users, scanschedules
 from minion.backend.views.users import _find_sites_for_user, _find_sites_for_user_by_group_name
 from minion.backend.views.scans import sanitize_scan, summarize_scan
 
@@ -41,7 +41,8 @@ def get_reports_history():
 
 #
 # Returns a status report that lists each site and attached plans
-# together with the results from the last scan done.
+# together with the results from the last scan done. It also returns
+# the crontab schedule if the scan has been scheduled.
 #
 # If the user is specified then the report will only include data
 # that the user can see.
@@ -51,6 +52,14 @@ def get_reports_history():
 #       [{ 'plan': 'basic',
 #          'scan': [...],
 #          'target': 'http://www.mozilla.com',
+#          'crontab': {
+#             'minute'        : '*',
+#             'hour'          : '*', 
+#             'day_of_week'   : '*',
+#             'day_of_month'  : '*',
+#             'month_of_year' : '*'
+#           },
+#           'scheduleEnabled': True
 #       }],
 #    'success': True }
 
@@ -73,13 +82,20 @@ def get_reports_sites():
             site = sites.find_one({'url': site_url})
             if site is not None:
                 for plan_name in site['plans']:
+                    schedule = scanschedules.find_one({'site':site_url, 'plan':plan_name})
+                    crontab = None
+                    scheduleEnabled = False
+                    if schedule is not None:
+                        crontab = schedule['crontab']
+                        scheduleEnabled = schedule['enabled']
+
                     l = list(scans.find({'configuration.target':site['url'], 'plan.name': plan_name}).sort("created", -1).limit(1))
                     if len(l) == 1:
                         scan = summarize_scan(sanitize_scan(l[0]))
                         s = {v: scan.get(v) for v in ('id', 'created', 'state', 'issues')}
-                        result.append({'target': site_url, 'plan': plan_name, 'scan': scan})
+                        result.append({'target': site_url, 'plan': plan_name, 'scan': scan, 'crontab': crontab, 'scheduleEnabled': scheduleEnabled})
                     else:
-                        result.append({'target': site_url, 'plan': plan_name, 'scan': None})
+                        result.append({'target': site_url, 'plan': plan_name, 'scan': None, 'crontab': crontab, 'scheduleEnabled': scheduleEnabled})
     return jsonify(success=True, report=result)
 
 #

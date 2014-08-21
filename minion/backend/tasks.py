@@ -57,6 +57,37 @@ def scan_start(scan_id, t):
                  {"$set": {"state": "STARTED",
                            "started": datetime.datetime.utcfromtimestamp(t)}})
 
+
+@celery.task
+def run_scheduled_scan(target, plan):
+    #1: First create a scan
+    data = {
+        'plan': plan,
+        'configuration': {'target': target},
+        'user': 'cron'
+      } 
+
+    r = requests.post(cfg['api']['url'] + "/scans", 
+        headers={'Content-Type':'application/json'},
+        data=json.dumps(data));
+    r.raise_for_status()
+    scan_id = r.json()['scan']['id']
+    
+    logger.debug("Scheduled scan created - Target:" + target + " Plan:" + plan + " Request result: " + str(r.status_code))
+    
+    #2: Start the scan
+    q = requests.put(cfg['api']['url'] + "/scans/" + scan_id + "/control",
+        headers={'Content-Type':'text/plain'},
+        data="START",
+        params={"email":'cron'});
+
+    q.raise_for_status()
+    logger.debug("Scheduled scan STARTED - Target:" + target + " Plan:" + plan + "  result: " + str(q.status_code))
+    
+    return "Scan scheduled: " + scan_id + " r:" + str(r.status_code) + " q:"+ str(q.status_code)
+
+
+
 @celery.task
 def scan_finish(scan_id, state, t, failure=None):
 
@@ -195,9 +226,6 @@ def session_finish(scan_id, session_id, state, t, failure=None):
         scans.update({"id": scan_id, "sessions.id": session_id},
                      {"$set": {"sessions.$.state": state,
                                "sessions.$.finished": datetime.datetime.utcfromtimestamp(t)}})
-
-
-
 
 
 
@@ -392,7 +420,6 @@ def run_plugin(scan_id, session_id):
         #
         # Move the session in the STARTED state
         #
-
         send_task("minion.backend.tasks.session_start",
                   [scan_id, session_id, time.time()],
                   queue='state').get()

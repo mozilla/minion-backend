@@ -12,10 +12,17 @@ from minion.backend.app import app
 from minion.backend.views.base import api_guard, groups, plans, plugins, scans, sanitize_session, users, sites
 from minion.backend.views.plans import sanitize_plan
 
+
+
 def permission(view):
     @functools.wraps(view)
     def has_permission(*args, **kwargs):
         email = request.args.get('email')
+
+        # If the task is scheduled by crontab, proceed with the task
+        if email == 'cron':
+            return view(*args, **kwargs)
+
         if email:
             user = users.find_one({'email': email})
             if not user:
@@ -187,3 +194,4 @@ def put_scan_control(scan_id):
         scans.update({"id": scan_id}, {"$set": {"state": "STOPPING", "queued": datetime.datetime.utcnow()}})
         tasks.scan_stop.apply_async([scan['id']], queue='state')
     return jsonify(success=True)
+

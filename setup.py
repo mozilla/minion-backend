@@ -13,6 +13,7 @@ install_requires = [
     'pycurl==7.19.0',
     'gunicorn==0.17.4',
     'ipaddress==1.0.4',
+    'celerybeat-mongo==0.0.5'
 ]
 
 plugins_requires = [
@@ -44,4 +45,6 @@ setup(name="minion-backend",
                'scripts/minion-scan',
                'scripts/minion-state-worker',
                'scripts/minion-scan-worker',
-               'scripts/minion-plugin-runner'])
+               'scripts/minion-plugin-runner',
+               'scripts/minion-scanschedule-worker',
+               'scripts/minion-scanscheduler'])

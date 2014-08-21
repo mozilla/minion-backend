@@ -49,6 +49,14 @@ scripts/minion-scan-worker
 scripts/minion-plugin-worker
 ```
 
+```
+scripts/minion-scanschedule-worker
+```
+
+```
+scripts/minion-scanscheduler
+```
+
 Testing the development setup
 -----------------------------
 

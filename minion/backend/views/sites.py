@@ -5,9 +5,11 @@ import datetime
 import re
 import uuid
 from flask import jsonify, request
+from celery.schedules import crontab_parser, ParseException
 
 from minion.backend.app import app
-from minion.backend.views.base import _check_required_fields, api_guard, groups, sites
+import minion.backend.tasks as tasks
+from minion.backend.views.base import _check_required_fields, api_guard, groups, sites, scanschedules
 from minion.backend.views.groups import _check_group_exists
 from minion.backend.views.plans import _check_plan_exists
 
@@ -31,6 +33,43 @@ def sanitize_site(site):
     if 'created' in site:
         site['created'] = calendar.timegm(site['created'].utctimetuple())
     return site
+
+
+def check_cron(crontab):
+    cron_errors = []
+
+    # Validate Minute
+    try:
+        crontab_parser(60).parse(crontab['minute'])
+    except (ValueError, ParseException):
+        cron_errors.append("Error in Value: Minute")
+
+    # Validate Hour
+    try:
+        crontab_parser(24).parse(crontab['hour'])
+    except (ValueError, ParseException):
+        cron_errors.append("Error in Value: Hour")
+
+    # Validate Day of Week
+    try:
+        crontab_parser(7).parse(crontab['day_of_week'])
+    except (ValueError, ParseException):
+        cron_errors.append("Error in Value: Day of Week")
+
+    # Validate Day of Month
+    try:
+        crontab_parser(31,1).parse(crontab['day_of_month'])
+    except (ValueError, ParseException):
+        cron_errors.append("Error in Value: Day of Month")
+
+    # Validate Month of Year
+    try:
+        crontab_parser(12,1).parse(crontab['month_of_year'])
+    except (ValueError, ParseException):
+        cron_errors.append("Error in Value: Month of Year")
+
+    return cron_errors
+
 
 # API Methods to manage sites
 
@@ -225,3 +264,66 @@ def get_sites():
     for site in sitez:
         site['groups'] = _find_groups_for_site(site['url'])
     return jsonify(success=True, sites=sitez)
+
+
+@app.route('/scanschedule', methods=["POST"])
+def scanschedule():
+    site = request.json
+    scan_id = site.get('scan_id')
+    schedule = site.get('schedule')
+
+    plan = site.get('plan')
+    target = site.get('target')
+
+    removeSite = schedule.get('remove')
+    enabled = True
+    crontab = {}
+    message = "Scan Schedule not set"
+
+    if removeSite is not None:
+        # Removing scan from scanschedule results in incomplete removal because of celerybeat-mongo running in background
+        # Hence  we just set "enabled" to false
+        enabled = False
+        message = "Removed Schedule for: " + target
+
+    else:
+        enabled = True
+        message="Scheduled Scan successfully set for site: " + target
+
+    crontab = {
+      'minute':str(schedule.get('minute')),
+      'hour':str(schedule.get('hour')),
+      'day_of_week':str(schedule.get('dayOfWeek')),
+      'day_of_month':str(schedule.get('dayOfMonth')),
+      'month_of_year':str(schedule.get('monthOfYear'))
+    }
+
+    # Validate Crontab schedule values
+    crontab_errors = check_cron(crontab)
+    if crontab_errors:
+        message = "Error in crontab values"
+        return jsonify(message=message,success=False,errors=crontab_errors)
+
+    data = {
+      'task': "minion.backend.tasks.run_scheduled_scan",
+      'args': [target, plan],
+      'site': target,
+      'queue':'scanschedule',
+      'routing_key':'scanschedule',
+      'exchange':'', #Exchange is not required. Fails sometimes if exchange is provided. #TODO Figure out why
+      'plan': plan,
+      'name': target + ":" + plan,
+      'enabled': enabled,
+      'crontab': crontab
+    }
+
+    # Insert/Update existing schedule by target and plan
+    schedule = scanschedules.find_one({"site":target, "plan":plan})
+    if not schedule:
+      scanschedules.insert(data)
+    else:
+      scanschedules.update({"site":target, "plan":plan},
+                       {"$set": {"crontab": crontab, "enabled":enabled}});
+
+
+    return jsonify(message=message,success=True)
