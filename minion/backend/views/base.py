@@ -26,6 +26,7 @@ scans = mongo_client.minion.scans
 sites = mongo_client.minion.sites
 users = mongo_client.minion.users
 scanschedules = mongo_client.minion.scanschedule
+siteCredentials = mongo_client.minion.siteCredentials
 
 def api_guard(*decor_args):
     """ Decorate a view function to be protected by requiring
