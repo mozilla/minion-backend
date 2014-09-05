@@ -9,7 +9,7 @@ from celery.schedules import crontab_parser, ParseException
 
 from minion.backend.app import app
 import minion.backend.tasks as tasks
-from minion.backend.views.base import _check_required_fields, api_guard, groups, sites, scanschedules
+from minion.backend.views.base import _check_required_fields, api_guard, groups, sites, scanschedules, siteCredentials
 from minion.backend.views.groups import _check_group_exists
 from minion.backend.views.plans import _check_plan_exists
 
@@ -263,7 +263,84 @@ def get_sites():
     sitez = [sanitize_site(site) for site in sites.find(query)]
     for site in sitez:
         site['groups'] = _find_groups_for_site(site['url'])
+
     return jsonify(success=True, sites=sitez)
+
+
+# Returns credential Info exept for password from siteCredentials collection
+@app.route('/credInfo', methods=['GET'])
+@api_guard
+def get_credInfo():
+    credInfo = {}
+    for site in siteCredentials.find():
+
+        authData = site['authData']
+        data = {
+            'site':site['site'],
+            'plan':site['plan'],
+            'authData': site['authData']
+        }
+
+        #remove password from the response
+        data['authData']['password'] = ""
+        if not site['site'] in credInfo:
+            credInfo[site['site']] = {}
+
+        credInfo[site['site']][site['plan']] = data
+
+
+    return jsonify(success=True, credInfo=credInfo)
+
+
+# Sets siteCredentials
+@app.route('/setCredentials', methods=["POST"])
+def setCredentials():
+    cred_data = request.json
+    site = cred_data.get('site')
+    plan = cred_data.get('plan')
+    authData = cred_data.get('authData')
+
+    data = {
+        'site':site,
+        'plan':plan,
+        'authData':authData
+    }
+
+    if authData.get('remove'):
+        siteCredentials.remove({'site':site, 'plan':plan})
+        return jsonify(message="Removed Site Credentials", success=True)
+
+
+    # Insert/Update credentials
+    siteCreds = siteCredentials.find_one({"site":site, "plan":plan})
+    if not siteCreds:
+      siteCredentials.insert(data)
+    else:
+      #Update everything else except password unless requested
+      updatedAuthData = {
+        'authData.method':authData.get('method'),
+        'authData.url': authData.get('url'),
+        'authData.email': authData.get('email'),
+        'authData.before_login_element_xpath': authData.get('before_login_element_xpath'),
+        'authData.login_button_xpath': authData.get('login_button_xpath'),
+        'authData.login_script': authData.get('login_script'),
+        'authData.after_login_element_xpath': authData.get('after_login_element_xpath'),
+        'authData.username': authData.get('username'),
+        'authData.username_field_xpath' : authData.get('username_field_xpath'),
+        'authData.password_field_xpath' : authData.get('password_field_xpath'),
+        'authData.expected_cookies' : authData.get('expected_cookies')
+      }
+
+      # If password is non-blank, update it
+      password = authData.get('password')
+      if password:
+        updatedAuthData['authData.password'] = password
+
+
+      siteCredentials.update({"site":site, "plan":plan},
+                       {"$set": updatedAuthData});
+
+    return jsonify(message="Added Site Credentials", success=True)
 
 
 @app.route('/scanschedule', methods=["POST"])
