@@ -13,7 +13,7 @@ import os
 import socket
 import smtplib
 import urlparse
-import netaddr
+from netaddr import IPNetwork, IPAddress
 from email.mime.text import MIMEText
 
 DEFAULT_WHITELIST = []
@@ -84,8 +84,7 @@ def scannable(target, whitelist=[], blacklist=[]):
 
     def match(address, networks):
         for network in networks:
-            network = ipaddress.IPv4Network(unicode(network))
-            if ipaddress.IPv4Address(unicode(address)) in network:
+            if IPAddress(address) in IPNetwork(network):
                 return True
 
     #
@@ -96,7 +95,7 @@ def scannable(target, whitelist=[], blacklist=[]):
     #
 
     try:
-        cidr = netaddr.IPNetwork(target)
+        cidr = IPNetwork(target)
 
         for address in list(cidr):
             if match(str(address), whitelist):
@@ -115,16 +114,16 @@ def scannable(target, whitelist=[], blacklist=[]):
     url = urlparse.urlparse(target)
 
     #
-    # Resolve the url's hostname to a list of IPv4 addresses. The getaddrinfo()
+    # Resolve the url's hostname to a list of IPv4 and IPV6 addresses. The getaddrinfo()
     # call is not ideal and should be replaced with a real dns module.
     #
 
     addresses = []
 
-    infos = socket.getaddrinfo(url.hostname, None, socket.AF_INET, socket.SOCK_STREAM,
+    infos = socket.getaddrinfo(url.hostname, None, 0, socket.SOCK_STREAM,
                                socket.IPPROTO_IP, socket.AI_CANONNAME)
     for info in infos:
-        if info[0] == socket.AF_INET:
+        if info[0] == socket.AF_INET or info[0] == socket.AF_INET6:
             addresses.append(info[4][0])
 
     #
