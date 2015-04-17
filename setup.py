@@ -7,7 +7,7 @@ from setuptools import setup
 install_requires = [
     'celery==3.0.19',
     'flask==0.9',
-    'pymongo==2.5.1',
+    'pymongo==2.8',
     'requests==1.2.2',
     'twisted==13.0.0',
     'pycurl==7.19.0',
