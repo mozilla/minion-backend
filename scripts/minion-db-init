@@ -34,9 +34,9 @@ if __name__ == "__main__":
         answer = sys.argv[3]
 
     # Create administrator
-    cmd2 = "minion-create-user {email} '{name}' administrator".format(email=email, name=name)
-    p = Popen(shlex.split(cmd2), stdout=PIPE, stderr=PIPE)
-    p.communicate()
+    p = Popen(['minion-create-user', email, name, 'administrator'], stdout=PIPE, stderr=PIPE)
+    result = p.communicate()
+    print result[0].strip()
 
     # Create groups
     groups = {
