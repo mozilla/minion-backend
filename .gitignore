@@ -1,10 +1,12 @@
 .coverage
 .coveragerc
+.vagrant
 celerybeat-schedule
 pip-log.txt
-*.swp
 *.elc
+*.pid
 *.pyc
+*.swp
 *~
 build/*
 dist/*
