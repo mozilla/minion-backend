@@ -20,3 +20,7 @@ if __name__ == "__main__":
     j = r.json()
     if not j.get('success'):
         print "failure: " + j.get("reason", "unknown")
+        sys.exit(1)
+    else:
+        print "success: added {email} ({name}) as {role}".format(email=user['email'], name=user['name'], role=user['role'])
+        sys.exit(0)

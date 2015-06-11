@@ -1,0 +1,21 @@
+#!/usr/bin/env python
+
+import json
+import sys
+import requests
+
+if __name__ == "__main__":
+
+    if len(sys.argv) > 1:
+        print "usage: minion-get-users"
+        sys.exit(1)
+
+    r = requests.get("http://127.0.0.1:8383/users",
+                      headers={'Content-Type': 'application/json'})
+    r.raise_for_status()
+
+    j = r.json()
+    if not j.get('success'):
+        print "failure: " + j.get("reason", "unknown")
+    else:
+        print json.dumps(j[u'users'], sort_keys=True, indent=2)

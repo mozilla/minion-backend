@@ -1,0 +1,23 @@
+#!/usr/bin/env python
+
+import json
+import sys
+import requests
+
+if __name__ == "__main__":
+
+    if len(sys.argv) != 2:
+        print "usage: minion-delete-user <email>"
+        sys.exit(1)
+    else:
+        email = sys.argv[1]
+
+    r = requests.delete("http://127.0.0.1:8383/users/{email}".format(email=email),
+                      headers={'Content-Type': 'application/json'})
+    r.raise_for_status()
+
+    j = r.json()
+    if not j.get('success'):
+        print "failure: " + j.get("reason", "unknown")
+    else:
+        print "success: successfully deleted {email}".format(email=email)

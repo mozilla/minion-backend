@@ -23,12 +23,20 @@ if __name__ == "__main__":
             data=json.dumps(plan_json),
         )
 
-    # Create an admin
-    email = raw_input("Enter the administrator's Persona email: ")
-    name = raw_input("Enter the administrator's name: ")
-    cmd2 = "minion-create-user {email} '{name}' administrator".format(email=email, name=name)
-    p = Popen(shlex.split(cmd2), stdout=PIPE, stderr=PIPE)
-    p.communicate()
+    # Collect answers about administrator and initial site setup
+    if len(sys.argv) < 4:
+        email = raw_input("Enter the administrator's Persona email: ")
+        name = raw_input("Enter the administrator's name: ")
+        answer = raw_input("Do you want to import some test sites into minion? [y/n]")
+    else:
+        email = sys.argv[1]
+        name = sys.argv[2]
+        answer = sys.argv[3]
+
+    # Create administrator
+    p = Popen(['minion-create-user', email, name, 'administrator'], stdout=PIPE, stderr=PIPE)
+    result = p.communicate()
+    print result[0].strip()
 
     # Create groups
     groups = {
@@ -45,7 +53,6 @@ if __name__ == "__main__":
         }
     }
 
-    answer = raw_input("Do you want to import some test sites into minion? [y/n]")
 
     if answer in ('y', 'Y'):
         for group, detail in groups.iteritems():
