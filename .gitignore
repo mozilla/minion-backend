@@ -8,6 +8,7 @@ pip-log.txt
 *.pyc
 *.swp
 *~
+.DS*
 build/*
 dist/*
 sdist/*
