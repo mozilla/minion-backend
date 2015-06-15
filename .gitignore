@@ -1,5 +1,6 @@
 .coverage
 .coveragerc
+.idea
 .vagrant
 celerybeat-schedule
 pip-log.txt
