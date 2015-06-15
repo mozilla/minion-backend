@@ -5,25 +5,26 @@
 from setuptools import setup
 
 install_requires = [
-    'celery==3.0.19',
-    'flask==0.9',
-    'pymongo==2.8',
-    'requests==1.2.2',
-    'twisted==13.0.0',
-    'pycurl==7.19.0',
-    'gunicorn==0.17.4',
-    'ipaddress==1.0.4',
-    'celerybeat-mongo==0.0.5'
+    'celery>=3.0.19',
+    'flask>=0.9',
+    'pymongo==2.8.1', # bug in 3.0 causes false ConnectionError; fixed in trunk, TODO update once fixed
+    'requests>=1.2.2',
+    'twisted>=13.0.0',
+    'pycurl>=7.19.0',
+    'gunicorn>=0.17.4',
+    'ipaddress>=1.0.4',
+    'netaddr>=0.7.11',
+    'celerybeat-mongo>=0.0.5'
 ]
 
 plugins_requires = [
-    'robots_scanner==0.1.2',
+    'robots_scanner>=0.1.2',
 ]
 
 tests_requires = [
     'nose',
     'mock',
-    'pyopenssl==0.13.1',
+    'pyopenssl>=0.13.1',
 ]
 
 setup(name="minion-backend",

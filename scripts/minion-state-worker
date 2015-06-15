@@ -1,4 +1,8 @@
 #!/bin/sh
 
-exec celery -A minion.backend.tasks worker --loglevel=INFO --concurrency 1 -Q state -n state -B
-
+exec celery -A minion.backend.tasks worker \
+  --concurrency 1 \
+  --config=minion.backend.celeryconfig \
+  --loglevel=INFO \
+  -Q state -n state -B \
+  --schedule=/var/lib/minion/celerybeat-schedule

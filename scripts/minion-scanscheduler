@@ -1,4 +1,6 @@
 #!/bin/bash
 
-exec celery beat -S celerybeatmongo.schedulers.MongoScheduler --config=minion.backend.celeryconfig \
-  --loglevel=debug --pidfile=/var/run/celerybeat.pid
+exec celery beat -S celerybeatmongo.schedulers.MongoScheduler \
+  --config=minion.backend.celeryconfig \
+  --loglevel=debug \
+  --pidfile=/run/minion/celerybeat.pid \

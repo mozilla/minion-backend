@@ -1,3 +1,6 @@
 #!/bin/bash
 
-exec celery -A minion.backend.tasks worker --loglevel=INFO -Q scanschedule
+exec celery -A minion.backend.tasks worker \
+  --config=minion.backend.celeryconfig \
+  --loglevel=INFO \
+  -Q scanschedule
