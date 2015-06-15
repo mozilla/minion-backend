@@ -19,6 +19,12 @@ First install the essentials:
 sudo apt-get install build-essential curl git libcurl4-openssl-dev libffi-dev mongodb-server postfix python python-dev python-setuptools rabbitmq-server stunnel
 ```
 
+And the non-essentials, for various plugins:
+
+```
+sudo apt-get install nmap
+```
+
 Setup your system with the following directories and user accounts:
 
 ```
