@@ -16,8 +16,25 @@ This assumes a recent version of Ubuntu. We have only tested with Ubuntu 12.04.2
 First install the essentials:
 
 ```
-sudo apt-get install git build-essential python-virtualenv python-dev mongodb-server rabbitmq-server curl libcurl4-openssl-dev postfix
+sudo apt-get install build-essential curl git libcurl4-openssl-dev libffi-dev mongodb-server postfix python python-dev python-setuptools rabbitmq-server stunnel
 ```
+
+And the non-essentials, for various plugins:
+
+```
+sudo apt-get install nmap
+```
+
+Setup your system with the following directories and user accounts:
+
+```
+install -m 700 -o mongodb -g mongodb -d /data/db
+
+useradd -m minion
+install -m 700 -o minion -g minion -d /run/minion -d /var/lib/minion -d /var/log/minion
+```
+
+Note that /run/minion must be created before starting up minion; this should be part of your init scripts.
 
 Then checkout the project and set it up:
 
@@ -29,9 +46,9 @@ source env/bin/activate
 python setup.py develop
 ```
 
-If the `setup.py` script executed without any errors then you can now run the following commands in 4 separate terminal windows.
-
 Make sure that both mongodb and rabbitmq are running. No configuration changes should be needed when running in the default install mode.
+
+If the `setup.py` script executed without any errors then you can now run the following commands as user "minion" in 6 separate terminal windows.
 
 ```
 scripts/minion-backend-api runserver

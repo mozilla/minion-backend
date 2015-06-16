@@ -18,8 +18,10 @@ case $1 in
 esac
 
 exec celery worker -A minion.backend.tasks \
-  --loglevel=INFO \
   --concurrency="${CONCURRENCY}" \
+  --config=minion.backend.celeryconfig \
+  --logfile=/var/log/minion/plugin-worker.log \
+  --loglevel=INFO \
   --maxtasksperchild=1 \
   -Q "${QUEUE}" \
   -n "$NODENAME"
