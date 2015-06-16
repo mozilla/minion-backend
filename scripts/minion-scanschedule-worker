@@ -2,5 +2,6 @@
 
 exec celery -A minion.backend.tasks worker \
   --config=minion.backend.celeryconfig \
+  --logfile=/var/log/minion/scanschedule-worker.log \
   --loglevel=INFO \
   -Q scanschedule

@@ -3,6 +3,7 @@
 exec celery -A minion.backend.tasks worker \
   --config=minion.backend.celeryconfig \
   --concurrency 16 \
+  --logfile=/var/log/minion/scan-worker.log \
   --loglevel=INFO \
   -Q scan -n scan
 
