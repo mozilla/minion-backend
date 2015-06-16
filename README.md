@@ -28,13 +28,13 @@ sudo apt-get install nmap
 Setup your system with the following directories and user accounts:
 
 ```
-mkdir -m 700 -p /data/db
-chown mongodb:mongodb /data/db
+install -m 700 -o mongodb -g mongodb -d /data/db
 
 useradd -m minion
-mkdir -m 700 /run/minion /var/lib/minion
-chown minion:minion /run/minion /var/lib/minion
+install -m 700 -o minion -g minion -d /run/minion -d /var/lib/minion -d /var/log/minion
 ```
+
+Note that /run/minion must be created before starting up minion; this should be part of your init scripts.
 
 Then checkout the project and set it up:
 
