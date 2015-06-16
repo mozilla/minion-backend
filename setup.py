@@ -13,7 +13,7 @@ install_requires = [
     'pycurl==7.19.0',
     'gunicorn==0.17.4',
     'ipaddress==1.0.4',
-    'netaddr==0.7.11',
+    'netaddr>=0.7.11',
 ]
 
 plugins_requires = [
