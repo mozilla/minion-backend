@@ -3,5 +3,5 @@
 exec celery beat -S celerybeatmongo.schedulers.MongoScheduler \
   --config=minion.backend.celeryconfig \
   --logfile=/var/log/minion/scanscheduler.log \
-  --loglevel=debug \
+  --loglevel=INFO \
   --pidfile=/run/minion/celerybeat.pid \
