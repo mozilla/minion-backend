@@ -32,31 +32,37 @@ DEFAULT_SCAN_CONFIG = {
     'blacklist': DEFAULT_BLACKLIST,
 }
 
-DEFAULT_BACKEND_CONFIG = {
-    'api': {
-        'url': 'http://127.0.0.1:8383',
+# standard JSON, for easy of copying to /etc/minion/backend.json
+# max_time_allowed -> 604800 == seconds in seven days
+DEFAULT_BACKEND_CONFIG = """
+{
+    "api": {
+        "url": "http://127.0.0.1:8383",
     },
-    'celery': {
-        'broker': 'amqp://guest@127.0.0.1:5672//',
-        'backend': 'amqp'
+    "celery": {
+        "broker": "amqp://guest@127.0.0.1:5672//",
+        "backend": "amqp"
     },
-    'mongodb': {
-        'host': '127.0.0.1',
-        'port': 27017
+    "mongodb": {
+        "host": "127.0.0.1",
+        "port": 27017
     },
-    'email': {
-        'host': '127.0.0.1',
-        'port': 25,
-        'max_time_allowed': 3600 * 24 * 7 # seconds in 7 days
+    "email": {
+        "host": "127.0.0.1",
+        "port": 25,
+        "max_time_allowed": 604800
     }
 }
+"""
 
-DEFAULT_FRONTEND_CONFIG = {
-    'mongodb': {
-        'host': '127.0.0.1',
-        'port': 27017
+DEFAULT_FRONTEND_CONFIG = """
+{
+    "mongodb": {
+        "host": "127.0.0.1",
+        "port": 27017
     }
 }
+"""
 
 def _load_config(name):
     if os.path.exists("/etc/minion/%s" % name):
@@ -67,10 +73,10 @@ def _load_config(name):
             return json.load(fp)
 
 def backend_config():
-    return _load_config("backend.json") or copy.deepcopy(DEFAULT_BACKEND_CONFIG)
+    return _load_config("backend.json") or json.loads(DEFAULT_BACKEND_CONFIG)
 
 def frontend_config():
-    return _load_config("frontend.json") or copy.deepcopy(DEFAULT_FRONTEND_CONFIG)
+    return _load_config("frontend.json") or json.loads(DEFAULT_FRONTEND_CONFIG)
 
 def scan_config():
     return _load_config("scan.json") or copy.deepcopy(DEFAULT_SCAN_CONFIG)
