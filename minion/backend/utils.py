@@ -5,7 +5,7 @@
 
 import copy
 import email as pyemail
-import ipaddress
+import fnmatch
 import re
 import json
 import jinja2
@@ -14,6 +14,8 @@ import socket
 import smtplib
 import urlparse
 from email.mime.text import MIMEText
+from netaddr import IPNetwork, AddrFormatError
+from types import StringType
 
 DEFAULT_WHITELIST = []
 
@@ -37,7 +39,7 @@ DEFAULT_SCAN_CONFIG = {
 DEFAULT_BACKEND_CONFIG = """
 {
     "api": {
-        "url": "http://127.0.0.1:8383",
+        "url": "http://127.0.0.1:8383"
     },
     "celery": {
         "broker": "amqp://guest@127.0.0.1:5672//",
@@ -84,31 +86,82 @@ def scan_config():
 def scannable(target, whitelist=[], blacklist=[]):
 
     """
-    Check the target url against a whitelist and blacklist. Returns
-    whether the target is allowed to be scanned. Can throw exceptions
-    if the hostname lookup fails.
+    Check the target url or CIDR network against a whitelist and blacklist.
+    Returns whether the target is allowed to be scanned. Can throw exceptions
+    if the hostname lookup fails.  Supports the use of 
     """
 
-    def match(address, networks):
+    def contains(target, networks):
         for network in networks:
-            network = ipaddress.IPv4Network(unicode(network))
-            if ipaddress.IPv4Address(unicode(address)) in network:
+            try:
+                network = IPNetwork(network)
+            except AddrFormatError:
+                pass
+
+            if (type(target), type(network)) == (IPNetwork, IPNetwork):     # both hostnames
+                if target in network:
+                    return True
+            elif (type(target), type(network)) == (StringType, StringType): # both hostnames
+                if fnmatch.fnmatch(target, network):
+                    return True
+
+        return False
+
+    # Used to see if two IPNetworks overlap
+    def overlaps(target, networks):
+        for network in networks:
+            try:
+                network = IPNetwork(network)
+            except AddrFormatError:
+                continue
+
+            if target.first <= network.last and network.first <= target.last:
                 return True
 
-    url = urlparse.urlparse(target)
 
-    #
-    # Resolve the url's hostname to a list of IPv4 addresses. The getaddrinfo()
-    # call is not ideal and should be replaced with a real dns module.
-    #
+        return False
 
+    # For easy of looping, we'll make an array of addresses, even if the target is an IP/CIDR and contains
+    # just one address
     addresses = []
 
-    infos = socket.getaddrinfo(url.hostname, None, socket.AF_INET, socket.SOCK_STREAM,
-                               socket.IPPROTO_IP, socket.AI_CANONNAME)
-    for info in infos:
-        if info[0] == socket.AF_INET:
-            addresses.append(info[4][0])
+    # Life is easy, if it's an IP
+    try:
+        addresses.append(IPNetwork(target))
+    except:
+        url = urlparse.urlparse(target)  # Harder if it's an URL
+        print url.hostname
+
+        # urlparse doesn't produce the most useable netloc [such as db08:0001::] for IPv6
+        # if url.netloc.startswith('[') and url.netloc.endswith(']'):
+        #     hostname = url.netloc[1:-1]
+        # else:
+        #     hostname = url.netloc
+
+        # Attempt to see if the URL contains an IP (http://192.168.1.1); convert to IPNetwork if so
+        try:
+            hostname = IPNetwork(url.hostname)
+        except AddrFormatError:
+            hostname = url.hostname
+
+            #
+            # Resolve the url's hostname to a list of IPv4 and IPV6 addresses. The getaddrinfo()
+            # call is not ideal and should be replaced with a real dns module.
+            #
+
+            infos = socket.getaddrinfo(hostname, None, 0, socket.SOCK_STREAM,
+                                       socket.IPPROTO_IP, socket.AI_CANONNAME)
+
+            for info in infos:
+                if info[0] == socket.AF_INET or info[0] == socket.AF_INET6:
+                    addresses.append(IPNetwork(info[4][0]))
+
+        # First, let's check to see if the hostname/IP is explicitly allowed in the whitelist or blacklist
+        if contains(hostname, whitelist):
+            return True
+
+        if contains(hostname, blacklist):
+            return False
 
     #
     # For each IP address, see if it matches the whitelist and blacklist. if it
@@ -117,9 +170,10 @@ def scannable(target, whitelist=[], blacklist=[]):
     #
 
     for address in addresses:
-        if match(address, whitelist):
+        if contains(address, whitelist):
             continue
-        if match(address, blacklist):
+
+        if overlaps(address, blacklist):
             return False
 
     return True
