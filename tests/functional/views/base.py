@@ -363,6 +363,9 @@ class TestAPIBaseClass(unittest.TestCase):
         self.group_name = "minion-test-group"
         self.group_description = "minion test group is awesome."
         self.target_url = 'http://localhost:1234'
+        self.target_badurl = 'http://badsite'
+        self.target_ip = '127.0.0.1'
+        self.target_cidr = '127.0.0.1/24'
 
     def tearDown(self):
         self.mongodb.drop_database("minion")

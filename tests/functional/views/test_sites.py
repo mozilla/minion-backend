@@ -57,6 +57,37 @@ class TestSitesAPIs(TestAPIBaseClass):
         self.assertEqual(res2.json()['success'], False)
         self.assertEqual(res2.json()['reason'], 'site-already-exists')
 
+    def test_create_site_with_ip(self):
+        group = Group(self.group_name)
+        group.create()
+
+        site = Site(self.target_ip, groups=[group.group_name])
+        res = site.create()
+        self.assertEqual(set(res.json()['site'].keys()),
+            set(self.expected_inner_keys))
+        self.assertEqual(res.json()['site']['url'], site.url)
+        self.assertEqual(res.json()['site']['plans'], [])
+
+    def test_create_site_with_cidr_network(self):
+        group = Group(self.group_name)
+        group.create()
+
+        site = Site(self.target_cidr, groups=[group.group_name])
+        res = site.create()
+        self.assertEqual(set(res.json()['site'].keys()),
+            set(self.expected_inner_keys))
+        self.assertEqual(res.json()['site']['url'], site.url)
+        self.assertEqual(res.json()['site']['plans'], [])
+
+    def test_create_site_with_bad_format(self):
+        group = Group(self.group_name)
+        group.create()
+
+        site = Site(self.target_badurl, groups=[group.group_name])
+        res = site.create()
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()['reason'], 'invalid-url')
+
     def test_get_all_sites(self):
         group = Group(self.group_name)
         group.create()
