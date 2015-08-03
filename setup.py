@@ -5,6 +5,8 @@
 from setuptools import setup
 
 install_requires = [
+    'setuptools>=17.1',
+    'six>=1.7',
     'celery>=3.0.19',
     'flask>=0.9',
     'pymongo==2.8.1', # bug in 3.0 causes false ConnectionError; fixed in trunk, TODO update once fixed
