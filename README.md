@@ -11,12 +11,13 @@ The Minion Backend consists of three parts:
 Setting up a Development Environment
 ------------------------------------
 
-This assumes a recent version of Ubuntu. We have only tested with Ubuntu 12.04.2 and 13.04.
+This assumes a recent version of Ubuntu. We currently test with Ubuntu 14.04 LTS (Trusty Tahr).
 
 First install the essentials:
 
 ```
-sudo apt-get install build-essential curl git libcurl4-openssl-dev libffi-dev mongodb-server postfix python python-dev python-setuptools rabbitmq-server stunnel
+sudo apt-get install build-essential curl git libcurl4-openssl-dev libffi-dev mongodb-server postfix python python-dev rabbitmq-server stunnel
+sudo pip install --upgrade setuptools
 ```
 
 And the non-essentials, for various plugins:
@@ -98,7 +99,7 @@ scripts/minion-db-init
 After this, visit ``http://localhost:8080`` using a browser and login with the user email you have just provided.
 
 
-#### Method 2: run individal scripts
+#### Method 2: run individual scripts
 
 First we need to create a user account by providing a Personal email address, the name of the user and the role of the user, respectively.
 
