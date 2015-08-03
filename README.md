@@ -16,8 +16,7 @@ This assumes a recent version of Ubuntu. We currently test with Ubuntu 14.04 LTS
 First install the essentials:
 
 ```
-sudo apt-get install build-essential curl git libcurl4-openssl-dev libffi-dev mongodb-server postfix python python-dev rabbitmq-server stunnel
-sudo pip install --upgrade setuptools
+sudo apt-get install build-essential curl git libcurl4-openssl-dev libffi-dev mongodb-server postfix python python-dev python-setuptools rabbitmq-server stunnel
 ```
 
 And the non-essentials, for various plugins:
