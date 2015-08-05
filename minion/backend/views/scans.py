@@ -65,9 +65,10 @@ def summarize_scan(scan):
                 'created': scan.get('created'),
                 'queued': scan.get('queued'),
                 'finished': scan.get('finished'),
-                'issues': { 'high': _count_issues(scan, 'High'),
-                            'low': _count_issues(scan, 'Low'),
+                'issues': { 'critical': _count_issues(scan, 'Critical'),
+                            'high': _count_issues(scan, 'High'),
                             'medium': _count_issues(scan, 'Medium'),
+                            'low': _count_issues(scan, 'Low'),
                             'info': _count_issues(scan, 'Info') } }
     for session in scan['sessions']:
         summary['sessions'].append({ 'plugin': session['plugin'],
