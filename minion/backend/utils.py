@@ -3,7 +3,6 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 
-import copy
 import email as pyemail
 import fnmatch
 import re
@@ -17,71 +16,33 @@ from email.mime.text import MIMEText
 from netaddr import IPNetwork, AddrFormatError
 from types import StringType
 
-DEFAULT_WHITELIST = []
+DEFAULT_CONFIG_PATH = "/etc/minion"
 
-DEFAULT_BLACKLIST = [
-    '10.0.0.0/8',
-    '127.0.0.0/8',
-    '172.16.0.0/12',
-    '192.168.0.0/16',
-    '169.254.0.0/16'
-]
-
-DEFAULT_CRON_USER = 'cron'
-
-DEFAULT_SCAN_CONFIG = {
-    'whitelist': DEFAULT_WHITELIST,
-    'blacklist': DEFAULT_BLACKLIST,
-}
-
-# standard JSON, for easy of copying to /etc/minion/backend.json
-# max_time_allowed -> 604800 == seconds in seven days
-DEFAULT_BACKEND_CONFIG = """
-{
-    "api": {
-        "url": "http://127.0.0.1:8383"
-    },
-    "celery": {
-        "broker": "amqp://guest@127.0.0.1:5672//",
-        "backend": "amqp"
-    },
-    "mongodb": {
-        "host": "127.0.0.1",
-        "port": 27017
-    },
-    "email": {
-        "host": "127.0.0.1",
-        "port": 25,
-        "max_time_allowed": 604800
-    }
-}
-"""
-
-DEFAULT_FRONTEND_CONFIG = """
-{
-    "mongodb": {
-        "host": "127.0.0.1",
-        "port": 27017
-    }
-}
-"""
-
-def _load_config(name):
-    if os.path.exists("/etc/minion/%s" % name):
-        with open("/etc/minion/%s" % name) as fp:
+def _load_config(name, default_path=DEFAULT_CONFIG_PATH):
+    if os.path.exists(os.path.join(default_path, name)):
+        with open(os.path.join(default_path, name)) as fp:
             return json.load(fp)
     if os.path.exists(os.path.expanduser("~/.minion/%s" % name)):
         with open(os.path.expanduser("~/.minion/%s" % name)) as fp:
             return json.load(fp)
 
+    # Fallback to using the Minion defaults
+    cwfd = os.path.dirname(os.path.realpath(__file__))  # the directory of utils.py
+    jsonf = os.path.realpath(os.path.join(cwfd, '..', '..', 'etc', name))
+    with open(jsonf) as fp:
+        return json.load(fp)
+
 def backend_config():
-    return _load_config("backend.json") or json.loads(DEFAULT_BACKEND_CONFIG)
+    return _load_config("backend.json")
+
 
 def frontend_config():
-    return _load_config("frontend.json") or json.loads(DEFAULT_FRONTEND_CONFIG)
+    return _load_config("frontend.json")
+
 
 def scan_config():
-    return _load_config("scan.json") or copy.deepcopy(DEFAULT_SCAN_CONFIG)
+    return _load_config("scan.json")
+
 
 def scannable(target, whitelist=[], blacklist=[]):
 
@@ -178,6 +139,7 @@ def scannable(target, whitelist=[], blacklist=[]):
 
     return True
 
+
 def get_template(template_file):
     template_dir = os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
@@ -185,6 +147,7 @@ def get_template(template_file):
     env = jinja2.Environment(loader=jinja2.FileSystemLoader(template_dir))
     template = env.get_template(template_file)
     return template
+
 
 def email(name, data):
     """ Send an email using a specific template. This uses
