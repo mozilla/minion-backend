@@ -6,7 +6,7 @@ The Minion Backend consists of three parts:
 
 * A lightweight REST API that is powered by Flask
 * A MongoDB database where scans and plans (workflows) are stored
-* Three 'workers' that execute the workflow
+* Six 'workers' that execute the workflow
 
 Setting up a Development Environment
 ------------------------------------
@@ -93,7 +93,7 @@ This script will load fixtures into the database in addition to prompting for us
 for you to choose which set of sites to import into the database.
 
 ```
-scripts/minion-db-init
+scripts/minion-db-init <your-persona-email-address> '<admin-name>' y
 ```
 
 After this, visit ``http://localhost:8080`` using a browser and login with the user email you have just provided.
