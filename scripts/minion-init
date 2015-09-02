@@ -1,0 +1,168 @@
+#!/bin/sh
+
+### BEGIN INIT INFO
+# Provides:          minion
+# Required-Start:    $local_fs $remote_fs mongodb rabbitmq-server
+# Required-Stop:
+# X-Start-Before:
+# Default-Start:     2 3 4 5
+# Default-Stop:
+# Short-Description: Runs the Minion security testing framework
+# Description: Runs the Minion security testing framework
+### END INIT INFO
+
+MINION_BASE_DIRECTORY=/opt/minion/minion-backend
+MINION_ENV_DIRECTORY=/opt/minion/minion-env
+
+USER=minion
+GROUP=minion
+
+RUN=/var/run/minion
+PID="${RUN}/supervisord.pid"
+SOCK="${RUN}/supervisor.sock"
+
+# How long to wait for Minion to start/stop before we call it quits
+# WAIT_TIME == called from command line, WAIT_TIME_STARTUP == bootup mount of Minion in Vagrant
+WAIT_TIME=60
+WAIT_TIME_STARTUP=300
+
+# start-stop-daemon usually resides here; minion can be started by either root or minion user
+export PATH=$PATH:/sbin
+
+. /lib/lsb/init-functions
+
+is_minion_running() {
+    if [ -e "${RUN}/supervisor.sock" ]; then
+        num_running_daemons=`supervisorctl -c "${MINION_BASE_DIRECTORY}/etc/supervisord.conf" status | wc -l`
+        num_minion_daemons=`ls -1 ${MINION_BASE_DIRECTORY}/etc/minion*.supervisor.conf | wc -l`
+
+        if [ $num_running_daemons = $num_minion_daemons ]; then
+            return $num_running_daemons
+        else:
+            return 0
+        fi
+    else
+        return 0
+    fi
+}
+
+case "$1" in
+  start)
+    echo -n "Starting Minion: "
+
+    # When running under Vagrant, the synced folders are mounted post-boot, so we need to wait until they are
+    # there
+    if [ ! "$(ls -A ${MINION_BASE_DIRECTORY} 2>/dev/null)" ]; then
+      echo "\033[0;33mWAITING \033[0m"
+
+      COUNTER=0
+      until [ $COUNTER -eq $WAIT_TIME_STARTUP ]; do
+        # Exit the loop if the minion directory becomes mounted
+        if [ "$(ls -A ${MINION_BASE_DIRECTORY} 2>/dev/null)" ]; then
+            break
+        fi
+
+        COUNTER=$((COUNTER + 1))
+        sleep 1
+      done
+
+      # If it couldn't start after $WAIT_TIME_STARTUP seconds, let's just die
+      if [ ! "$(ls -A ${MINION_BASE_DIRECTORY} 2>/dev/null)" ]; then
+        echo "\033[0;31mFAIL\033[0m"
+        exit 1
+      fi
+    fi
+
+    if [ -d "${MINION_BASE_DIRECTORY}" ] && [ -d "${MINION_ENV_DIRECTORY}" ]; then
+        if [ ! -d $RUN ]; then
+            # Create the minion run directory
+            install -m 700 -o minion -g minion -d $RUN 2>/dev/null
+
+            # If we can't create that directory, exit immediately
+            if [ $? -ne 0 ]; then
+                echo "\033[0;31mFAIL\033[0m (can't create run directory)"
+                exit 1
+            fi
+        fi
+
+        # Exit, if Minion is already running
+        is_minion_running
+        if [ $? -gt 1 ]; then
+          echo "\033[0;31mFAIL\033[0m (already running)"
+            exit 1
+        fi
+
+        # Activate Minion environment
+        . ${MINION_ENV_DIRECTORY}/bin/activate
+
+        # Start Minion
+        start-stop-daemon --start --chuid $USER --group $GROUP --pidfile $PID --exec \
+            `which supervisord` -- -c "${MINION_BASE_DIRECTORY}/etc/supervisord.conf"
+
+        # Wait until Minion starts; exit after 60 seconds if it fails
+        num_minion_daemons=`ls -1 ${MINION_BASE_DIRECTORY}/etc/minion*.supervisor.conf | wc -l`
+        COUNTER=0
+        until [ $COUNTER -eq $WAIT_TIME ]; do
+            is_minion_running
+            if [ $? -eq $num_minion_daemons ]; then
+                echo "\033[0;32mSUCCESS\033[0m"
+                exit 0
+            else
+                COUNTER=$((COUNTER + 1))   # can't use 'let' in sh
+                sleep 1
+            fi
+        done
+
+        # If it couldn't start after 60 seconds
+        echo "\033[0;31mFAIL\033[0m"
+        exit 1
+    else
+        echo "\033[0;31mFAIL\033[0m (couldn't find Minion installation)"
+        exit 1
+    fi
+    ;;
+  stop)
+    echo -n "Stopping Minion: "
+    if [ ! -e "${PID}" ]; then
+        echo "\033[0;31mFAIL\033[0m (already shutdown or permission denied)"
+        exit 1
+    fi
+
+    # Kill supervisord
+    kill -TERM `cat "${PID}"`
+
+    # Wait until Minion has stopped
+    COUNTER=0
+    until [ $COUNTER -eq $WAIT_TIME ]; do
+        if [ ! -e "${PID}" ]; then
+            echo "\033[0;32mSUCCESS\033[0m"
+            exit 0
+        else
+            COUNTER=$((COUNTER + 1))   # can't use 'let' in sh
+            sleep 1
+        fi
+    done
+
+    # If it hasn't stopped in 60 seconds, exit
+    echo "\033[0;31mFAIL\033[0m"
+    exit 1
+
+    ;;
+  status)
+    is_minion_running
+    if [ $? = 0 ]; then
+        echo "Checking Minion status: \033[0;31mFAIL\033[0m (not running)"
+        exit 1
+    fi
+
+    supervisorctl -c "${MINION_BASE_DIRECTORY}/etc/supervisord.conf" status
+    ;;
+  reload|restart|force-reload)
+    ;;
+  *)
+    echo "Usage: $0 {start|stop|status}" >&2
+    exit 1
+    ;;
+esac
+
+exit 0
