@@ -11,117 +11,130 @@ The Minion Backend consists of three parts:
 Setting up a Development Environment
 ------------------------------------
 
-This assumes a recent version of Ubuntu. We currently test with Ubuntu 14.04 LTS (Trusty Tahr).
+This assumes a recent version of Ubuntu; we currently test with Ubuntu 14.04 LTS (Trusty Tahr). Although Minion can be
+installed anywhere on your system, we recommend `/opt/minion/minion-backend` for the backend, and `/opt/minion/minion-env`
+for your virtualenv.
 
 First install the essentials:
 
 ```
-sudo apt-get install build-essential curl git libcurl4-openssl-dev libffi-dev mongodb-server postfix python python-dev rabbitmq-server stunnel
-easy_install --upgrade setuptools
+# apt-get update
+# apt-get install -y build-essential curl git libcurl4-openssl-dev libffi-dev libssl-dev mongodb-server \
+    postfix python python-dev python-virtualenv rabbitmq-server stunnel supervisor
 ```
 
-And the non-essentials, for various plugins:
+Then, create and source your virtual environment.  This will help keep Minion isolated from the rest of your system. We
+also need to upgrade setuptools from the version included with Ubuntu by default:
 
 ```
-sudo apt-get install nmap
+# mkdir -p /etc/minion /opt/minion
+# cd /opt/minion
+# virtualenv minion-env
+# source minion-env/bin/activate
+
+(minion-env)# easy_install --upgrade setuptools    # required for Mock
 ```
 
-Setup your system with the following directories and user accounts:
+Next, setup your system with the following directories and the `minion` user account. We'll also create some convenience
+shell commands, to make working with Minion easier when running as the `minion` user:
 
 ```
-install -m 700 -o mongodb -g mongodb -d /data/db
+# useradd -m minion
+# install -m 700 -o minion -g minion -d /run/minion -d /var/lib/minion -d /var/log/minion -d ~minion/.python-eggs
 
-useradd -m minion
-install -m 700 -o minion -g minion -d /run/minion -d /var/lib/minion -d /var/log/minion
+# echo -e "\n# Automatically source minion-backend virtualenv" >> ~minion.profile
+# echo -e "source /opt/minion/minion-env/bin/activate" >> ~minion/.profile
+
+# echo -e "\n# Minion convenience commands" >> ~minion/.bashrc
+# echo -e "alias miniond=\"supervisord -c /opt/minion/minion-backend/etc/supervisord.conf\"" >> ~minion/.bashrc
+# echo -e "alias minionctl=\"supervisorctl -c /opt/minion/minion-backend/etc/supervisord.conf\"" >> ~minion/.bashrc
 ```
 
-Note that /run/minion must be created before starting up minion; this should be part of your init scripts.
-
-Then checkout the project and set it up:
+Finally, checkout Minion and install it:
 
 ```
-git clone https://github.com/mozilla/minion-backend.git
-cd minion-backend
-virtualenv --no-site-packages env
-source env/bin/activate
-python setup.py develop
+# cd /opt/minion
+# git clone https://github.com/mozilla/minion-backend.git
+# source minion-env/bin/activate
+(minion-env)# python setup.py develop
 ```
 
-Make sure that both mongodb and rabbitmq are running. No configuration changes should be needed when running in the default install mode.
-
-If the `setup.py` script executed without any errors then you can now run the following commands as user "minion" in 6 separate terminal windows.
-
-```
-scripts/minion-backend-api runserver
-```
+To make sure that Minion starts when the system reboots, we need to install the Minion init script. We can also disable
+the global `supervisord` installed with `apt-get install` above, if it wasn't being used before:
 
 ```
-scripts/minion-state-worker
+# cp /opt/minion/minion-backend/scripts/minion-init /etc/init.d/minion
+# chown root:root /etc/init.d/minion
+# chmod 755 /etc/init.d/minion
+# update-rc.d minion defaults 40
+# update-rc.d -f supervisor remove
 ```
 
-```
-scripts/minion-scan-worker
-```
+And that's it! Provided that everything installed successfully, we can start everything up:
 
 ```
-scripts/minion-plugin-worker
+# service mongodb start
+# service rabbitmq-server start
+# service minion start
 ```
 
-```
-scripts/minion-scanschedule-worker
-```
+From this point on, you should be able to control the Minion processes either as root or as the newly-created minion user.
+Let's `su - minion`, and see if everything is running properly:
 
 ```
-scripts/minion-scanscheduler
+(minion-env)$ service minion status
+minion-backend                   RUNNING    pid 18010, uptime 0:00:04
+minion-plugin-worker             RUNNING    pid 18004, uptime 0:00:04
+minion-scan-worker               RUNNING    pid 18009, uptime 0:00:04
+minion-scanschedule-worker       RUNNING    pid 18008, uptime 0:00:04
+minion-scanscheduler             RUNNING    pid 18007, uptime 0:00:04
+minion-state-worker              RUNNING    pid 18005, uptime 0:00:04
 ```
 
-Testing the development setup
------------------------------
-
-Minion comes with some basic plugins that are all executed from the `basic` plan. To get started with Minion, there are two methods to test development.
-
-If you want to run all the test or running ``functional/views/test_scan.py``, you must whitelist ``127.0.0.1``:
+Success! You can also use `minionctl` (an alias to `supervisorctl`, using the Minion `supervisord.conf` configuration)
+to stop and start individual services, or check on status:
 
 ```
-mkdir /home/<minion-user>/.minion
-echo '{"whitelist":["127.0.0.1"]}' > /home/<minion-user>/.minion/scan.json
+(minion-env)$ minionctl stop minion-backend
+minion-backend: stopped
+
+(minion-env)$ minionctl status minion-backend
+minion-backend                   STOPPED    Sep 03 09:18 PM
+
+(minion-env)$ minionctl start minion-backend
+minion-backend: started
+
+(minion-env)$ minionctl status minion-backend
+minion-backend                   RUNNING    pid 18795, uptime 0:00:07
 ```
 
-#### Method 1: ``minion-db-init``
-
-This script will load fixtures into the database in addition to prompting for user email address and user's name, and an option
-for you to choose which set of sites to import into the database.
+All that's left to do now is initialize the Minion database and create an administrator:
 
 ```
-scripts/minion-db-init <your-persona-email-address> '<admin-name>' y
+(minion-env)$ minion-db-init 'Your Name' 'youremail@mozilla.com' y
+success: added 'Your Name' (youremail@mozilla.com) as administrator
 ```
 
-After this, visit ``http://localhost:8080`` using a browser and login with the user email you have just provided.
+And we're done! You should now be able to login to [minion-frontend](https://github.com/mozilla/minion-frontend) using the
+newly created administrative account. All logs for Minion, including stdout, stderr, and debug logs, should appear
+in `/var/log/minion`.
 
 
-#### Method 2: run individual scripts
+Securing your Minion environment
+--------------------------------
 
-First we need to create a user account by providing a Personal email address, the name of the user and the role of the user, respectively.
+By default, Minion will use the configuration files `frontend.json`, `backend.json`, and `scan.json` located in
+`/opt/minion/minion-backend/etc` for its configuration.  If you would like to change these files, copy them into
+`/etc/minion` and Minion will use them instead upon restart.
 
-```
-scripts/minion-create-user <your-persona-email-address> '<admin-name>' administrator
-```
+For example, `scan.json` blacklists all local IP address networks (such as 10.0.0.0/8 and 192.168.0.0/16) from being scanned.
+If you would like to be able to scan your local networks, copy `scan.json` to `/etc/minion/scan.json` and either add
+addresses to the whitelist or remove them from the blacklist.
 
-Next, we need to create the plan:
-
-```
-scripts/minion-create-plan plans/basic.plan
-```
-
-The `basic.plan` file simply contains a JSON structure that defines the workflow for the plan.
-
-Now we can start a new scan:
-
-```
-scripts/minion-scan <your-persona-email-address> basic http://testfire.net/
-```
-
-The `minion-scan` script will create a new scan, start it and then monitor it until it finishes.
+Also note that due to the recommended configuration of running [minion-frontend](https://github.com/mozilla/minion-frontend) and
+minion-backend on separate systems, minion-backend listens on *:8383 for API access. It is strongly suggested that you
+restrict access to specific IP addresses running the frontend using firewall rules. Alternatively, you can lock it dow
+ in `backend.json` to `127.0.0.1:8383` if running the frontend and backend on the same system.
 
 
 Running test cases in Minion
@@ -132,11 +145,10 @@ If you plan on running plugin function tests, you need to install ``stunnel``
 since some of the plugins require HTTPS connection. We actually launch a Flask development
 server as we run tests against each built-in plugin.
 
-``stunnel`` should be available to your OS distriubtion. For example, on 
-Ubuntu you can issue:
+``stunnel`` should be available to your OS distribution. For example, on Ubuntu you can issue:
 
 ```
-sudo apt-get install stunnel
+# apt-get install stunnel
 ```
 
 The test folder already contains a stunnel configuration file, a RSA key pair,
@@ -147,10 +159,8 @@ Finally, you can run all the test cases assuming you already have cloned down
 the repository to disk:
 
 ```
-cd minion-backend
-nosetests
+$ cd /opt/minion/minion-backend
+$ nosetests
 ```
 
-``nose`` should be installed if you have run ``python setup.py develop``.
-
-
+`nose` should be installed if you have run `python setup.py develop`.
