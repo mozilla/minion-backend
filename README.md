@@ -18,8 +18,9 @@ First install the essentials:
 
 ```
 # apt-get update
-# apt-get install -y build-essential curl git libcurl4-openssl-dev libffi-dev libssl-dev mongodb-server \
-    postfix python python-dev python-virtualenv rabbitmq-server stunnel supervisor
+# apt-get install -y build-essential curl git libcurl4-openssl-dev libffi-dev \
+    libssl-dev mongodb-server postfix python python-dev python-virtualenv \
+    rabbitmq-server stunnel supervisor
 ```
 
 Then, create and source your virtual environment.  This will help keep Minion isolated from the rest of your system. We
@@ -132,8 +133,8 @@ addresses to the whitelist or remove them from the blacklist.
 
 Also note that due to the recommended configuration of running [minion-frontend](https://github.com/mozilla/minion-frontend) and
 minion-backend on separate systems, minion-backend listens on *:8383 for API access. It is strongly suggested that you
-restrict access to specific IP addresses running the frontend using firewall rules. Alternatively, you can lock it dow
- in `backend.json` to `127.0.0.1:8383` if running the frontend and backend on the same system.
+restrict access to specific IP addresses running the frontend using firewall rules. Alternatively, you can lock it down 
+in `backend.json` to `127.0.0.1:8383` if running the frontend and backend on the same system.
 
 
 Running test cases in Minion
