@@ -5,7 +5,8 @@ The Minion Backend consists of three parts:
 
 * A lightweight REST API that is powered by Flask
 * A MongoDB database where scans and plans (workflows) are stored
-* Six 'workers' that execute the workflow
+* A scan scheduler daemon
+* Four 'workers' that execute the workflow
 
 Setting up a Development Environment
 ------------------------------------
