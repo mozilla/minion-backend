@@ -11,9 +11,12 @@ The Minion Backend consists of three parts:
 Setting up a Development Environment
 ------------------------------------
 
-This assumes a recent version of Ubuntu; we currently test with Ubuntu 14.04 LTS (Trusty Tahr). Although Minion can be
-installed anywhere on your system, we recommend `/opt/minion/minion-backend` for the backend, and `/opt/minion/minion-env`
-for your virtualenv.
+Note that Mozilla maintains [Vagrant and Docker configurations](https://github.com/mozilla/minion-vm/) for Minion.
+It's the best and easiest way to get started with development!
+
+The following instructions for manual installation assume a recent version of Ubuntu; we currently test with Ubuntu
+14.04 LTS (Trusty Tahr). Although Minion can be installed anywhere on your system, we recommend 
+`/opt/minion/minion-backend` for the backend, and `/opt/minion/minion-env` for your virtualenv.
 
 First install the essentials:
 
