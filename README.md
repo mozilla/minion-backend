@@ -50,7 +50,7 @@ shell commands, to make working with Minion easier when running as the `minion` 
 # echo -e "alias minionctl=\"supervisorctl -c /opt/minion/minion-backend/etc/supervisord.conf\"" >> ~minion/.bashrc
 ```
 
-Finally, checkout Minion and install it:
+Now we can checkout Minion and install it:
 
 ```
 # cd /opt/minion
@@ -69,6 +69,14 @@ the global `supervisord` installed with `apt-get install` above, if it wasn't be
 # update-rc.d minion defaults 40
 # update-rc.d -f supervisor remove
 ```
+
+Next, we enable debug logging and automatic reloading of Minion or plugins upon code changes:
+
+```
+# vi /opt/minion/minion-backend/etc/minion-backend.supervisor.conf
+```
+
+Add `--debug --reload` before `runserver` in the `command=minion-backend-api -a 0.0.0.0 -p 8383 runserver` line.
 
 And that's it! Provided that everything installed successfully, we can start everything up:
 
@@ -134,7 +142,8 @@ addresses to the whitelist or remove them from the blacklist.
 Also note that due to the recommended configuration of running [minion-frontend](https://github.com/mozilla/minion-frontend) and
 minion-backend on separate systems, minion-backend listens on *:8383 for API access. It is strongly suggested that you
 restrict access to specific IP addresses running the frontend using firewall rules. Alternatively, you can lock it down 
-in `backend.json` to `127.0.0.1:8383` if running the frontend and backend on the same system.
+in `etc/minion-backend.supervisor.conf` to `-a 127.0.0.1` if running the frontend and backend on the same system.
+
 
 
 Running test cases in Minion
