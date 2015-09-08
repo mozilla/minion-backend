@@ -81,8 +81,6 @@ Next, we enable debug logging and automatic reloading of Minion or plugins upon 
 # sed -i 's/runserver/--debug --reload runserver/' /opt/minion/minion-backend/etc/minion-backend.supervisor.conf
 ```
 
-Add `--debug --reload` before `runserver` in the `command=minion-backend-api -a 0.0.0.0 -p 8383 runserver` line.
-
 And that's it! Provided that everything installed successfully, we can start everything up:
 
 ```
