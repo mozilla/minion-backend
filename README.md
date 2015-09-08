@@ -74,10 +74,11 @@ the global `supervisord` installed with `apt-get install` above, if it wasn't be
 # update-rc.d -f supervisor remove
 ```
 
-Next, we enable debug logging and automatic reloading of Minion or plugins upon code changes:
+Next, we enable debug logging and automatic reloading of Minion or plugins upon code changes, by adding the `--debug` and
+`--reload` options:
 
 ```
-# vi /opt/minion/minion-backend/etc/minion-backend.supervisor.conf
+# sed -i 's/runserver/--debug --reload runserver/' /opt/minion/minion-backend/etc/minion-backend.supervisor.conf
 ```
 
 Add `--debug --reload` before `runserver` in the `command=minion-backend-api -a 0.0.0.0 -p 8383 runserver` line.
