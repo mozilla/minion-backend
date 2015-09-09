@@ -46,7 +46,7 @@ shell commands, to make working with Minion easier when running as the `minion` 
 # useradd -m minion
 # install -m 700 -o minion -g minion -d /run/minion -d /var/lib/minion -d /var/log/minion -d ~minion/.python-eggs
 
-# echo -e "\n# Automatically source minion-backend virtualenv" >> ~minion.profile
+# echo -e "\n# Automatically source minion-backend virtualenv" >> ~minion/.profile
 # echo -e "source /opt/minion/minion-env/bin/activate" >> ~minion/.profile
 
 # echo -e "\n# Minion convenience commands" >> ~minion/.bashrc
