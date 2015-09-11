@@ -37,8 +37,10 @@ class TestBlacklist(unittest.TestCase):
         "fd00::/8",             # Private
         "fe80::/10",            # Link-Local (IPv6)
         "ff00::/8",             # Multicast
-        "www.nsa.gov",          # Random hostname without glob
-        "*.gchq.gov.uk"         # Hostname without glob
+        "www.cia.gov",          # Hostname without glob
+        "*.mi5.gov.uk",         # Hostname with glob
+        u"www.nsa.gov",         # Hostname without glob (unicode)
+        u"*.gchq.gov.uk"        # Hostname with glob (unicode)
     ]
 
     whitelist = [
@@ -63,7 +65,9 @@ class TestBlacklist(unittest.TestCase):
         "https://localhost",
         "http://localhost:8080",
         "https://localhost:8443",
-        "https://www.nsa.gov",
+        "https://www.cia.gov",
+        u"https://www.mi5.gov.uk",          # Unicode match against str
+        "https://www.nsa.gov",              # String match against Unicode
         "http://www.gchq.gov.uk",
         "http://www.mozilla.com",           # CNAME to A in MOZNET-1
         "http://bl1.miniontest.arentz.ca",  # A 192.168.0.2
@@ -126,3 +130,5 @@ class TestBlacklist(unittest.TestCase):
             print("Unable to do host lookups, failing blacklist tests")
             assert False
 
+if __name__ == '__main__':
+    unittest.main()
