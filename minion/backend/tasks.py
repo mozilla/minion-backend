@@ -595,7 +595,7 @@ def scan(scan_id):
                          scan_config().get('blacklist', [])):
             failure = {"hostname": socket.gethostname(),
                        "reason": "target-blacklisted",
-                       "message": "The target cannot be scanned by Minion because its (IPv4) address has been blacklisted."}
+                       "message": "The target cannot be scanned by Minion because its IP address or hostname has been blacklisted."}
             return set_finished(scan_id, 'ABORTED', failure=failure)
 
         #

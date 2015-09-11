@@ -14,7 +14,7 @@ import smtplib
 import urlparse
 from email.mime.text import MIMEText
 from netaddr import IPNetwork, AddrFormatError
-from types import StringType
+from types import StringType, UnicodeType
 
 DEFAULT_CONFIG_PATH = "/etc/minion"
 
@@ -49,7 +49,7 @@ def scannable(target, whitelist=[], blacklist=[]):
     """
     Check the target url or CIDR network against a whitelist and blacklist.
     Returns whether the target is allowed to be scanned. Can throw exceptions
-    if the hostname lookup fails.  Supports the use of 
+    if the hostname lookup fails.  Supports the use of wildcards in hostnames.
     """
 
     def contains(target, networks):
@@ -57,9 +57,13 @@ def scannable(target, whitelist=[], blacklist=[]):
             try:
                 network = IPNetwork(network)
             except AddrFormatError:
-                pass
+                network = str(network)                                      # cast uni->str for fnmatch
 
-            if (type(target), type(network)) == (IPNetwork, IPNetwork):     # both hostnames
+            # cast uni->str for fnmatch
+            if type(target) == UnicodeType:
+                target = str(target)
+
+            if (type(target), type(network)) == (IPNetwork, IPNetwork):     # both networks
                 if target in network:
                     return True
             elif (type(target), type(network)) == (StringType, StringType): # both hostnames
@@ -91,7 +95,6 @@ def scannable(target, whitelist=[], blacklist=[]):
         addresses.append(IPNetwork(target))
     except:
         url = urlparse.urlparse(target)  # Harder if it's an URL
-        print url.hostname
 
         # urlparse doesn't produce the most useable netloc [such as db08:0001::] for IPv6
         # if url.netloc.startswith('[') and url.netloc.endswith(']'):
